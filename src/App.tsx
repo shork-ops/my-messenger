@@ -321,14 +321,26 @@ export default function App() {
               {!message.mine && <Avatar color={friends.find((f) => f.name === message.author)?.color ?? "blue"} small>{message.author.slice(0, 1)}</Avatar>}
               <div className="message-content">
                 {!message.mine && <strong className="message-author">{message.author}</strong>}
-                <div className={`bubble ${message.mine ? "mine-bubble" : ""}`}>{message.text}<span className="message-time">{message.edited ? "изменено · " : ""}{message.time}</span></div>
+                <div className={`bubble ${message.mine ? "mine-bubble" : ""}`}>{message.replyTo && <div className="reply-quote"><strong>{message.replyTo.author}</strong><span>{message.replyTo.text}</span></div>}{message.text}<span className="message-time">{message.edited ? "изменено · " : ""}{message.time}</span></div>
+                {message.reactions && message.reactions.length > 0 && <div className="reaction-list">{message.reactions.map((emoji, reactionIndex) => <button key={emoji + reactionIndex} type="button" onClick={() => toggleReaction(message.id, emoji)}>{emoji}</button>)}</div>}
                 <div className="message-action-wrap">
                   <button type="button" className="message-menu-toggle" onClick={() => setOpenMessageActionsId(openMessageActionsId === message.id ? null : message.id)} aria-label="Действия с сообщением"><MoreVertical size={15}/></button>
                   {openMessageActionsId === message.id && <div className="message-actions">
-                    <button type="button" onClick={() => { startEditing(message); setOpenMessageActionsId(null); }} aria-label="Редактировать сообщение"><PencilLine size={13}/> Изменить</button>
-                    <button type="button" onClick={() => deleteMessage(message.id)} aria-label="Удалить сообщение"><X size={13}/> Удалить</button>
+                    <button type="button" onClick={() => { setReplyTarget(message); setOpenMessageActionsId(null); }}><MessageCircle size={13}/> Ответить</button>
+                    <button type="button" onClick={() => { navigator.clipboard?.writeText(message.text).then(() => action("Текст скопирован")).catch(() => action("Не удалось скопировать текст")); setOpenMessageActionsId(null); }}><Paperclip size={13}/> Копировать</button>
+                    <button type="button" onClick={() => toggleReaction(message.id, "❤️")}>❤️</button>
+                    <button type="button" onClick={() => toggleReaction(message.id, "👍")}>👍</button>
+                    {message.mine && <button type="button" onClick={() => { startEditing(message); setOpenMessageActionsId(null); }} aria-label="Редактировать сообщение"><PencilLine size={13}/> Изменить</button>}
+                    {message.mine && <button type="button" onClick={() => deleteMessage(message.id)} aria-label="Удалить сообщение"><X size={13}/> Удалить</button>}
                   </div>}
-                </div>}
+                </div>
+              </div>
+            </div>
+            </Fragment>
+          ))}
+          <div ref={messagesEndRef} />
+        </div>
+
                 {activeChat.id === 1 && index === activeChat.messages.length - 1 && !message.mine && (
                   <div className="game-preview">
                     <div className="game-art"><span>D</span><div className="art-orb orb-one"/><div className="art-orb orb-two"/><div className="art-orb orb-three"/></div>
