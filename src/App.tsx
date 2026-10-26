@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   Bell, Camera, CheckCheck, ChevronRight, CircleUserRound, Gamepad2,
   Image, MessageCircle, MoreVertical, Paperclip, Phone, Plus, Search,
@@ -85,7 +85,14 @@ function Avatar({ children, color = "blue", small = false }: { children: React.R
 }
 
 export default function App() {
-  const [chats, setChats] = useState(initialChats);
+  const [chats, setChats] = useState<Chat[]>(() => {
+    try {
+      const saved = window.localStorage.getItem("nexus-chats-v1");
+      return saved ? (JSON.parse(saved) as Chat[]) : initialChats;
+    } catch {
+      return initialChats;
+    }
+  });
   const [activeId, setActiveId] = useState(1);
   const [draft, setDraft] = useState("");
   const [search, setSearch] = useState("");
@@ -94,10 +101,24 @@ export default function App() {
   const [showProfile, setShowProfile] = useState(true);
 
   const activeChat = chats.find((chat) => chat.id === activeId) ?? chats[0];
-  const filteredChats = useMemo(
-    () => chats.filter((chat) => chat.name.toLowerCase().includes(search.toLowerCase())),
-    [chats, search]
-  );
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("nexus-chats-v1", JSON.stringify(chats));
+    } catch {
+      // The app remains usable if browser storage is unavailable.
+    }
+  }, [chats]);
+
+  const filteredChats = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return chats;
+    return chats.filter((chat) =>
+      chat.name.toLowerCase().includes(query) ||
+      chat.preview.toLowerCase().includes(query) ||
+      chat.messages.some((message) => message.text.toLowerCase().includes(query))
+    );
+  }, [chats, search]);
 
   function sendMessage(event: FormEvent) {
     event.preventDefault();
@@ -155,7 +176,7 @@ export default function App() {
         </div>
         <div className="chat-list">
           {filteredChats.map((chat) => (
-            <button key={chat.id} className={`chat-row ${chat.id === activeId ? "selected" : ""}`} onClick={() => setActiveId(chat.id)}>
+            <button key={chat.id} className={`chat-row ${chat.id === activeId ? "selected" : ""}`} onClick={() => { setActiveId(chat.id); setChats((current) => current.map((item) => item.id === chat.id ? { ...item, unread: 0 } : item)); }}>
               <Avatar color={chat.color}>{chat.avatar}</Avatar>
               <span className="chat-row-copy"><strong>{chat.name}</strong><small>{chat.preview}</small></span>
               <span className="chat-meta"><small>{chat.time}</small>{chat.unread ? <b>{chat.unread}</b> : chat.id !== activeId ? <CheckCheck size={15}/> : null}</span>
