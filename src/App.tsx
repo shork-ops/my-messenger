@@ -12,6 +12,7 @@ type Message = {
   time: string;
   mine?: boolean;
   image?: boolean;
+  attachment?: { name: string; type: string; data: string; size: number };
   edited?: boolean;
   createdAt?: number;
   replyTo?: { author: string; text: string };
@@ -109,6 +110,7 @@ export default function App() {
   const [drafts, setDrafts] = useState<Record<number, string>>(() => { try { return JSON.parse(window.localStorage.getItem("nexus-drafts-v1") || "{}") as Record<number, string>; } catch { return {}; } });
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [newChatName, setNewChatName] = useState("");
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [activeNav, setActiveNav] = useState("Чаты");
   const [notice, setNotice] = useState("");
   const [showProfile, setShowProfile] = useState(true);
@@ -169,6 +171,24 @@ export default function App() {
 
   function clockTime() {
     return new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(new Date());
+  }
+
+  function handleAttachment(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (file.size > 1_500_000) { action("Файл слишком большой: максимум 1,5 МБ для локального хранения"); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const data = typeof reader.result === "string" ? reader.result : "";
+      if (!data) { action("Не удалось прочитать файл"); return; }
+      const time = clockTime(); const createdAt = Date.now();
+      const message: Message = { id: createdAt, author: profileName, text: file.name, time, mine: true, createdAt, attachment: { name: file.name, type: file.type || "application/octet-stream", data, size: file.size } };
+      setChats((current) => current.map((chat) => chat.id === activeId ? { ...chat, preview: `📎 ${file.name}`, time, messages: [...chat.messages, message] } : chat));
+      action("Файл прикреплён и сохранён в этом браузере");
+    };
+    reader.onerror = () => action("Не удалось прочитать файл");
+    reader.readAsDataURL(file);
   }
 
   function createChat(event: FormEvent) {
@@ -398,7 +418,7 @@ export default function App() {
                   {!message.mine && <strong className="message-author">{message.author}</strong>}
                   <div className={`bubble ${message.mine ? "mine-bubble" : ""}`}>
                     {message.replyTo && <div className="reply-quote"><strong>{message.replyTo.author}</strong><span>{message.replyTo.text}</span></div>}
-                    {message.text}<span className="message-time">{message.edited ? "изменено · " : ""}{message.time}</span>
+                    {message.attachment ? <div className="attachment-card">{message.attachment.type.startsWith("image/") ? <img className="attachment-image" src={message.attachment.data} alt={message.attachment.name}/> : <a className="attachment-file" href={message.attachment.data} download={message.attachment.name}><Paperclip size={18}/><span><strong>{message.attachment.name}</strong><small>{Math.max(1, Math.round(message.attachment.size / 1024))} КБ · Скачать</small></span></a>}<span className="attachment-caption">{message.attachment.name}</span></div> : message.text}<span className="message-time">{message.edited ? "изменено · " : ""}{message.time}</span>
                   </div>
                   {message.reactions && message.reactions.length > 0 && <div className="reaction-list">{message.reactions.map((emoji, reactionIndex) => <button key={emoji + reactionIndex} type="button" onClick={() => toggleReaction(message.id, emoji)}>{emoji}</button>)}</div>}
                   <div className="message-action-wrap">
@@ -428,7 +448,8 @@ export default function App() {
         {editingMessageId !== null && <div className="edit-banner">Редактирование сообщения <button type="button" onClick={() => { setEditingMessageId(null); setEditDraft(""); }} aria-label="Отменить редактирование"><X size={15}/></button></div>}
         {replyTarget && <div className="reply-banner"><span><strong>Ответ для {replyTarget.author}</strong><small>{replyTarget.text}</small></span><button type="button" onClick={() => setReplyTarget(null)} aria-label="Отменить ответ"><X size={15}/></button></div>}
         <form className="composer" onSubmit={sendMessage}>
-          <button type="button" className="attach-button" onClick={() => action("Загрузка файлов будет добавлена позже")} aria-label="Прикрепить файл"><Paperclip size={21}/></button>
+          <input ref={fileInputRef} type="file" className="hidden-file-input" accept="image/*,.pdf,.txt,.doc,.docx,.zip,.csv" onChange={handleAttachment} />
+          <button type="button" className="attach-button" onClick={() => fileInputRef.current?.click()} aria-label="Прикрепить файл" title="Прикрепить файл"><Paperclip size={21}/></button>
           <input value={editingMessageId !== null ? editDraft : draft} onChange={(e) => { if (editingMessageId !== null) setEditDraft(e.target.value); else { setDraft(e.target.value); setDrafts((current) => ({ ...current, [activeId]: e.target.value })); } }} placeholder={editingMessageId !== null ? "Изменить сообщение..." : "Написать сообщение..."} aria-label="Текст сообщения"/>
           <button type="button" className="emoji-button" onClick={() => editingMessageId !== null ? setEditDraft((v) => v + " 🙂") : setDraft((v) => v + " 🙂")} aria-label="Добавить эмодзи"><Smile size={20}/></button>
           <button type="submit" className="send-button" aria-label={editingMessageId !== null ? "Сохранить изменения" : "Отправить сообщение"} disabled={!(editingMessageId !== null ? editDraft : draft).trim()}>{editingMessageId !== null ? <CheckCheck size={20}/> : <Send size={20}/>}</button>
