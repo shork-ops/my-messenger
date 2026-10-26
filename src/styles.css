@@ -211,3 +211,14 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
   .message-actions { bottom: 31px; }
   .message-actions button { padding: 8px 9px; font-size: 11px; }
 }
+
+
+/* Keep the message overflow menu to the right of outgoing bubbles, including on phones. */
+.message-line.mine .message-content { position: relative; max-width: calc(100% - 32px); }
+.message-line.mine .message-action-wrap { position: absolute; top: 0; right: -31px; margin-top: 0; }
+.message-line.mine .message-menu-toggle { width: 27px; height: 28px; }
+@media (max-width: 760px) {
+  .message-line.mine .message-content { max-width: calc(100% - 29px); }
+  .message-line.mine .message-action-wrap { right: -28px; }
+  .message-line.mine .message-menu-toggle { width: 25px; height: 28px; }
+}
