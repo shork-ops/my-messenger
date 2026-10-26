@@ -276,9 +276,9 @@ export default function App() {
           </button>
         </nav>
 
-        <button className="self-profile" onClick={() => action("Профиль пользователя")}>
-          <Avatar color="self">А</Avatar>
-          <span className="self-copy"><strong>Алексей</strong><small><i/>В сети</small></span>
+        <button className="self-profile" onClick={() => setProfileOpen(true)}>
+          <Avatar color="self">{profileAvatar}</Avatar>
+          <span className="self-copy"><strong>{profileName}</strong><small><i/>В сети</small></span>
           <Settings size={18} className="self-settings"/>
         </button>
       </aside>
