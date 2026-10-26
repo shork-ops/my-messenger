@@ -103,6 +103,12 @@ export default function App() {
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState("");
   const [search, setSearch] = useState("");
+  const [chatFilter, setChatFilter] = useState<"all" | "unread" | "pinned" | "groups">("all");
+  const [messageSearchOpen, setMessageSearchOpen] = useState(false);
+  const [messageSearch, setMessageSearch] = useState("");
+  const [drafts, setDrafts] = useState<Record<number, string>>(() => { try { return JSON.parse(window.localStorage.getItem("nexus-drafts-v1") || "{}") as Record<number, string>; } catch { return {}; } });
+  const [newChatOpen, setNewChatOpen] = useState(false);
+  const [newChatName, setNewChatName] = useState("");
   const [activeNav, setActiveNav] = useState("Чаты");
   const [notice, setNotice] = useState("");
   const [showProfile, setShowProfile] = useState(true);
@@ -125,6 +131,7 @@ export default function App() {
 
   const activeChat = chats.find((chat) => chat.id === activeId) ?? chats[0];
   const sortedChats = useMemo(() => [...chats].sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned))), [chats]);
+  const visibleMessages = useMemo(() => { const q = messageSearch.trim().toLocaleLowerCase("ru-RU"); return activeChat.messages.filter((message) => !q || message.text.toLocaleLowerCase("ru-RU").includes(q) || message.author.toLocaleLowerCase("ru-RU").includes(q)); }, [activeChat, messageSearch]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -135,6 +142,8 @@ export default function App() {
     window.localStorage.setItem("nexus-profile-name", profileName);
     window.localStorage.setItem("nexus-profile-avatar", profileAvatar);
   }, [profileName, profileAvatar]);
+
+  useEffect(() => { window.localStorage.setItem("nexus-drafts-v1", JSON.stringify(drafts)); }, [drafts]);
 
   useEffect(() => {
     try {
@@ -162,6 +171,17 @@ export default function App() {
     return new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(new Date());
   }
 
+  function createChat(event: FormEvent) {
+    event.preventDefault();
+    const name = newChatName.trim();
+    if (!name) return;
+    const existing = chats.find((chat) => chat.name.toLocaleLowerCase("ru-RU") === name.toLocaleLowerCase("ru-RU"));
+    if (existing) { setActiveId(existing.id); setNewChatOpen(false); setNewChatName(""); action("Этот чат уже существует"); return; }
+    const id = Date.now();
+    const created: Chat = { id, name, avatar: name.slice(0, 1).toUpperCase(), color: "blue", preview: "Новый чат", time: clockTime(), messages: [] };
+    setChats((current) => [created, ...current]); setActiveId(id); setDraft(""); setNewChatName(""); setNewChatOpen(false); setActiveNav("Чаты"); action(`Чат «${name}» создан локально`);
+  }
+
   function sendMessage(event: FormEvent) {
     event.preventDefault();
     if (editingMessageId !== null) {
@@ -186,6 +206,7 @@ export default function App() {
       : chat
     ));
     setDraft("");
+    setDrafts((current) => ({ ...current, [activeId]: "" }));
     setReplyTarget(null);
   }
 
@@ -336,12 +357,13 @@ export default function App() {
 
       <section className="chat-list-panel">
         <div className="search-row">
-          <label className="search-box"><Search size={18}/><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Поиск чатов..."/></label>
-          <button className="square-action" onClick={() => action("Создание нового чата скоро появится")} aria-label="Новый чат"><PencilLine size={20}/></button>
+          <label className="search-box"><Search size={18}/><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Поиск чатов и сообщений..."/></label>
+          <button className="square-action" onClick={() => setNewChatOpen(true)} aria-label="Новый чат" title="Создать чат"><PencilLine size={20}/></button>
         </div>
+        <div className="chat-filters">{([{id:"all",label:"Все"},{id:"unread",label:"Непрочитанные"},{id:"pinned",label:"Закреплённые"},{id:"groups",label:"Группы"}] as const).map((filter) => <button key={filter.id} className={chatFilter === filter.id ? "active" : ""} onClick={() => setChatFilter(filter.id)}>{filter.label}</button>)}</div>
         <div className="chat-list">
-          {sortedChats.filter((chat) => !search.trim() || filteredChats.some((item) => item.id === chat.id)).map((chat) => (
-            <button key={chat.id} className={`chat-row ${chat.id === activeId ? "selected" : ""}`} onContextMenu={(event) => { event.preventDefault(); togglePinned(chat.id); action(chat.pinned ? "Чат откреплён" : "Чат закреплён"); }} onClick={() => { setActiveId(chat.id); setChats((current) => current.map((item) => item.id === chat.id ? { ...item, unread: 0 } : item)); }}>
+          {sortedChats.filter((chat) => (chatFilter === "all" || (chatFilter === "unread" && Boolean(chat.unread)) || (chatFilter === "pinned" && Boolean(chat.pinned)) || (chatFilter === "groups" && Boolean(chat.group))) && (!search.trim() || filteredChats.some((item) => item.id === chat.id))).map((chat) => (
+            <button key={chat.id} className={`chat-row ${chat.id === activeId ? "selected" : ""}`} onContextMenu={(event) => { event.preventDefault(); togglePinned(chat.id); action(chat.pinned ? "Чат откреплён" : "Чат закреплён"); }} onClick={() => { setActiveId(chat.id); setDraft(drafts[chat.id] ?? ""); setMessageSearch(""); setChats((current) => current.map((item) => item.id === chat.id ? { ...item, unread: 0 } : item)); }}>
               <Avatar color={chat.color}>{chat.avatar}</Avatar>
               <span className="chat-row-copy"><strong>{chat.pinned && <span className="pinned-mark">📌 </span>}{chat.name}</strong><small>{chat.preview}</small></span>
               <span className="chat-meta"><small>{chat.time}</small>{chat.unread ? <b>{chat.unread}</b> : chat.id !== activeId ? <CheckCheck size={15}/> : null}</span>
@@ -356,16 +378,18 @@ export default function App() {
           <Avatar color={activeChat.color}>{activeChat.avatar}</Avatar>
           <div className="conversation-title"><strong>{activeChat.name}</strong><small>{activeChat.group ? "5 участников" : "В сети"}</small></div>
           <div className="conversation-tools">
-            <button onClick={() => action("Поиск по переписке скоро появится")} aria-label="Поиск"><Search/></button>
+            <button onClick={() => setMessageSearchOpen((open) => !open)} aria-label="Поиск по переписке" title="Поиск по переписке"><Search/></button>
             <button onClick={() => action("Голосовые звонки подключим позже")} aria-label="Позвонить"><Phone/></button>
             <button onClick={() => action("Видеозвонки подключим позже")} aria-label="Видеозвонок"><Video/></button>
             <button onClick={() => { togglePinned(activeChat.id); action(activeChat.pinned ? "Чат откреплён" : "Чат закреплён"); }} aria-label={activeChat.pinned ? "Открепить чат" : "Закрепить чат"} title={activeChat.pinned ? "Открепить чат" : "Закрепить чат"}><Pin/></button><button onClick={() => setShowProfile(!showProfile)} aria-label="Показать профиль"><MoreVertical/></button>
           </div>
         </header>
 
+        {messageSearchOpen && <label className="message-search"><Search size={16}/><input autoFocus value={messageSearch} onChange={(event) => setMessageSearch(event.target.value)} placeholder="Найти сообщение в этом чате..."/><span>{visibleMessages.length}</span><button type="button" onClick={() => { setMessageSearchOpen(false); setMessageSearch(""); }} aria-label="Закрыть поиск"><X size={15}/></button></label>}
         <div className="messages-area">
           {activeChat.messages.length > 0 && !activeChat.messages.some((message) => message.createdAt) && <div className="date-divider"><span>История переписки</span></div>}
-          {activeChat.messages.map((message, index) => (
+          {visibleMessages.length === 0 && <div className="empty-search">{messageSearch.trim() ? "Сообщения не найдены" : "Пока нет сообщений. Напиши первым!"}</div>}
+          {visibleMessages.map((message, index) => (
             <Fragment key={message.id}>
               {message.createdAt && (index === 0 || !activeChat.messages[index - 1]?.createdAt || dateLabel(message.createdAt) !== dateLabel(activeChat.messages[index - 1].createdAt!)) && <div className="date-divider"><span>{dateLabel(message.createdAt)}</span></div>}
               <div className={`message-line ${message.mine ? "mine" : ""}`}>
@@ -405,7 +429,7 @@ export default function App() {
         {replyTarget && <div className="reply-banner"><span><strong>Ответ для {replyTarget.author}</strong><small>{replyTarget.text}</small></span><button type="button" onClick={() => setReplyTarget(null)} aria-label="Отменить ответ"><X size={15}/></button></div>}
         <form className="composer" onSubmit={sendMessage}>
           <button type="button" className="attach-button" onClick={() => action("Загрузка файлов будет добавлена позже")} aria-label="Прикрепить файл"><Paperclip size={21}/></button>
-          <input value={editingMessageId !== null ? editDraft : draft} onChange={(e) => editingMessageId !== null ? setEditDraft(e.target.value) : setDraft(e.target.value)} placeholder={editingMessageId !== null ? "Изменить сообщение..." : "Написать сообщение..."} aria-label="Текст сообщения"/>
+          <input value={editingMessageId !== null ? editDraft : draft} onChange={(e) => { if (editingMessageId !== null) setEditDraft(e.target.value); else { setDraft(e.target.value); setDrafts((current) => ({ ...current, [activeId]: e.target.value })); } }} placeholder={editingMessageId !== null ? "Изменить сообщение..." : "Написать сообщение..."} aria-label="Текст сообщения"/>
           <button type="button" className="emoji-button" onClick={() => editingMessageId !== null ? setEditDraft((v) => v + " 🙂") : setDraft((v) => v + " 🙂")} aria-label="Добавить эмодзи"><Smile size={20}/></button>
           <button type="submit" className="send-button" aria-label={editingMessageId !== null ? "Сохранить изменения" : "Отправить сообщение"} disabled={!(editingMessageId !== null ? editDraft : draft).trim()}>{editingMessageId !== null ? <CheckCheck size={20}/> : <Send size={20}/>}</button>
         </form>
@@ -476,7 +500,8 @@ export default function App() {
           {activeGame !== "Каталог" && <button className="game-back-link" onClick={() => openGame("Каталог")}>← Все мини-игры</button>}
         </section>
       </div>}
-\n      {profileOpen && <div className="modal-backdrop" onClick={() => setProfileOpen(false)}><section className="settings-modal" onClick={(event) => event.stopPropagation()}><header><strong>Профиль и оформление</strong><button type="button" onClick={() => setProfileOpen(false)} aria-label="Закрыть"><X size={18}/></button></header><label>Имя<input value={profileName} maxLength={32} onChange={(event) => setProfileName(event.target.value)} /></label><label>Буква или эмодзи аватара<input value={profileAvatar} maxLength={3} onChange={(event) => setProfileAvatar(event.target.value)} /></label><label>Цветовая тема<select value={theme} onChange={(event) => setTheme(event.target.value)}><option value="yellow">Nexus — жёлтая</option><option value="blue">Синяя</option><option value="violet">Фиолетовая</option><option value="mint">Мятная</option></select></label><button type="button" className="save-settings" onClick={() => { setProfileOpen(false); action("Профиль и тема сохранены"); }}>Готово</button></section></div>}
+\n      {newChatOpen && <div className="modal-backdrop" onClick={() => setNewChatOpen(false)}><form className="settings-modal" onSubmit={createChat} onClick={(event) => event.stopPropagation()}><header><strong>Новый чат</strong><button type="button" onClick={() => setNewChatOpen(false)} aria-label="Закрыть"><X size={18}/></button></header><p className="modal-help">Создай локальный диалог. Он сохранится в этом браузере.</p><label>Имя собеседника или группы<input autoFocus value={newChatName} maxLength={48} onChange={(event) => setNewChatName(event.target.value)} placeholder="Например, Команда" required /></label><button type="submit" className="save-settings">Создать чат</button></form></div>}
+      {profileOpen && <div className="modal-backdrop" onClick={() => setProfileOpen(false)}><section className="settings-modal" onClick={(event) => event.stopPropagation()}><header><strong>Профиль и оформление</strong><button type="button" onClick={() => setProfileOpen(false)} aria-label="Закрыть"><X size={18}/></button></header><label>Имя<input value={profileName} maxLength={32} onChange={(event) => setProfileName(event.target.value)} /></label><label>Буква или эмодзи аватара<input value={profileAvatar} maxLength={3} onChange={(event) => setProfileAvatar(event.target.value)} /></label><label>Цветовая тема<select value={theme} onChange={(event) => setTheme(event.target.value)}><option value="yellow">Nexus — жёлтая</option><option value="blue">Синяя</option><option value="violet">Фиолетовая</option><option value="mint">Мятная</option></select></label><button type="button" className="save-settings" onClick={() => { setProfileOpen(false); action("Профиль и тема сохранены"); }}>Готово</button></section></div>}
       {deletedMessage && <div className="toast undo-toast"><span>Сообщение удалено</span><button className="undo-button" onClick={undoDelete}>Отменить</button><button onClick={() => setDeletedMessage(null)} aria-label="Закрыть"><X size={15}/></button></div>}
       {notice && <div className="toast"><Shield size={17}/>{notice}<button onClick={() => setNotice("")}><X size={15}/></button></div>}
       <button className="mobile-profile-toggle" onClick={() => setShowProfile(!showProfile)} aria-label="Профиль"><CircleUserRound/></button>
