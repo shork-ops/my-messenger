@@ -13,6 +13,7 @@ type Message = {
   mine?: boolean;
   image?: boolean;
   attachment?: { name: string; type: string; data: string; size: number };
+  poll?: { question: string; options: { id: string; text: string; votes: string[] }[] };
   edited?: boolean;
   createdAt?: number;
   replyTo?: { author: string; text: string };
@@ -28,6 +29,8 @@ type Chat = {
   time: string;
   unread?: number;
   group?: boolean;
+  members?: string[];
+  inviteCode?: string;
   pinned?: boolean;
   messages: Message[];
 };
@@ -110,6 +113,17 @@ export default function App() {
   const [drafts, setDrafts] = useState<Record<number, string>>(() => { try { return JSON.parse(window.localStorage.getItem("nexus-drafts-v1") || "{}") as Record<number, string>; } catch { return {}; } });
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [newChatName, setNewChatName] = useState("");
+  const [newChatIsGroup, setNewChatIsGroup] = useState(false);
+  const [groupMembersInput, setGroupMembersInput] = useState("Максим, Аня");
+  const [pollOpen, setPollOpen] = useState(false);
+  const [pollQuestion, setPollQuestion] = useState("");
+  const [pollOptions, setPollOptions] = useState(["", ""]);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingChunksRef = useRef<Blob[]>([]);
+  const [mentionOpen, setMentionOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [activeNav, setActiveNav] = useState("Чаты");
   const [notice, setNotice] = useState("");
@@ -134,6 +148,9 @@ export default function App() {
   const activeChat = chats.find((chat) => chat.id === activeId) ?? chats[0];
   const sortedChats = useMemo(() => [...chats].sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned))), [chats]);
   const visibleMessages = useMemo(() => { const q = messageSearch.trim().toLocaleLowerCase("ru-RU"); return activeChat.messages.filter((message) => !q || message.text.toLocaleLowerCase("ru-RU").includes(q) || message.author.toLocaleLowerCase("ru-RU").includes(q)); }, [activeChat, messageSearch]);
+  const galleryImages = useMemo(() => chats.flatMap((chat) => chat.messages.filter((message) => message.attachment?.type.startsWith("image/")).map((message) => ({ ...message, chatName: chat.name }))), [chats]);
+  const mentionQuery = draft.match(/(?:^|\s)@([^\s@]*)$/)?.[1] ?? null;
+  const mentionMatches = mentionQuery === null ? [] : [...new Set([profileName, ...friends.map((friend) => friend.name), ...(activeChat.members ?? [])])].filter((name) => name.toLocaleLowerCase("ru-RU").startsWith(mentionQuery.toLocaleLowerCase("ru-RU"))).slice(0, 6);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -198,8 +215,57 @@ export default function App() {
     const existing = chats.find((chat) => chat.name.toLocaleLowerCase("ru-RU") === name.toLocaleLowerCase("ru-RU"));
     if (existing) { setActiveId(existing.id); setNewChatOpen(false); setNewChatName(""); action("Этот чат уже существует"); return; }
     const id = Date.now();
-    const created: Chat = { id, name, avatar: name.slice(0, 1).toUpperCase(), color: "blue", preview: "Новый чат", time: clockTime(), messages: [] };
-    setChats((current) => [created, ...current]); setActiveId(id); setDraft(""); setNewChatName(""); setNewChatOpen(false); setActiveNav("Чаты"); action(`Чат «${name}» создан локально`);
+    const members = newChatIsGroup ? [...new Set([profileName, ...groupMembersInput.split(",").map((item) => item.trim()).filter(Boolean)])] : undefined;
+    const inviteCode = newChatIsGroup ? Math.random().toString(36).slice(2, 10) : undefined;
+    const created: Chat = { id, name, avatar: newChatIsGroup ? "👥" : name.slice(0, 1).toUpperCase(), color: newChatIsGroup ? "group" : "blue", preview: newChatIsGroup ? "Группа создана" : "Новый чат", time: clockTime(), messages: [], ...(newChatIsGroup ? { group: true, members, inviteCode } : {}) };
+    setChats((current) => [created, ...current]); setActiveId(id); setDraft(""); setNewChatName(""); setNewChatIsGroup(false); setNewChatOpen(false); setActiveNav("Чаты"); action(newChatIsGroup ? `Группа «${name}» создана локально` : `Чат «${name}» создан локально`);
+  }
+
+  function chooseMention(name: string) {
+    setDraft((current) => current.replace(/(?:^|\s)@[^\s@]*$/, (match) => `${match.startsWith(" ") ? " " : ""}@${name} `));
+    setMentionOpen(false);
+  }
+
+  function createPoll(event: FormEvent) {
+    event.preventDefault();
+    const question = pollQuestion.trim(); const options = pollOptions.map((text) => text.trim()).filter(Boolean);
+    if (!question || options.length < 2) { action("Для опроса нужны вопрос и минимум два варианта"); return; }
+    const time = clockTime(); const createdAt = Date.now();
+    const message: Message = { id: createdAt, author: profileName, text: question, time, mine: true, createdAt, poll: { question, options: options.map((text, index) => ({ id: `${createdAt}-${index}`, text, votes: [] })) } };
+    setChats((current) => current.map((chat) => chat.id === activeId ? { ...chat, preview: `📊 ${question}`, time, messages: [...chat.messages, message] } : chat));
+    setPollOpen(false); setPollQuestion(""); setPollOptions(["", ""]); action("Опрос создан");
+  }
+
+  function votePoll(messageId: number, optionId: string) {
+    setChats((current) => current.map((chat) => chat.id !== activeId ? chat : ({ ...chat, messages: chat.messages.map((message) => message.id !== messageId || !message.poll ? message : ({ ...message, poll: { ...message.poll, options: message.poll.options.map((option) => ({ ...option, votes: option.votes.includes(profileName) ? option.votes.filter((vote) => vote !== profileName) : option.id === optionId ? [...option.votes, profileName] : option.votes.filter((vote) => vote !== profileName) })) } })) })));
+  }
+
+  async function startVoiceRecording() {
+    if (recording) { mediaRecorderRef.current?.stop(); return; }
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") { action("Запись аудио не поддерживается этим браузером"); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream); mediaRecorderRef.current = recorder; recordingChunksRef.current = [];
+      recorder.ondataavailable = (event) => { if (event.data.size) recordingChunksRef.current.push(event.data); };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop()); setRecording(false);
+        const blob = new Blob(recordingChunksRef.current, { type: recorder.mimeType || "audio/webm" });
+        if (!blob.size) { action("Запись получилась пустой"); return; }
+        if (blob.size > 1_500_000) { action("Аудио больше 1,5 МБ. Попробуй записать короче"); return; }
+        const reader = new FileReader();
+        reader.onload = () => { const data = typeof reader.result === "string" ? reader.result : ""; if (!data) return; const time = clockTime(); const createdAt = Date.now(); const duration = Math.max(1, recordingSeconds); const message: Message = { id: createdAt, author: profileName, text: `Голосовое сообщение · ${duration} сек.`, time, mine: true, createdAt, attachment: { name: `voice-${createdAt}.webm`, type: blob.type || "audio/webm", data, size: blob.size } }; setChats((current) => current.map((chat) => chat.id === activeId ? { ...chat, preview: "🎤 Голосовое сообщение", time, messages: [...chat.messages, message] } : chat)); setRecordingSeconds(0); action("Голосовое сообщение добавлено в чат"); }; reader.readAsDataURL(blob);
+      };
+      recorder.start(); setRecording(true); setRecordingSeconds(0);
+      const startedAt = Date.now(); const tick = window.setInterval(() => { if (mediaRecorderRef.current?.state !== "recording") { window.clearInterval(tick); return; } setRecordingSeconds(Math.floor((Date.now() - startedAt) / 1000)); }, 500);
+    } catch { action("Нет доступа к микрофону. Разреши запись аудио в браузере"); }
+  }
+
+  function createInviteLink() {
+    if (!activeChat.group) { action("Приглашения доступны для групповых чатов"); return; }
+    const code = activeChat.inviteCode || Math.random().toString(36).slice(2, 10);
+    const link = `${window.location.origin}${window.location.pathname}?join=${code}`;
+    setChats((current) => current.map((chat) => chat.id === activeId ? { ...chat, inviteCode: code } : chat));
+    navigator.clipboard?.writeText(link).then(() => action("Ссылка-приглашение скопирована")).catch(() => action(`Ссылка: ${link}`));
   }
 
   function sendMessage(event: FormEvent) {
@@ -418,7 +484,7 @@ export default function App() {
                   {!message.mine && <strong className="message-author">{message.author}</strong>}
                   <div className={`bubble ${message.mine ? "mine-bubble" : ""}`}>
                     {message.replyTo && <div className="reply-quote"><strong>{message.replyTo.author}</strong><span>{message.replyTo.text}</span></div>}
-                    {message.attachment ? <div className="attachment-card">{message.attachment.type.startsWith("image/") ? <img className="attachment-image" src={message.attachment.data} alt={message.attachment.name}/> : <a className="attachment-file" href={message.attachment.data} download={message.attachment.name}><Paperclip size={18}/><span><strong>{message.attachment.name}</strong><small>{Math.max(1, Math.round(message.attachment.size / 1024))} КБ · Скачать</small></span></a>}<span className="attachment-caption">{message.attachment.name}</span></div> : message.text}<span className="message-time">{message.edited ? "изменено · " : ""}{message.time}</span>
+                    {message.poll ? <div className="poll-card"><strong>📊 {message.poll.question}</strong>{message.poll.options.map((option) => { const total = message.poll!.options.reduce((sum, item) => sum + item.votes.length, 0); const chosen = option.votes.includes(profileName); return <button type="button" className={`poll-option ${chosen ? "chosen" : ""}`} key={option.id} onClick={() => votePoll(message.id, option.id)}><span>{option.text}<b>{option.votes.length}</b></span><i style={{ width: `${total ? option.votes.length / total * 100 : 0}%` }}/></button>; })}<small>{message.poll.options.reduce((sum, option) => sum + option.votes.length, 0)} голос(ов) · можно изменить выбор</small></div> : message.attachment ? <div className="attachment-card">{message.attachment.type.startsWith("image/") ? <img className="attachment-image" src={message.attachment.data} alt={message.attachment.name}/> : message.attachment.type.startsWith("audio/") ? <div className="voice-attachment"><Mic size={17}/><audio controls src={message.attachment.data}/><a href={message.attachment.data} download={message.attachment.name}>Скачать</a></div> : <a className="attachment-file" href={message.attachment.data} download={message.attachment.name}><Paperclip size={18}/><span><strong>{message.attachment.name}</strong><small>{Math.max(1, Math.round(message.attachment.size / 1024))} КБ · Скачать</small></span></a>}<span className="attachment-caption">{message.attachment.name}</span></div> : message.text.split(/(@[\p{L}\p{N}_]+)/gu).map((part, partIndex) => part.startsWith("@") ? <strong className="message-mention" key={partIndex}>{part}</strong> : part)}<span className="message-time">{message.edited ? "изменено · " : ""}{message.time}</span>
                   </div>
                   {message.reactions && message.reactions.length > 0 && <div className="reaction-list">{message.reactions.map((emoji, reactionIndex) => <button key={emoji + reactionIndex} type="button" onClick={() => toggleReaction(message.id, emoji)}>{emoji}</button>)}</div>}
                   <div className="message-action-wrap">
@@ -449,9 +515,14 @@ export default function App() {
         {replyTarget && <div className="reply-banner"><span><strong>Ответ для {replyTarget.author}</strong><small>{replyTarget.text}</small></span><button type="button" onClick={() => setReplyTarget(null)} aria-label="Отменить ответ"><X size={15}/></button></div>}
         <form className="composer" onSubmit={sendMessage}>
           <input ref={fileInputRef} type="file" className="hidden-file-input" accept="image/*,.pdf,.txt,.doc,.docx,.zip,.csv" onChange={handleAttachment} />
+          <button type="button" className="attach-button" onClick={() => setGalleryOpen(true)} aria-label="Галерея медиа" title="Галерея изображений"><Image size={20}/></button>
+          <button type="button" className="attach-button" onClick={() => setPollOpen(true)} aria-label="Создать опрос" title="Создать опрос"><Users size={19}/></button>
+          <input ref={fileInputRef} type="file" className="hidden-file-input" accept="image/*,.pdf,.txt,.doc,.docx,.zip,.csv" onChange={handleAttachment} />
           <button type="button" className="attach-button" onClick={() => fileInputRef.current?.click()} aria-label="Прикрепить файл" title="Прикрепить файл"><Paperclip size={21}/></button>
-          <input value={editingMessageId !== null ? editDraft : draft} onChange={(e) => { if (editingMessageId !== null) setEditDraft(e.target.value); else { setDraft(e.target.value); setDrafts((current) => ({ ...current, [activeId]: e.target.value })); } }} placeholder={editingMessageId !== null ? "Изменить сообщение..." : "Написать сообщение..."} aria-label="Текст сообщения"/>
+          <div className="composer-input-wrap"><input value={editingMessageId !== null ? editDraft : draft} onChange={(e) => { if (editingMessageId !== null) setEditDraft(e.target.value); else { setDraft(e.target.value); setDrafts((current) => ({ ...current, [activeId]: e.target.value })); setMentionOpen(e.target.value.includes("@")); } }} placeholder={editingMessageId !== null ? "Изменить сообщение..." : "Написать сообщение..."} aria-label="Текст сообщения"/>
+          {mentionOpen && mentionMatches.length > 0 && <div className="mention-suggestions">{mentionMatches.map((name) => <button type="button" key={name} onClick={() => chooseMention(name)}>@{name}</button>)}</div>}</div>
           <button type="button" className="emoji-button" onClick={() => editingMessageId !== null ? setEditDraft((v) => v + " 🙂") : setDraft((v) => v + " 🙂")} aria-label="Добавить эмодзи"><Smile size={20}/></button>
+          <button type="button" className={`attach-button voice-button ${recording ? "recording" : ""}`} onClick={startVoiceRecording} aria-label={recording ? "Остановить запись" : "Записать голосовое"} title={recording ? `Остановить запись · ${recordingSeconds} сек.` : "Голосовое сообщение"}><Mic size={20}/>{recording && <span>{recordingSeconds}s</span>}</button>
           <button type="submit" className="send-button" aria-label={editingMessageId !== null ? "Сохранить изменения" : "Отправить сообщение"} disabled={!(editingMessageId !== null ? editDraft : draft).trim()}>{editingMessageId !== null ? <CheckCheck size={20}/> : <Send size={20}/>}</button>
         </form>
       </section>
@@ -475,7 +546,7 @@ export default function App() {
             <span className="friend-avatar-wrap"><Avatar color={friend.color} small>{friend.avatar}</Avatar><i/></span>
             <span>{friend.name}</span>
           </button>)}
-          <button className="invite-row" onClick={() => action("Ссылки-приглашения добавим при подключении сервера")}><span><Plus size={22}/></span>Пригласить друга</button>
+          <button className="invite-row" onClick={createInviteLink}><span><Plus size={22}/></span>{activeChat.group ? "Скопировать ссылку-приглашение" : "Приглашение доступно в группах"}</button>
         </div>
 
         <div className="right-divider games-divider"/>
@@ -522,7 +593,9 @@ export default function App() {
           {activeGame !== "Каталог" && <button className="game-back-link" onClick={() => openGame("Каталог")}>← Все мини-игры</button>}
         </section>
       </div>}
-\n      {newChatOpen && <div className="modal-backdrop" onClick={() => setNewChatOpen(false)}><form className="settings-modal" onSubmit={createChat} onClick={(event) => event.stopPropagation()}><header><strong>Новый чат</strong><button type="button" onClick={() => setNewChatOpen(false)} aria-label="Закрыть"><X size={18}/></button></header><p className="modal-help">Создай локальный диалог. Он сохранится в этом браузере.</p><label>Имя собеседника или группы<input autoFocus value={newChatName} maxLength={48} onChange={(event) => setNewChatName(event.target.value)} placeholder="Например, Команда" required /></label><button type="submit" className="save-settings">Создать чат</button></form></div>}
+\n      {newChatOpen && <div className="modal-backdrop" onClick={() => setNewChatOpen(false)}><form className="settings-modal" onSubmit={createChat} onClick={(event) => event.stopPropagation()}><header><strong>Новый чат</strong><button type="button" onClick={() => setNewChatOpen(false)} aria-label="Закрыть"><X size={18}/></button></header><p className="modal-help">Создай диалог или локальную группу. Данные сохраняются в этом браузере.</p><label>Имя чата<input autoFocus value={newChatName} maxLength={48} onChange={(event) => setNewChatName(event.target.value)} placeholder="Например, Команда" required /></label><label className="group-toggle"><input type="checkbox" checked={newChatIsGroup} onChange={(event) => setNewChatIsGroup(event.target.checked)}/> Создать группу</label>{newChatIsGroup && <label>Участники через запятую<input value={groupMembersInput} onChange={(event) => setGroupMembersInput(event.target.value)} placeholder="Максим, Аня, Игорь"/></label>}<button type="submit" className="save-settings">Создать</button></form></div>}
+      {pollOpen && <div className="modal-backdrop" onClick={() => setPollOpen(false)}><form className="settings-modal" onSubmit={createPoll} onClick={(event) => event.stopPropagation()}><header><strong>Новый опрос</strong><button type="button" onClick={() => setPollOpen(false)} aria-label="Закрыть"><X size={18}/></button></header><label>Вопрос<input autoFocus value={pollQuestion} maxLength={180} onChange={(event) => setPollQuestion(event.target.value)} placeholder="Что выбираем?" required/></label>{pollOptions.map((option, index) => <label key={index}>Вариант {index+1}<input value={option} maxLength={80} onChange={(event) => setPollOptions((current) => current.map((item, i) => i === index ? event.target.value : item))} placeholder={`Вариант ${index+1}`}/></label>)}{pollOptions.length < 6 && <button type="button" className="game-secondary" onClick={() => setPollOptions((current) => [...current, ""])}>+ Добавить вариант</button>}<button type="submit" className="save-settings">Опубликовать опрос</button></form></div>}
+      {galleryOpen && <div className="modal-backdrop" onClick={() => setGalleryOpen(false)}><section className="settings-modal gallery-modal" onClick={(event) => event.stopPropagation()}><header><strong>Галерея медиа</strong><button type="button" onClick={() => setGalleryOpen(false)} aria-label="Закрыть"><X size={18}/></button></header><p className="modal-help">Изображения из всех локальных чатов</p>{galleryImages.length ? <div className="media-gallery">{galleryImages.map((image) => <button type="button" key={`${image.id}-${image.chatName}`} onClick={() => { setActiveId(chats.find((chat) => chat.name === image.chatName)?.id ?? activeId); setGalleryOpen(false); }} title={`${image.chatName} · ${image.attachment?.name}`}><img src={image.attachment!.data} alt={image.attachment!.name}/><small>{image.chatName}</small></button>)}</div> : <div className="empty-search">Пока нет изображений. Прикрепи картинку к сообщению.</div>}</section></div>}
       {profileOpen && <div className="modal-backdrop" onClick={() => setProfileOpen(false)}><section className="settings-modal" onClick={(event) => event.stopPropagation()}><header><strong>Профиль и оформление</strong><button type="button" onClick={() => setProfileOpen(false)} aria-label="Закрыть"><X size={18}/></button></header><label>Имя<input value={profileName} maxLength={32} onChange={(event) => setProfileName(event.target.value)} /></label><label>Буква или эмодзи аватара<input value={profileAvatar} maxLength={3} onChange={(event) => setProfileAvatar(event.target.value)} /></label><label>Цветовая тема<select value={theme} onChange={(event) => setTheme(event.target.value)}><option value="yellow">Nexus — жёлтая</option><option value="blue">Синяя</option><option value="violet">Фиолетовая</option><option value="mint">Мятная</option></select></label><button type="button" className="save-settings" onClick={() => { setProfileOpen(false); action("Профиль и тема сохранены"); }}>Готово</button></section></div>}
       {deletedMessage && <div className="toast undo-toast"><span>Сообщение удалено</span><button className="undo-button" onClick={undoDelete}>Отменить</button><button onClick={() => setDeletedMessage(null)} aria-label="Закрыть"><X size={15}/></button></div>}
       {notice && <div className="toast"><Shield size={17}/>{notice}<button onClick={() => setNotice("")}><X size={15}/></button></div>}
