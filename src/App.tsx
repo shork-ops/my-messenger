@@ -2,7 +2,7 @@ import { Fragment, FormEvent, useEffect, useMemo, useRef, useState } from "react
 import {
   Bell, Camera, CheckCheck, ChevronRight, CircleUserRound, Gamepad2,
   Image, MessageCircle, MoreVertical, Paperclip, Phone, Plus, Search,
-  Send, Settings, Shield, Smile, Video, X, Mic, Users, PencilLine
+  Send, Settings, Shield, Smile, Video, X, Mic, Users, PencilLine, Pin
 } from "lucide-react";
 
 type Message = {
@@ -308,7 +308,7 @@ export default function App() {
             <button onClick={() => action("Поиск по переписке скоро появится")} aria-label="Поиск"><Search/></button>
             <button onClick={() => action("Голосовые звонки подключим позже")} aria-label="Позвонить"><Phone/></button>
             <button onClick={() => action("Видеозвонки подключим позже")} aria-label="Видеозвонок"><Video/></button>
-            <button onClick={() => setShowProfile(!showProfile)} aria-label="Показать профиль"><MoreVertical/></button>
+            <button onClick={() => { togglePinned(activeChat.id); action(activeChat.pinned ? "Чат откреплён" : "Чат закреплён"); }} aria-label={activeChat.pinned ? "Открепить чат" : "Закрепить чат"} title={activeChat.pinned ? "Открепить чат" : "Закрепить чат"}><Pin/></button><button onClick={() => setShowProfile(!showProfile)} aria-label="Показать профиль"><MoreVertical/></button>
           </div>
         </header>
 
