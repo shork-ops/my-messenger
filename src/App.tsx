@@ -12,6 +12,7 @@ type Message = {
   time: string;
   mine?: boolean;
   image?: boolean;
+  edited?: boolean;
 };
 
 type Chat = {
@@ -95,6 +96,8 @@ export default function App() {
   });
   const [activeId, setActiveId] = useState(1);
   const [draft, setDraft] = useState("");
+  const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+  const [editDraft, setEditDraft] = useState("");
   const [search, setSearch] = useState("");
   const [activeNav, setActiveNav] = useState("Чаты");
   const [notice, setNotice] = useState("");
@@ -120,15 +123,51 @@ export default function App() {
     );
   }, [chats, search]);
 
+  function clockTime() {
+    return new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(new Date());
+  }
+
   function sendMessage(event: FormEvent) {
     event.preventDefault();
+    if (editingMessageId !== null) {
+      const text = editDraft.trim();
+      if (!text) return;
+      setChats((current) => current.map((chat) => chat.id !== activeId ? chat : {
+        ...chat,
+        preview: chat.messages.find((message) => message.id === editingMessageId)?.mine ? text : chat.preview,
+        messages: chat.messages.map((message) => message.id === editingMessageId ? { ...message, text, edited: true } : message),
+      }));
+      setEditingMessageId(null);
+      setEditDraft("");
+      return;
+    }
     const text = draft.trim();
     if (!text) return;
+    const time = clockTime();
     setChats((current) => current.map((chat) => chat.id === activeId
-      ? { ...chat, preview: text, time: "сейчас", messages: [...chat.messages, { id: Date.now(), author: "Алексей", text, time: "сейчас", mine: true }] }
+      ? { ...chat, preview: text, time, messages: [...chat.messages, { id: Date.now(), author: "Алексей", text, time, mine: true }] }
       : chat
     ));
     setDraft("");
+  }
+
+  function startEditing(message: Message) {
+    setEditingMessageId(message.id);
+    setEditDraft(message.text);
+    setDraft("");
+  }
+
+  function deleteMessage(messageId: number) {
+    setChats((current) => current.map((chat) => {
+      if (chat.id !== activeId) return chat;
+      const messages = chat.messages.filter((message) => message.id !== messageId);
+      const last = messages[messages.length - 1];
+      return { ...chat, messages, preview: last?.text ?? "Нет сообщений", time: last?.time ?? "" };
+    }));
+    if (editingMessageId === messageId) {
+      setEditingMessageId(null);
+      setEditDraft("");
+    }
   }
 
   function action(label: string) {
@@ -199,13 +238,17 @@ export default function App() {
         </header>
 
         <div className="messages-area">
-          <div className="date-divider"><span>Сегодня, 12 апреля</span></div>
+          <div className="date-divider"><span>История переписки</span></div>
           {activeChat.messages.map((message, index) => (
             <div key={message.id} className={`message-line ${message.mine ? "mine" : ""}`}>
               {!message.mine && <Avatar color={friends.find((f) => f.name === message.author)?.color ?? "blue"} small>{message.author.slice(0, 1)}</Avatar>}
               <div className="message-content">
                 {!message.mine && <strong className="message-author">{message.author}</strong>}
-                <div className={`bubble ${message.mine ? "mine-bubble" : ""}`}>{message.text}<span className="message-time">{message.time}{message.mine ? "  ✓✓" : ""}</span></div>
+                <div className={`bubble ${message.mine ? "mine-bubble" : ""}`}>{message.text}<span className="message-time">{message.edited ? "изменено · " : ""}{message.time}{message.mine ? "  ✓✓" : ""}</span></div>
+                {message.mine && <div className="message-actions">
+                  <button type="button" onClick={() => startEditing(message)} aria-label="Редактировать сообщение"><PencilLine size={13}/> Изменить</button>
+                  <button type="button" onClick={() => deleteMessage(message.id)} aria-label="Удалить сообщение"><X size={13}/> Удалить</button>
+                </div>}
                 {activeChat.id === 1 && index === activeChat.messages.length - 1 && !message.mine && (
                   <div className="game-preview">
                     <div className="game-art"><span>D</span><div className="art-orb orb-one"/><div className="art-orb orb-two"/><div className="art-orb orb-three"/></div>
@@ -217,11 +260,12 @@ export default function App() {
           ))}
         </div>
 
+        {editingMessageId !== null && <div className="edit-banner">Редактирование сообщения <button type="button" onClick={() => { setEditingMessageId(null); setEditDraft(""); }} aria-label="Отменить редактирование"><X size={15}/></button></div>}
         <form className="composer" onSubmit={sendMessage}>
           <button type="button" className="attach-button" onClick={() => action("Загрузка файлов будет добавлена позже")} aria-label="Прикрепить файл"><Paperclip size={21}/></button>
-          <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Написать сообщение..." aria-label="Текст сообщения"/>
-          <button type="button" className="emoji-button" onClick={() => setDraft((v) => v + " 🙂")} aria-label="Добавить эмодзи"><Smile size={20}/></button>
-          <button type="submit" className="send-button" aria-label="Отправить сообщение" disabled={!draft.trim()}><Send size={20}/></button>
+          <input value={editingMessageId !== null ? editDraft : draft} onChange={(e) => editingMessageId !== null ? setEditDraft(e.target.value) : setDraft(e.target.value)} placeholder={editingMessageId !== null ? "Изменить сообщение..." : "Написать сообщение..."} aria-label="Текст сообщения"/>
+          <button type="button" className="emoji-button" onClick={() => editingMessageId !== null ? setEditDraft((v) => v + " 🙂") : setDraft((v) => v + " 🙂")} aria-label="Добавить эмодзи"><Smile size={20}/></button>
+          <button type="submit" className="send-button" aria-label={editingMessageId !== null ? "Сохранить изменения" : "Отправить сообщение"} disabled={!(editingMessageId !== null ? editDraft : draft).trim()}>{editingMessageId !== null ? <CheckCheck size={20}/> : <Send size={20}/>}</button>
         </form>
       </section>
 
