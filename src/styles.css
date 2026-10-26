@@ -192,11 +192,22 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 }
 
 
-/* Message editing controls */
-.message-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; opacity: .82; }
-.message-actions button { display: inline-flex; align-items: center; gap: 4px; padding: 4px 7px; border: 1px solid #303136; border-radius: 7px; background: #121316; color: #b9bac1; font-size: 10px; }
+/* Message actions stay tucked away until explicitly opened. */
+.message-action-wrap { position: relative; display: flex; justify-content: flex-end; margin-top: 4px; }
+.message-menu-toggle { display: grid; place-items: center; width: 26px; height: 23px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: #92939a; }
+.message-menu-toggle:hover, .message-menu-toggle:focus-visible { border-color: #38393f; background: #17181b; color: var(--yellow); }
+.message-actions { position: absolute; z-index: 5; right: 0; bottom: 27px; display: flex; gap: 5px; padding: 5px; border: 1px solid #35363c; border-radius: 9px; background: #111214; box-shadow: 0 8px 24px #0009; }
+.message-actions button { display: inline-flex; align-items: center; gap: 4px; padding: 6px 8px; border: 1px solid #303136; border-radius: 7px; background: #18191c; color: #b9bac1; font-size: 10px; white-space: nowrap; }
 .message-actions button:hover { border-color: var(--yellow); color: var(--yellow); }
 .message-actions button:last-child:hover { border-color: #a64b4b; color: #ff9696; }
+.undo-toast { gap: 14px; }
+.undo-button { color: var(--yellow) !important; font-weight: 700; }
 .edit-banner { display: flex; align-items: center; justify-content: space-between; margin: 0 14px 0; padding: 8px 12px; border: 1px solid #51450e; border-bottom: 0; border-radius: 10px 10px 0 0; background: #19170b; color: var(--yellow); font-size: 11px; }
 .edit-banner button { display: grid; place-items: center; padding: 2px; border: 0; background: transparent; color: #d4c36a; }
 .edit-banner + .composer { margin-top: 0; border-color: #51450e; border-top-left-radius: 0; border-top-right-radius: 0; }
+
+@media (max-width: 760px) {
+  .message-menu-toggle { width: 30px; height: 28px; }
+  .message-actions { bottom: 31px; }
+  .message-actions button { padding: 8px 9px; font-size: 11px; }
+}
