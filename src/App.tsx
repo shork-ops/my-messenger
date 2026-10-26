@@ -389,7 +389,7 @@ export default function App() {
               <span className="chat-meta"><small>{chat.time}</small>{chat.unread ? <b>{chat.unread}</b> : chat.id !== activeId ? <CheckCheck size={15}/> : null}</span>
             </button>
           ))}
-          {filteredChats.length === 0 && <div className="empty-search">Чаты не найдены</div>}
+          {sortedChats.filter((chat) => (chatFilter === "all" || (chatFilter === "unread" && Boolean(chat.unread)) || (chatFilter === "pinned" && Boolean(chat.pinned)) || (chatFilter === "groups" && Boolean(chat.group))) && (!search.trim() || filteredChats.some((item) => item.id === chat.id))).length === 0 && <div className="empty-search">По этим фильтрам чатов нет</div>}
         </div>
       </section>
 
@@ -459,8 +459,8 @@ export default function App() {
       {showProfile && <aside className="right-panel">
         <div className="right-heading"><span>Профиль</span><button className="mobile-close" onClick={() => setShowProfile(false)}><X size={17}/></button></div>
         <button className="profile-card" onClick={() => setProfileOpen(true)}>
-          <Avatar color="self">А</Avatar>
-          <span><strong>Алексей</strong><small><i/>В сети</small></span>
+          <Avatar color="self">{profileAvatar}</Avatar>
+          <span><strong>{profileName}</strong><small><i/>В сети</small></span>
           <ChevronRight size={22} className="yellow-icon"/>
         </button>
 
@@ -480,6 +480,7 @@ export default function App() {
 
         <div className="right-divider games-divider"/>
         <button className="games-heading" onClick={() => { setActiveNav("Мини-игры"); openGame("Каталог"); }}><Gamepad2 size={22}/><strong>Мини-игры</strong><ChevronRight size={20}/></button>
+        <button className="clear-history-button" onClick={() => { if (!activeChat.messages.length) { action("История уже пуста"); return; } if (window.confirm(`Удалить всю историю чата «${activeChat.name}» на этом устройстве?`)) { setChats((current) => current.map((chat) => chat.id === activeId ? { ...chat, messages: [], preview: "История очищена", time: "" } : chat)); setDeletedMessage(null); action("История чата очищена"); } }}>Очистить историю этого чата</button>
         <div className="games-list">
           {games.map((game) => <button key={game.name} className="game-row" onClick={() => openGame(game.name)}>
             <span className={`game-icon ${game.cls}`}>{game.icon}</span><span><strong>{game.name}</strong><small>{game.desc}</small></span>
