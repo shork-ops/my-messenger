@@ -369,3 +369,34 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 
 .clear-history-button { align-self: flex-start; margin: 16px 0 12px; padding: 8px 0; border: 0; background: transparent; color: #d88c8c; font-size: 10px; text-align: left; }
 .clear-history-button:hover { color: #ffb4b4; text-decoration: underline; }
+
+
+/* Voice notes, polls, gallery, group setup and @mention suggestions. */
+.composer-input-wrap { position: relative; flex: 1; min-width: 0; }
+.composer-input-wrap > input { width: 100%; min-width: 0; }
+.mention-suggestions { position: absolute; z-index: 20; bottom: calc(100% + 10px); left: 0; display: flex; flex-direction: column; gap: 3px; width: min(230px, 90vw); padding: 7px; border: 1px solid #37383f; border-radius: 12px; background: #191a1f; box-shadow: 0 12px 35px #0008; }
+.mention-suggestions button { padding: 8px 10px; border: 0; border-radius: 7px; background: transparent; color: #f5f5f7; text-align: left; font-size: 12px; }
+.mention-suggestions button:hover { background: #ffffff12; color: var(--yellow); }
+.message-mention { color: var(--yellow); font-weight: 650; }
+.voice-button { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
+.voice-button span { font-size: 10px; }
+.voice-button.recording { color: #ff7474; animation: voice-pulse 1.2s ease-in-out infinite; }
+@keyframes voice-pulse { 50% { opacity: .55; } }
+.voice-attachment { display: flex; flex-direction: column; gap: 8px; min-width: 210px; max-width: 280px; }
+.voice-attachment audio { width: 100%; max-width: 260px; height: 38px; }
+.voice-attachment a { color: var(--yellow); font-size: 11px; }
+.poll-card { display: flex; flex-direction: column; gap: 9px; min-width: 220px; max-width: 340px; padding: 3px 0; }
+.poll-card > strong { margin-bottom: 3px; font-size: 13px; line-height: 1.4; }
+.poll-option { position: relative; display: flex; flex-direction: column; gap: 7px; overflow: hidden; padding: 9px 10px; border: 1px solid #ffffff25; border-radius: 9px; background: #ffffff08; color: inherit; text-align: left; }
+.poll-option > span { z-index: 1; display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
+.poll-option b { color: var(--yellow); }
+.poll-option > i { display: block; height: 3px; max-width: 100%; border-radius: 4px; background: var(--yellow); transition: width .2s ease; }
+.poll-option.chosen { border-color: var(--yellow); background: color-mix(in srgb, var(--yellow) 10%, transparent); }
+.poll-card > small { color: #a7a8af; font-size: 10px; }
+.group-toggle { display: flex !important; flex-direction: row !important; align-items: center; gap: 9px; }
+.group-toggle input { width: 16px !important; min-width: 16px; accent-color: var(--yellow); }
+.gallery-modal { width: min(620px, 100%); }
+.media-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(105px, 1fr)); gap: 9px; max-height: 55vh; overflow-y: auto; }
+.media-gallery button { display: flex; flex-direction: column; gap: 5px; min-width: 0; padding: 0; overflow: hidden; border: 1px solid #ffffff20; border-radius: 9px; background: #101114; color: #d7d7dc; text-align: left; }
+.media-gallery img { width: 100%; aspect-ratio: 1; object-fit: cover; }
+.media-gallery small { overflow: hidden; padding: 0 7px 7px; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
