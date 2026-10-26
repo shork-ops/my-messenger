@@ -452,7 +452,7 @@ export default function App() {
           {activeGame === "Шахматы" && <div className="chess-game">
             <p className="game-instructions">Шахматная разминка: белые ходят. Как лучше продолжить позицию?</p>
             <div className="chess-board" aria-label="Шахматная доска">
-              {["♜","♞","♝","♛","♚","♝","♞","♜","♟","♟","♟","♟","♟","♟","♟","♟","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","♙","♙","♙","♙","♙","♙","♙","♙","♖","♘","♗","♕","♔","♗","♘","♖"].map((piece,index) => <div key={index} className={`chess-square ${(Math.floor(index/8)+index%8)%2===0?"light":"dark"}`}>{piece}</div>)}
+              {["♜","♞","♝","♛","♚","♝","♞","♜", ...Array(8).fill("♟"), ...Array(32).fill(""), ...Array(8).fill("♙"), "♖","♘","♗","♕","♔","♗","♘","♖"].map((piece,index) => <div key={index} className={`chess-square ${(Math.floor(index/8)+index%8)%2===0?"light":"dark"}`}>{piece}</div>)}
             </div>
             <strong className="game-question">Как называется ход, который одновременно атакует короля?</strong>
             <div className="chess-answers">{["Рокировка","Шах","Пат"].map((answer) => <button key={answer} onClick={() => { setChessSolved(true); setGameNotice(answer === "Шах" ? "Верно! ♟️ Король под атакой." : "Не совсем. Правильный ответ — «Шах»." ); }}>{answer}</button>)}</div>
