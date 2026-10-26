@@ -279,3 +279,62 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
   .reply-banner { margin: 0 7px; }
   .settings-modal { padding: 18px; }
 }
+
+
+/* Nexus Arcade mini-games */
+.game-backdrop { z-index: 30; overflow-y: auto; }
+.game-modal { display: flex; flex-direction: column; gap: 20px; width: min(600px, 100%); max-height: min(88dvh, 820px); overflow-y: auto; padding: 24px; border: 1px solid #34353b; border-radius: 22px; background: radial-gradient(ellipse at top right, #25220f, #111214 52%); box-shadow: 0 28px 100px #000c; }
+.game-modal-header { display: flex; align-items: center; justify-content: space-between; gap: 15px; }
+.game-modal-header h2 { margin: 5px 0 0; color: #f8f8fa; font-size: 25px; }
+.game-modal-header > button { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid #393a40; border-radius: 10px; background: #1a1b1f; color: #c6c7cd; }
+.game-modal-eyebrow { color: var(--yellow); font-size: 10px; font-weight: 800; letter-spacing: 2px; }
+.game-picker { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.game-picker-card { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-width: 0; padding: 15px; border: 1px solid #303137; border-radius: 15px; background: linear-gradient(145deg, #1d1e22, #121315); color: #f4f4f5; text-align: left; transition: transform .15s, border-color .15s; }
+.game-picker-card:hover { transform: translateY(-2px); border-color: var(--yellow); }
+.game-picker-card .game-icon { width: 52px; height: 52px; }
+.game-picker-card strong { font-size: 13px; }
+.game-picker-card small { min-height: 30px; color: #9c9da5; font-size: 10px; line-height: 1.5; }
+.game-play-label { display: flex; align-items: center; gap: 4px; margin-top: auto; color: var(--yellow); font-size: 11px; font-weight: 700; }
+.game-instructions { margin: 0; color: #adaeb5; font-size: 12px; line-height: 1.6; }
+.chess-game, .uno-game, .balda-game { display: flex; flex-direction: column; gap: 15px; }
+.chess-board { display: grid; grid-template-columns: repeat(8, 1fr); width: min(100%, 360px); align-self: center; overflow: hidden; border: 4px solid #37383d; border-radius: 8px; }
+.chess-square { display: grid; place-items: center; aspect-ratio: 1; font-family: Georgia, serif; font-size: clamp(18px, 4vw, 32px); line-height: 1; }
+.chess-square.light { background: #e8d7b7; color: #222; }
+.chess-square.dark { background: #8d684d; color: #171717; }
+.game-question { color: #f0f0f2; font-size: 13px; }
+.chess-answers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.chess-answers button, .game-secondary { min-height: 40px; padding: 9px 12px; border: 1px solid #383940; border-radius: 10px; background: #1b1c20; color: #ededf0; font-size: 12px; }
+.chess-answers button:hover, .game-secondary:hover { border-color: var(--yellow); color: var(--yellow); }
+.uno-table { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px; border: 1px solid #274438; border-radius: 16px; background: radial-gradient(ellipse, #174d3b, #10251e); }
+.uno-table > span, .uno-table small { color: #c3d8ce; font-size: 11px; }
+.uno-card { display: grid; place-items: center; min-width: 54px; min-height: 80px; padding: 8px; border: 3px solid #f8f3e7; border-radius: 12px 17px 12px 17px; box-shadow: 0 5px 12px #0004; color: white; font-size: 19px; font-weight: 900; text-shadow: 0 1px 3px #0009; }
+.top-card { width: 66px; height: 96px; background: #4167c7; transform: rotate(-5deg); }
+.uno-hand { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding: 7px 0; }
+.uno-hand button { cursor: pointer; transition: transform .15s; }
+.uno-hand button:hover { transform: translateY(-7px) rotate(-2deg); }
+.card-red { background: #d63b3b; }.card-blue { background: #4167c7; }.card-yellow { background: #e0b72e; color: #28210a; }.card-green { background: #26956c; }
+.balda-board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; max-width: 350px; width: 100%; align-self: center; padding: 12px; border: 1px solid #414248; border-radius: 14px; background: #1b1c20; }
+.balda-board span { display: grid; place-items: center; aspect-ratio: 1; border: 1px solid #806b25; border-radius: 8px; background: linear-gradient(145deg, #ffe66b, #bd941c); color: #322708; font-size: 25px; font-weight: 800; }
+.balda-score { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid #37383e; border-radius: 12px; background: #191a1e; }
+.balda-score span { flex: 1; color: #b8b9c0; font-size: 12px; }.balda-score strong { color: var(--yellow); font-size: 20px; }.balda-score small { color: #85868d; font-size: 10px; }
+.balda-form { display: flex; gap: 8px; }
+.balda-form input { flex: 1; min-width: 0; height: 42px; padding: 0 12px; border: 1px solid #383940; border-radius: 10px; outline: none; background: #090a0c; color: white; font: inherit; font-size: 12px; }
+.balda-form input:focus { border-color: var(--yellow); }
+.balda-form button { padding: 0 14px; border: 0; border-radius: 10px; background: var(--yellow); color: #111; font-size: 12px; font-weight: 700; }
+.balda-words { display: flex; flex-wrap: wrap; gap: 7px; }
+.balda-words span { padding: 6px 9px; border: 1px solid #34353b; border-radius: 8px; background: #1a1b1f; color: #f0f0f2; font-size: 11px; }
+.balda-words b { margin-left: 4px; color: var(--yellow); }
+.game-feedback { padding: 11px 13px; border: 1px solid #5b4e17; border-radius: 10px; background: #211d0b; color: #f4df7c; font-size: 12px; line-height: 1.5; }
+.game-back-link { align-self: flex-start; padding: 5px 0; border: 0; background: transparent; color: var(--yellow); font-size: 12px; }
+@media (max-width: 560px) {
+  .game-modal { gap: 16px; padding: 17px; border-radius: 17px; }
+  .game-modal-header h2 { font-size: 21px; }
+  .game-picker { grid-template-columns: 1fr; }
+  .game-picker-card { display: grid; grid-template-columns: 48px 1fr auto; align-items: center; gap: 5px 12px; padding: 11px; }
+  .game-picker-card .game-icon { grid-row: span 2; width: 45px; height: 45px; }
+  .game-picker-card strong { align-self: end; }
+  .game-picker-card small { min-height: 0; align-self: start; }
+  .game-play-label { grid-column: 3; grid-row: 1 / span 2; }
+  .chess-answers { grid-template-columns: 1fr; }
+  .uno-card { min-width: 45px; min-height: 68px; font-size: 16px; }
+}
