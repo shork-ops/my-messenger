@@ -123,6 +123,7 @@ export default function App() {
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
+  const recordingStartedRef = useRef(0);
   const [mentionOpen, setMentionOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [activeNav, setActiveNav] = useState("Чаты");
@@ -247,13 +248,14 @@ export default function App() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream); mediaRecorderRef.current = recorder; recordingChunksRef.current = [];
       recorder.ondataavailable = (event) => { if (event.data.size) recordingChunksRef.current.push(event.data); };
+      recordingStartedRef.current = Date.now();
       recorder.onstop = () => {
         stream.getTracks().forEach((track) => track.stop()); setRecording(false);
         const blob = new Blob(recordingChunksRef.current, { type: recorder.mimeType || "audio/webm" });
         if (!blob.size) { action("Запись получилась пустой"); return; }
         if (blob.size > 1_500_000) { action("Аудио больше 1,5 МБ. Попробуй записать короче"); return; }
         const reader = new FileReader();
-        reader.onload = () => { const data = typeof reader.result === "string" ? reader.result : ""; if (!data) return; const time = clockTime(); const createdAt = Date.now(); const duration = Math.max(1, recordingSeconds); const message: Message = { id: createdAt, author: profileName, text: `Голосовое сообщение · ${duration} сек.`, time, mine: true, createdAt, attachment: { name: `voice-${createdAt}.webm`, type: blob.type || "audio/webm", data, size: blob.size } }; setChats((current) => current.map((chat) => chat.id === activeId ? { ...chat, preview: "🎤 Голосовое сообщение", time, messages: [...chat.messages, message] } : chat)); setRecordingSeconds(0); action("Голосовое сообщение добавлено в чат"); }; reader.readAsDataURL(blob);
+        reader.onload = () => { const data = typeof reader.result === "string" ? reader.result : ""; if (!data) return; const time = clockTime(); const createdAt = Date.now(); const duration = Math.max(1, Math.round((Date.now() - recordingStartedRef.current) / 1000)); const message: Message = { id: createdAt, author: profileName, text: `Голосовое сообщение · ${duration} сек.`, time, mine: true, createdAt, attachment: { name: `voice-${createdAt}.webm`, type: blob.type || "audio/webm", data, size: blob.size } }; setChats((current) => current.map((chat) => chat.id === activeId ? { ...chat, preview: "🎤 Голосовое сообщение", time, messages: [...chat.messages, message] } : chat)); setRecordingSeconds(0); action("Голосовое сообщение добавлено в чат"); }; reader.readAsDataURL(blob);
       };
       recorder.start(); setRecording(true); setRecordingSeconds(0);
       const startedAt = Date.now(); const tick = window.setInterval(() => { if (mediaRecorderRef.current?.state !== "recording") { window.clearInterval(tick); return; } setRecordingSeconds(Math.floor((Date.now() - startedAt) / 1000)); }, 500);
@@ -462,7 +464,7 @@ export default function App() {
       <section className="conversation-panel">
         <header className="conversation-header">
           <Avatar color={activeChat.color}>{activeChat.avatar}</Avatar>
-          <div className="conversation-title"><strong>{activeChat.name}</strong><small>{activeChat.group ? "5 участников" : "В сети"}</small></div>
+          <div className="conversation-title"><strong>{activeChat.name}</strong><small>{activeChat.group ? `${activeChat.members?.length ?? 1} участника(ов)` : "Локальный чат"}</small></div>
           <div className="conversation-tools">
             <button onClick={() => setMessageSearchOpen((open) => !open)} aria-label="Поиск по переписке" title="Поиск по переписке"><Search/></button>
             <button onClick={() => action("Голосовые звонки подключим позже")} aria-label="Позвонить"><Phone/></button>
