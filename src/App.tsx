@@ -174,9 +174,10 @@ export default function App() {
     setDeletedMessage({ chatId: activeId, message, index });
     setChats((current) => current.map((item) => {
       if (item.id !== activeId) return item;
+      const wasLast = item.messages[item.messages.length - 1]?.id === messageId;
       const messages = item.messages.filter((entry) => entry.id !== messageId);
       const last = messages[messages.length - 1];
-      return { ...item, messages, preview: last?.text ?? "Нет сообщений", time: last?.time ?? "" };
+      return { ...item, messages, preview: wasLast ? (last?.text ?? "Нет сообщений") : item.preview, time: wasLast ? (last?.time ?? "") : item.time };
     }));
     setOpenMessageActionsId(null);
     if (editingMessageId === messageId) {
