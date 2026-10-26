@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell, Camera, CheckCheck, ChevronRight, CircleUserRound, Gamepad2,
   Image, MessageCircle, MoreVertical, Paperclip, Phone, Plus, Search,
@@ -278,7 +278,7 @@ export default function App() {
         <div className="messages-area">
           {activeChat.messages.length > 0 && !activeChat.messages.some((message) => message.createdAt) && <div className="date-divider"><span>История переписки</span></div>}
           {activeChat.messages.map((message, index) => (
-            <React.Fragment key={message.id}>
+            <Fragment key={message.id}>
             {message.createdAt && (index === 0 || !activeChat.messages[index - 1]?.createdAt || dateLabel(message.createdAt) !== dateLabel(activeChat.messages[index - 1].createdAt!)) && <div className="date-divider"><span>{dateLabel(message.createdAt)}</span></div>}
             <div className={`message-line ${message.mine ? "mine" : ""}`}>
               {!message.mine && <Avatar color={friends.find((f) => f.name === message.author)?.color ?? "blue"} small>{message.author.slice(0, 1)}</Avatar>}
@@ -300,7 +300,7 @@ export default function App() {
                 )}
               </div>
             </div>
-            </React.Fragment>
+            </Fragment>
           ))}
           <div ref={messagesEndRef} />
         </div>
