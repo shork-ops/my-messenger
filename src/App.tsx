@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell, Camera, CheckCheck, ChevronRight, CircleUserRound, Gamepad2,
   Image, MessageCircle, MoreVertical, Paperclip, Phone, Plus, Search,
@@ -13,6 +13,7 @@ type Message = {
   mine?: boolean;
   image?: boolean;
   edited?: boolean;
+  createdAt?: number;
 };
 
 type Chat = {
@@ -102,6 +103,9 @@ export default function App() {
   const [activeNav, setActiveNav] = useState("Чаты");
   const [notice, setNotice] = useState("");
   const [showProfile, setShowProfile] = useState(true);
+  const [openMessageActionsId, setOpenMessageActionsId] = useState<number | null>(null);
+  const [deletedMessage, setDeletedMessage] = useState<{ chatId: number; message: Message; index: number } | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const activeChat = chats.find((chat) => chat.id === activeId) ?? chats[0];
 
@@ -112,6 +116,10 @@ export default function App() {
       // The app remains usable if browser storage is unavailable.
     }
   }, [chats]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [activeId, activeChat.messages.length]);
 
   const filteredChats = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -134,7 +142,7 @@ export default function App() {
       if (!text) return;
       setChats((current) => current.map((chat) => chat.id !== activeId ? chat : {
         ...chat,
-        preview: chat.messages.find((message) => message.id === editingMessageId)?.mine ? text : chat.preview,
+        preview: chat.messages[chat.messages.length - 1]?.id === editingMessageId ? text : chat.preview,
         messages: chat.messages.map((message) => message.id === editingMessageId ? { ...message, text, edited: true } : message),
       }));
       setEditingMessageId(null);
@@ -143,9 +151,10 @@ export default function App() {
     }
     const text = draft.trim();
     if (!text) return;
+    const createdAt = Date.now();
     const time = clockTime();
     setChats((current) => current.map((chat) => chat.id === activeId
-      ? { ...chat, preview: text, time, messages: [...chat.messages, { id: Date.now(), author: "Алексей", text, time, mine: true }] }
+      ? { ...chat, preview: text, time, messages: [...chat.messages, { id: createdAt, author: "Алексей", text, time, mine: true, createdAt }] }
       : chat
     ));
     setDraft("");
@@ -158,16 +167,45 @@ export default function App() {
   }
 
   function deleteMessage(messageId: number) {
-    setChats((current) => current.map((chat) => {
-      if (chat.id !== activeId) return chat;
-      const messages = chat.messages.filter((message) => message.id !== messageId);
+    const chat = chats.find((item) => item.id === activeId);
+    const index = chat?.messages.findIndex((message) => message.id === messageId) ?? -1;
+    const message = index >= 0 ? chat?.messages[index] : undefined;
+    if (!chat || !message) return;
+    setDeletedMessage({ chatId: activeId, message, index });
+    setChats((current) => current.map((item) => {
+      if (item.id !== activeId) return item;
+      const messages = item.messages.filter((entry) => entry.id !== messageId);
       const last = messages[messages.length - 1];
-      return { ...chat, messages, preview: last?.text ?? "Нет сообщений", time: last?.time ?? "" };
+      return { ...item, messages, preview: last?.text ?? "Нет сообщений", time: last?.time ?? "" };
     }));
+    setOpenMessageActionsId(null);
     if (editingMessageId === messageId) {
       setEditingMessageId(null);
       setEditDraft("");
     }
+  }
+
+  function undoDelete() {
+    if (!deletedMessage) return;
+    setChats((current) => current.map((chat) => {
+      if (chat.id !== deletedMessage.chatId) return chat;
+      const messages = [...chat.messages];
+      messages.splice(Math.min(deletedMessage.index, messages.length), 0, deletedMessage.message);
+      const last = messages[messages.length - 1];
+      return { ...chat, messages, preview: last?.text ?? "Нет сообщений", time: last?.time ?? "" };
+    }));
+    setDeletedMessage(null);
+  }
+
+  function dateLabel(timestamp: number) {
+    const date = new Date(timestamp);
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+    const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    if (sameDay(date, today)) return "Сегодня";
+    if (sameDay(date, yesterday)) return "Вчера";
+    return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: date.getFullYear() !== today.getFullYear() ? "numeric" : undefined }).format(date);
   }
 
   function action(label: string) {
@@ -238,16 +276,21 @@ export default function App() {
         </header>
 
         <div className="messages-area">
-          <div className="date-divider"><span>История переписки</span></div>
+          {activeChat.messages.length > 0 && !activeChat.messages.some((message) => message.createdAt) && <div className="date-divider"><span>История переписки</span></div>}
           {activeChat.messages.map((message, index) => (
-            <div key={message.id} className={`message-line ${message.mine ? "mine" : ""}`}>
+            <React.Fragment key={message.id}>
+            {message.createdAt && (index === 0 || !activeChat.messages[index - 1]?.createdAt || dateLabel(message.createdAt) !== dateLabel(activeChat.messages[index - 1].createdAt!)) && <div className="date-divider"><span>{dateLabel(message.createdAt)}</span></div>}
+            <div className={`message-line ${message.mine ? "mine" : ""}`}>
               {!message.mine && <Avatar color={friends.find((f) => f.name === message.author)?.color ?? "blue"} small>{message.author.slice(0, 1)}</Avatar>}
               <div className="message-content">
                 {!message.mine && <strong className="message-author">{message.author}</strong>}
-                <div className={`bubble ${message.mine ? "mine-bubble" : ""}`}>{message.text}<span className="message-time">{message.edited ? "изменено · " : ""}{message.time}{message.mine ? "  ✓✓" : ""}</span></div>
-                {message.mine && <div className="message-actions">
-                  <button type="button" onClick={() => startEditing(message)} aria-label="Редактировать сообщение"><PencilLine size={13}/> Изменить</button>
-                  <button type="button" onClick={() => deleteMessage(message.id)} aria-label="Удалить сообщение"><X size={13}/> Удалить</button>
+                <div className={`bubble ${message.mine ? "mine-bubble" : ""}`}>{message.text}<span className="message-time">{message.edited ? "изменено · " : ""}{message.time}</span></div>
+                {message.mine && <div className="message-action-wrap">
+                  <button type="button" className="message-menu-toggle" onClick={() => setOpenMessageActionsId(openMessageActionsId === message.id ? null : message.id)} aria-label="Действия с сообщением"><MoreVertical size={15}/></button>
+                  {openMessageActionsId === message.id && <div className="message-actions">
+                    <button type="button" onClick={() => { startEditing(message); setOpenMessageActionsId(null); }} aria-label="Редактировать сообщение"><PencilLine size={13}/> Изменить</button>
+                    <button type="button" onClick={() => deleteMessage(message.id)} aria-label="Удалить сообщение"><X size={13}/> Удалить</button>
+                  </div>}
                 </div>}
                 {activeChat.id === 1 && index === activeChat.messages.length - 1 && !message.mine && (
                   <div className="game-preview">
@@ -257,7 +300,9 @@ export default function App() {
                 )}
               </div>
             </div>
+            </React.Fragment>
           ))}
+          <div ref={messagesEndRef} />
         </div>
 
         {editingMessageId !== null && <div className="edit-banner">Редактирование сообщения <button type="button" onClick={() => { setEditingMessageId(null); setEditDraft(""); }} aria-label="Отменить редактирование"><X size={15}/></button></div>}
@@ -300,6 +345,7 @@ export default function App() {
         </div>
       </aside>}
 
+      {deletedMessage && <div className="toast undo-toast"><span>Сообщение удалено</span><button className="undo-button" onClick={undoDelete}>Отменить</button><button onClick={() => setDeletedMessage(null)} aria-label="Закрыть"><X size={15}/></button></div>}
       {notice && <div className="toast"><Shield size={17}/>{notice}<button onClick={() => setNotice("")}><X size={15}/></button></div>}
       <button className="mobile-profile-toggle" onClick={() => setShowProfile(!showProfile)} aria-label="Профиль"><CircleUserRound/></button>
     </main>
