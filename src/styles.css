@@ -338,3 +338,19 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
   .chess-answers { grid-template-columns: 1fr; }
   .uno-card { min-width: 45px; min-height: 68px; font-size: 16px; }
 }
+
+
+/* Local productivity features: filters, per-chat drafts, message search, new chats. */
+.chat-filters { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 13px; }
+.chat-filters button { padding: 7px 9px; border: 1px solid #2b2c31; border-radius: 999px; background: #121316; color: #aeb0b7; font-size: 10px; white-space: nowrap; }
+.chat-filters button.active { border-color: var(--yellow); background: color-mix(in srgb, var(--yellow) 13%, #121316); color: var(--yellow); }
+.message-search { display: flex; align-items: center; gap: 9px; margin: 10px 16px 0; padding: 9px 12px; border: 1px solid #35363c; border-radius: 11px; background: #111214; color: #a7a8ae; }
+.message-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: #f5f5f5; font-size: 12px; }
+.message-search span { color: var(--yellow); font-size: 11px; }
+.message-search button { display: grid; place-items: center; border: 0; background: transparent; color: #aaa; }
+.modal-help { margin: -5px 0 0; color: #9b9ca4; font-size: 12px; line-height: 1.5; }
+@media (max-width: 760px) {
+  .chat-filters { gap: 4px; padding: 0 8px 10px; }
+  .chat-filters button { padding: 6px 7px; font-size: 9px; }
+  .message-search { margin: 8px 8px 0; }
+}
