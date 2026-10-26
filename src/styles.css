@@ -365,3 +365,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .attachment-file > span { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .attachment-file strong { overflow-wrap: anywhere; font-size: 11px; }
 .attachment-file small { font-size: 10px; opacity: .7; }
+
+
+.clear-history-button { align-self: flex-start; margin: 16px 0 12px; padding: 8px 0; border: 0; background: transparent; color: #d88c8c; font-size: 10px; text-align: left; }
+.clear-history-button:hover { color: #ffb4b4; text-decoration: underline; }
