@@ -111,6 +111,14 @@ export default function App() {
   const [profileName, setProfileName] = useState(() => window.localStorage.getItem("nexus-profile-name") || "Алексей");
   const [profileAvatar, setProfileAvatar] = useState(() => window.localStorage.getItem("nexus-profile-avatar") || "А");
   const [theme, setTheme] = useState(() => window.localStorage.getItem("nexus-theme") || "yellow");
+  const [activeGame, setActiveGame] = useState<string | null>(null);
+  const [gameNotice, setGameNotice] = useState("");
+  const [chessSolved, setChessSolved] = useState(false);
+  const [unoHand, setUnoHand] = useState(["🔴 3", "🔵 7", "🟡 2", "🟢 5", "🔴 9"]);
+  const [unoTop, setUnoTop] = useState("🔵 4");
+  const [baldaInput, setBaldaInput] = useState("");
+  const [baldaWords, setBaldaWords] = useState<string[]>([]);
+  const [baldaScore, setBaldaScore] = useState(0);
   const [openMessageActionsId, setOpenMessageActionsId] = useState<number | null>(null);
   const [deletedMessage, setDeletedMessage] = useState<{ chatId: number; message: Message; index: number } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -198,6 +206,49 @@ export default function App() {
     setOpenMessageActionsId(null);
   }
 
+  function openGame(name: string) {
+    setActiveGame(name);
+    setGameNotice("");
+    if (name === "Шахматы") setChessSolved(false);
+    if (name === "Uno") { setUnoHand(["🔴 3", "🔵 7", "🟡 2", "🟢 5", "🔴 9"]); setUnoTop("🔵 4"); }
+    if (name === "Балда") { setBaldaInput(""); setBaldaWords([]); setBaldaScore(0); }
+  }
+
+  function playUnoCard(card: string) {
+    const cardColor = card.slice(0, 2);
+    const topColor = unoTop.slice(0, 2);
+    const cardNumber = card.trim().slice(-1);
+    const topNumber = unoTop.trim().slice(-1);
+    if (cardColor !== topColor && cardNumber !== topNumber) {
+      setGameNotice("Можно положить карту того же цвета или числа.");
+      return;
+    }
+    const nextHand = unoHand.filter((item) => item !== card);
+    const colors = ["🔴", "🔵", "🟡", "🟢"];
+    const nextCard = `${colors[Math.floor(Math.random() * colors.length)]} ${Math.floor(Math.random() * 9) + 1}`;
+    setUnoHand(nextHand);
+    setUnoTop(nextCard);
+    setGameNotice(nextHand.length === 0 ? "УНО! Ты выиграл раунд 🎉" : "Карта сыграна! Ход виртуального соперника завершён.");
+  }
+
+  function drawUnoCard() {
+    const colors = ["🔴", "🔵", "🟡", "🟢"];
+    const card = `${colors[Math.floor(Math.random() * colors.length)]} ${Math.floor(Math.random() * 9) + 1}`;
+    setUnoHand((hand) => [...hand, card]);
+    setGameNotice("Ты взял карту. Теперь можно сыграть подходящую.");
+  }
+
+  function submitBaldaWord(event: FormEvent) {
+    event.preventDefault();
+    const word = baldaInput.trim().toLocaleLowerCase("ru-RU").replace(/ё/g, "е");
+    if (word.length < 3 || !/^[а-я]+$/.test(word)) { setGameNotice("Введи русское слово минимум из 3 букв."); return; }
+    if (baldaWords.includes(word)) { setGameNotice("Это слово уже использовано."); return; }
+    setBaldaWords((words) => [...words, word]);
+    setBaldaScore((score) => score + word.length);
+    setBaldaInput("");
+    setGameNotice(`Принято: +${word.length} очков!`);
+  }
+
   function togglePinned(chatId: number) {
     setChats((current) => current.map((chat) => chat.id === chatId ? { ...chat, pinned: !chat.pinned } : chat));
   }
@@ -267,7 +318,7 @@ export default function App() {
           <button className={`nav-link ${activeNav === "Видео" ? "active" : ""}`} onClick={() => { setActiveNav("Видео"); action("Видеозвонки подключим на следующем этапе"); }}>
             <Video size={22}/><span>Видео</span>
           </button>
-          <button className={`nav-link ${activeNav === "Мини-игры" ? "active" : ""}`} onClick={() => { setActiveNav("Мини-игры"); action("Игры пока представлены макетом"); }}>
+          <button className={`nav-link ${activeNav === "Мини-игры" ? "active" : ""}`} onClick={() => { setActiveNav("Мини-игры"); openGame("Каталог"); }}>
             <Gamepad2 size={22}/><span>Мини-игры</span>
           </button>
           <div className="nav-divider"/>
@@ -383,15 +434,49 @@ export default function App() {
         </div>
 
         <div className="right-divider games-divider"/>
-        <button className="games-heading" onClick={() => { setActiveNav("Мини-игры"); action("Каталог игр скоро появится"); }}><Gamepad2 size={22}/><strong>Мини-игры</strong><ChevronRight size={20}/></button>
+        <button className="games-heading" onClick={() => { setActiveNav("Мини-игры"); openGame("Каталог"); }}><Gamepad2 size={22}/><strong>Мини-игры</strong><ChevronRight size={20}/></button>
         <div className="games-list">
-          {games.map((game) => <button key={game.name} className="game-row" onClick={() => action(`${game.name}: игра появится в следующем этапе`)}>
+          {games.map((game) => <button key={game.name} className="game-row" onClick={() => openGame(game.name)}>
             <span className={`game-icon ${game.cls}`}>{game.icon}</span><span><strong>{game.name}</strong><small>{game.desc}</small></span>
           </button>)}
         </div>
       </aside>}
 
-      {profileOpen && <div className="modal-backdrop" onClick={() => setProfileOpen(false)}><section className="settings-modal" onClick={(event) => event.stopPropagation()}><header><strong>Профиль и оформление</strong><button type="button" onClick={() => setProfileOpen(false)} aria-label="Закрыть"><X size={18}/></button></header><label>Имя<input value={profileName} maxLength={32} onChange={(event) => setProfileName(event.target.value)} /></label><label>Буква или эмодзи аватара<input value={profileAvatar} maxLength={3} onChange={(event) => setProfileAvatar(event.target.value)} /></label><label>Цветовая тема<select value={theme} onChange={(event) => setTheme(event.target.value)}><option value="yellow">Nexus — жёлтая</option><option value="blue">Синяя</option><option value="violet">Фиолетовая</option><option value="mint">Мятная</option></select></label><button type="button" className="save-settings" onClick={() => { setProfileOpen(false); action("Профиль и тема сохранены"); }}>Готово</button></section></div>}
+
+      {activeGame && <div className="modal-backdrop game-backdrop" onClick={() => setActiveGame(null)}>
+        <section className="game-modal" onClick={(event) => event.stopPropagation()}>
+          <header className="game-modal-header"><div><span className="game-modal-eyebrow">NEXUS ARCADE</span><h2>{activeGame === "Каталог" ? "Мини-игры" : activeGame}</h2></div><button type="button" onClick={() => setActiveGame(null)} aria-label="Закрыть игры"><X size={20}/></button></header>
+          {activeGame === "Каталог" ? <div className="game-picker">
+            {games.map((game) => <button key={game.name} className="game-picker-card" onClick={() => openGame(game.name)}><span className={`game-icon ${game.cls}`}>{game.icon}</span><strong>{game.name}</strong><small>{game.desc}</small><span className="game-play-label">Играть <ChevronRight size={15}/></span></button>)}
+          </div> : null}
+          {activeGame === "Шахматы" && <div className="chess-game">
+            <p className="game-instructions">Шахматная разминка: белые ходят. Как лучше продолжить позицию?</p>
+            <div className="chess-board" aria-label="Шахматная доска">
+              {["♜","♞","♝","♛","♚","♝","♞","♜","♟","♟","♟","♟","♟","♟","♟","♟","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","♙","♙","♙","♙","♙","♙","♙","♙","♖","♘","♗","♕","♔","♗","♘","♖"].map((piece,index) => <div key={index} className={`chess-square ${(Math.floor(index/8)+index%8)%2===0?"light":"dark"}`}>{piece}</div>)}
+            </div>
+            <strong className="game-question">Как называется ход, который одновременно атакует короля?</strong>
+            <div className="chess-answers">{["Рокировка","Шах","Пат"].map((answer) => <button key={answer} onClick={() => { setChessSolved(true); setGameNotice(answer === "Шах" ? "Верно! ♟️ Король под атакой." : "Не совсем. Правильный ответ — «Шах»." ); }}>{answer}</button>)}</div>
+            {chessSolved && <button className="game-secondary" onClick={() => {setChessSolved(false);setGameNotice("");}}>Попробовать ещё раз</button>}
+          </div>}
+          {activeGame === "Uno" && <div className="uno-game">
+            <p className="game-instructions">Сыграй карту того же цвета или числа, что и верхняя карта. Соперник виртуальный.</p>
+            <div className="uno-table"><span>Карта на столе</span><div className="uno-card top-card">{unoTop}</div><small>Карт у тебя: {unoHand.length}</small></div>
+            <strong className="game-question">Твои карты</strong>
+            <div className="uno-hand">{unoHand.map((card,index) => <button key={card+index} className={`uno-card card-${card.slice(0,2)==="🔴"?"red":card.slice(0,2)==="🔵"?"blue":card.slice(0,2)==="🟡"?"yellow":"green"}`} onClick={() => playUnoCard(card)}>{card}</button>)}</div>
+            <button className="game-secondary" onClick={drawUnoCard}>Взять карту +1</button>
+          </div>}
+          {activeGame === "Балда" && <div className="balda-game">
+            <p className="game-instructions">Составляй русские слова. Каждое новое слово приносит очки по числу букв. Это локальная тренировка.</p>
+            <div className="balda-board">{["Б","А","Л","Д","А"].map((letter,index)=><span key={index}>{letter}</span>)}</div>
+            <div className="balda-score"><span>Твои очки</span><strong>{baldaScore}</strong><small>слов: {baldaWords.length}</small></div>
+            <form className="balda-form" onSubmit={submitBaldaWord}><input value={baldaInput} onChange={(event)=>setBaldaInput(event.target.value)} placeholder="Введи слово..." maxLength={20}/><button type="submit">Добавить</button></form>
+            {baldaWords.length > 0 && <div className="balda-words">{baldaWords.map((word,index)=><span key={word}>{word} <b>+{word.length}</b></span>)}</div>}
+          </div>}
+          {gameNotice && <div className="game-feedback" role="status">{gameNotice}</div>}
+          {activeGame !== "Каталог" && <button className="game-back-link" onClick={() => openGame("Каталог")}>← Все мини-игры</button>}
+        </section>
+      </div>}
+\n      {profileOpen && <div className="modal-backdrop" onClick={() => setProfileOpen(false)}><section className="settings-modal" onClick={(event) => event.stopPropagation()}><header><strong>Профиль и оформление</strong><button type="button" onClick={() => setProfileOpen(false)} aria-label="Закрыть"><X size={18}/></button></header><label>Имя<input value={profileName} maxLength={32} onChange={(event) => setProfileName(event.target.value)} /></label><label>Буква или эмодзи аватара<input value={profileAvatar} maxLength={3} onChange={(event) => setProfileAvatar(event.target.value)} /></label><label>Цветовая тема<select value={theme} onChange={(event) => setTheme(event.target.value)}><option value="yellow">Nexus — жёлтая</option><option value="blue">Синяя</option><option value="violet">Фиолетовая</option><option value="mint">Мятная</option></select></label><button type="button" className="save-settings" onClick={() => { setProfileOpen(false); action("Профиль и тема сохранены"); }}>Готово</button></section></div>}
       {deletedMessage && <div className="toast undo-toast"><span>Сообщение удалено</span><button className="undo-button" onClick={undoDelete}>Отменить</button><button onClick={() => setDeletedMessage(null)} aria-label="Закрыть"><X size={15}/></button></div>}
       {notice && <div className="toast"><Shield size={17}/>{notice}<button onClick={() => setNotice("")}><X size={15}/></button></div>}
       <button className="mobile-profile-toggle" onClick={() => setShowProfile(!showProfile)} aria-label="Профиль"><CircleUserRound/></button>
