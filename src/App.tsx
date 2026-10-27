@@ -14,7 +14,7 @@ type Message = {
   time: string;
   mine?: boolean;
   image?: boolean;
-  attachment?: { name: string; type: string; data: string; size: number };
+  attachment?: { name: string; type: string; data: string; size: number; path?: string };
   poll?: { question: string; options: { id: string; text: string; votes: string[] }[] };
   edited?: boolean;
   createdAt?: number;
@@ -308,7 +308,7 @@ export default function App() {
         ? await client.from("profiles").select("id, username, display_name, avatar").in("id", memberIds)
         : { data: [] as { id: string; username: string | null; display_name: string; avatar: string }[] };
       const [{ data: messageRows, error: messagesError }] = await Promise.all([
-        client.from("messages").select("id, chat_id, sender_id, body, created_at, edited_at, deleted_at").in("chat_id", chatIds).order("created_at", { ascending: true }).limit(1000),
+        client.from("messages").select("id, chat_id, sender_id, body, attachment, effect, reply_to, created_at, edited_at, deleted_at").in("chat_id", chatIds).order("created_at", { ascending: true }).limit(1000),
       ]);
       if (!alive) return;
       if (messagesError) {
@@ -321,11 +321,19 @@ export default function App() {
         const chatMessages: Message[] = (messageRows ?? []).filter((message) => message.chat_id === row.id).map((message) => {
           const sender = message.sender_id === accountId ? profileName : (other?.display_name || "Пользователь");
           const created = new Date(message.created_at);
+          const attachmentMeta = message.attachment as { name?: string; type?: string; size?: number; path?: string } | null;
+          let attachment: Message["attachment"];
+          if (attachmentMeta) {
+            let data = "";
+            if (attachmentMeta.path) { const { data: signed } = await client.storage.from("chat-media").createSignedUrl(attachmentMeta.path, 3600); data = signed?.signedUrl || ""; }
+            attachment = { name: attachmentMeta.name || "Вложение", type: attachmentMeta.type || "application/octet-stream", size: attachmentMeta.size || 0, data, ...(attachmentMeta.path ? { path: attachmentMeta.path } : {}) };
+          }
           return {
             id: numericId(message.id), remoteId: message.id, author: sender,
             text: message.deleted_at ? "Сообщение удалено" : message.body,
             time: new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(created),
             mine: message.sender_id === accountId, createdAt: created.getTime(), edited: Boolean(message.edited_at),
+            ...(message.effect ? { effect: message.effect } : {}), ...(attachment ? { attachment } : {}),
           };
         });
         const last = chatMessages[chatMessages.length - 1];
