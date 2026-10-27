@@ -321,6 +321,7 @@ export default function App() {
         const chatMessages: Message[] = await Promise.all((messageRows ?? []).filter((message) => message.chat_id === row.id).map(async (message) => {
           const sender = message.sender_id === accountId ? profileName : (other?.display_name || "Пользователь");
           const created = new Date(message.created_at);
+          const { data: reactionRows } = await client.from('message_reactions').select('emoji').eq('message_id', message.id);
           const attachmentMeta = message.attachment as { name?: string; type?: string; size?: number; path?: string } | null;
           let attachment: Message["attachment"];
           if (attachmentMeta) {
@@ -333,7 +334,7 @@ export default function App() {
             text: message.deleted_at ? "Сообщение удалено" : message.body,
             time: new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(created),
             mine: message.sender_id === accountId, createdAt: created.getTime(), edited: Boolean(message.edited_at),
-            ...(message.effect ? { effect: message.effect } : {}), ...(attachment ? { attachment } : {}),
+            ...(message.effect ? { effect: message.effect } : {}), ...(attachment ? { attachment } : {}), reactions: (reactionRows ?? []).map((reaction) => reaction.emoji),
           };
         }));
         const last = chatMessages[chatMessages.length - 1];
