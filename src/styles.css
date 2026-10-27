@@ -400,3 +400,30 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .media-gallery button { display: flex; flex-direction: column; gap: 5px; min-width: 0; padding: 0; overflow: hidden; border: 1px solid #ffffff20; border-radius: 9px; background: #101114; color: #d7d7dc; text-align: left; }
 .media-gallery img { width: 100%; aspect-ratio: 1; object-fit: cover; }
 .media-gallery small { overflow: hidden; padding: 0 7px 7px; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+
+
+/* Nexus premium message effects — subtle, opt-in and reduced-motion friendly. */
+.message-effect-sparkle,
+.message-effect-hearts,
+.message-effect-fireworks,
+.message-effect-glow { position: relative; isolation: isolate; overflow: visible; }
+.message-effect-sparkle { box-shadow: 0 0 0 1px #e9d7a844, 0 0 22px #f0d68b20; animation: nexus-effect-arrive .48s cubic-bezier(.2,.8,.2,1) both; }
+.message-effect-hearts { box-shadow: 0 0 0 1px #ef9ca844, 0 0 24px #ed789a22; animation: nexus-heart-arrive .55s cubic-bezier(.18,.8,.25,1) both; }
+.message-effect-fireworks { box-shadow: 0 0 0 1px #c9b1ff55, 0 0 25px #a88aff2b; animation: nexus-effect-arrive .5s ease-out both; }
+.message-effect-glow { box-shadow: 0 0 0 1px color-mix(in srgb, var(--yellow) 50%, transparent), 0 0 28px color-mix(in srgb, var(--yellow) 22%, transparent); }
+.message-effect-mark { position: absolute; right: -8px; top: -12px; display: grid; place-items: center; width: 23px; height: 23px; border: 1px solid #ffffff35; border-radius: 50%; background: linear-gradient(145deg, #28282d, #121316); box-shadow: 0 5px 14px #0005; font-size: 14px; line-height: 1; pointer-events: none; }
+.effect-mark-sparkle { color: #f2d68a; animation: nexus-mark-pop .7s ease-out both; }
+.effect-mark-hearts { color: #ff9bb8; animation: nexus-heart-float 1.8s ease-in-out infinite; }
+.effect-mark-fireworks { color: #d2b9ff; animation: nexus-mark-pop .7s ease-out both; }
+.effect-mark-glow { color: var(--yellow); box-shadow: 0 0 18px color-mix(in srgb, var(--yellow) 28%, transparent); }
+.message-actions .effect-action { min-width: 29px; justify-content: center; padding-inline: 7px; font-size: 15px; }
+.message-actions .effect-action:nth-of-type(3) { color: #f2d68a; }
+.message-actions .effect-action:nth-of-type(4) { color: #ff9bb8; }
+.message-actions .effect-action:nth-of-type(5) { color: #d2b9ff; }
+@keyframes nexus-effect-arrive { 0% { transform: translateY(3px) scale(.97); filter: brightness(1.25); } 100% { transform: translateY(0) scale(1); filter: brightness(1); } }
+@keyframes nexus-heart-arrive { 0% { transform: scale(.96); } 45% { transform: scale(1.025); } 100% { transform: scale(1); } }
+@keyframes nexus-mark-pop { 0% { transform: scale(.2) rotate(-35deg); opacity: 0; } 65% { transform: scale(1.15) rotate(8deg); opacity: 1; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+@keyframes nexus-heart-float { 0%, 100% { transform: translateY(0) rotate(-6deg); } 50% { transform: translateY(-3px) rotate(6deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .message-effect-sparkle, .message-effect-hearts, .message-effect-fireworks, .effect-mark-sparkle, .effect-mark-hearts, .effect-mark-fireworks { animation: none !important; }
+}
