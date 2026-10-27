@@ -29,8 +29,8 @@ begin
   for option_item in select value from jsonb_array_elements(current_poll->'options')
   loop
     if exists (
-      select 1 from jsonb_array_elements_text(coalesce(option_item->'votes', '[]'::jsonb)) v
-      where v = actor::text
+      select 1 from jsonb_array_elements_text(coalesce(option_item->'votes', '[]'::jsonb)) as vote(value)
+      where vote.value = actor::text
     ) then already_voted := true; end if;
   end loop;
 
@@ -39,8 +39,8 @@ begin
       when item->>'id' = option_id_input then
         jsonb_set(item, '{votes}',
           case when already_voted and exists (
-            select 1 from jsonb_array_elements_text(coalesce(item->'votes', '[]'::jsonb)) v where v = actor::text
-          ) then coalesce((select jsonb_agg(v) from jsonb_array_elements(coalesce(item->'votes','[]'::jsonb)) v where v #>> '{}' <> actor::text), '[]'::jsonb)
+            select 1 from jsonb_array_elements_text(coalesce(item->'votes', '[]'::jsonb)) as vote(value) where vote.value = actor::text
+          ) then coalesce((select jsonb_agg(vote.value) from jsonb_array_elements(coalesce(item->'votes','[]'::jsonb)) as vote(value) where vote.value #>> '{}' <> actor::text), '[]'::jsonb)
           else coalesce(item->'votes','[]'::jsonb) || to_jsonb(actor::text) end)
       when already_voted then jsonb_set(item, '{votes}',
         coalesce((select jsonb_agg(v) from jsonb_array_elements(coalesce(item->'votes','[]'::jsonb)) v where v #>> '{}' <> actor::text), '[]'::jsonb))
