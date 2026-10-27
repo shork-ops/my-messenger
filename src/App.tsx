@@ -200,8 +200,7 @@ export default function App() {
       setProfileReady(true);
     };
     void syncProfile();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => { void syncProfile(); });
-    return () => { alive = false; subscription.unsubscribe(); };
+    return () => { alive = false; };
   }, []);
 
   useEffect(() => {
