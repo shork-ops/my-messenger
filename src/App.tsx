@@ -382,17 +382,23 @@ export default function App() {
     if (!client || !accountId || !active?.remoteId) return;
     const channel = client.channel(`nexus-messages-${active.remoteId}`)
       .on("postgres_changes", {
-        event: "INSERT", schema: "public", table: "messages", filter: `chat_id=eq.${active.remoteId}`,
+        event: "*", schema: "public", table: "messages", filter: `chat_id=eq.${active.remoteId}`,
       }, async (payload) => {
-        const row = payload.new as { id: string; chat_id: string; sender_id: string; body: string; attachment?: { name?: string; type?: string; size?: number; path?: string } | null; effect?: Message['effect']; created_at: string; edited_at?: string | null; deleted_at?: string | null };
-        if (row.sender_id === accountId) return;
+        const row = payload.new as { id: string; chat_id: string; sender_id: string; body: string; poll?: Message["poll"] | null; attachment?: { name?: string; type?: string; size?: number; path?: string } | null; effect?: Message['effect']; created_at: string; edited_at?: string | null; deleted_at?: string | null };
+        if (!row?.id) return;
         let attachment: Message['attachment'];
         if (row.attachment) { let data = ''; if (row.attachment.path) { const signed = await client.storage.from('chat-media').createSignedUrl(row.attachment.path, 3600); data = signed.data?.signedUrl || ''; } attachment = { name: row.attachment.name || 'Вложение', type: row.attachment.type || 'application/octet-stream', size: row.attachment.size || 0, path: row.attachment.path, data }; }
         setChats((current) => current.map((chat) => {
-          if (chat.remoteId !== row.chat_id || chat.messages.some((message) => message.remoteId === row.id)) return chat;
+          if (chat.remoteId !== row.chat_id) return chat;
+          const existing = chat.messages.find((message) => message.remoteId === row.id);
+          if (existing) {
+            if (row.poll) return { ...chat, messages: chat.messages.map((message) => message.remoteId === row.id ? { ...message, poll: row.poll as Message["poll"] } : message) };
+            return chat;
+          }
+          if (payload.eventType !== "INSERT" || row.sender_id === accountId) return chat;
           const created = new Date(row.created_at);
-          const message: Message = { id: numericId(row.id), remoteId: row.id, author: chat.name, text: row.deleted_at ? 'Сообщение удалено' : row.body, time: new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(created), mine: false, createdAt: created.getTime(), edited: Boolean(row.edited_at), ...(row.effect ? { effect: row.effect } : {}), ...(attachment ? { attachment } : {}) };
-          return { ...chat, preview: attachment ? '📎 ' + row.body : message.text, time: message.time, messages: [...chat.messages, message] };
+          const message: Message = { id: numericId(row.id), remoteId: row.id, author: chat.name, text: row.deleted_at ? 'Сообщение удалено' : row.body, time: new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(created), mine: false, createdAt: created.getTime(), edited: Boolean(row.edited_at), ...(row.effect ? { effect: row.effect } : {}), ...(row.poll ? { poll: row.poll as Message["poll"] } : {}), ...(attachment ? { attachment } : {}) };
+          return { ...chat, preview: row.poll ? '📊 ' + row.body : attachment ? '📎 ' + row.body : message.text, time: message.time, messages: [...chat.messages, message] };
         }));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'message_reactions' }, async (payload) => {
