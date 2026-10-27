@@ -314,7 +314,7 @@ export default function App() {
       if (messagesError) {
         setNotice("Чаты загружены, но сообщения получить не удалось");
       }
-      const mappedChats: Chat[] = (cloudChatRows ?? []).map((row) => {
+      const mappedChats: Chat[] = await Promise.all((cloudChatRows ?? []).map(async (row) => {
         const chatMembers = (profileRows ?? []).filter((member) => member.chat_id === row.id);
         const otherId = chatMembers.find((member) => member.user_id !== accountId)?.user_id;
         const other = (memberProfiles ?? []).find((profile) => profile.id === otherId);
@@ -346,7 +346,7 @@ export default function App() {
           time: last?.time || "", messages: chatMessages, group: row.is_group,
           members: chatMembers.map((member) => member.user_id === accountId ? profileName : ((memberProfiles ?? []).find((profile) => profile.id === member.user_id)?.display_name || "Пользователь")),
         };
-      });
+      }));
       setChats(mappedChats);
       setActiveId(mappedChats[0]?.id ?? 0);
       setCloudChatsReady(true);
