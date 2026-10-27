@@ -294,7 +294,7 @@ export default function App() {
         return;
       }
       const [{ data: cloudChatRows, error: chatsError }, { data: profileRows }] = await Promise.all([
-        client.from("chats").select("id, title, is_group, created_at").in("id", chatIds).order("updated_at", { ascending: false }),
+        client.from("chats").select("id, title, is_group, invite_code, created_at").in("id", chatIds).order("updated_at", { ascending: false }),
         client.from("chat_members").select("chat_id, user_id").in("chat_id", chatIds),
       ]);
       if (!alive) return;
@@ -343,7 +343,7 @@ export default function App() {
           name: row.is_group ? row.title : (other?.display_name || row.title),
           avatar: row.is_group ? "👥" : (other?.avatar || other?.display_name?.slice(0, 1) || "N"),
           color: row.is_group ? "group" : "blue", preview: last?.text || "Начни общение",
-          time: last?.time || "", messages: chatMessages, group: row.is_group,
+          time: last?.time || "", messages: chatMessages, group: row.is_group, inviteCode: row.invite_code || undefined,
           members: chatMembers.map((member) => member.user_id === accountId ? profileName : ((memberProfiles ?? []).find((profile) => profile.id === member.user_id)?.display_name || "Пользователь")),
         };
       }));
@@ -354,6 +354,28 @@ export default function App() {
     void loadCloudChats();
     return () => { alive = false; };
   }, [accountId, profileReady, profileName]);
+
+  useEffect(() => {
+    const client = supabase;
+    const code = new URLSearchParams(window.location.search).get("join");
+    if (!client || !accountId || !code) return;
+    let cancelled = false;
+    const join = async () => {
+      const { error } = await client.rpc("join_group_by_invite", { invite_code_input: code });
+      if (cancelled) return;
+      const url = new URL(window.location.href);
+      url.searchParams.delete("join");
+      window.history.replaceState({}, "", url.toString());
+      if (error) {
+        action(error.message.includes("join_group_by_invite") ? "Примени миграцию облачных групп в Supabase" : "Ссылка недействительна или не удалось вступить в группу");
+        return;
+      }
+      action("Ты вступил в группу");
+      window.location.reload();
+    };
+    void join();
+    return () => { cancelled = true; };
+  }, [accountId]);
 
   useEffect(() => {
     const client = supabase;
@@ -453,10 +475,29 @@ export default function App() {
     action('Вложение отправлено');
   }
 
-  function createChat(event: FormEvent) {
+  async function createChat(event: FormEvent) {
     event.preventDefault();
     const name = newChatName.trim();
     if (!name) return;
+    if (newChatIsGroup) {
+      if (!supabase || !accountId) { action("Войди в аккаунт, чтобы создать облачную группу"); return; }
+      const { data, error } = await supabase.rpc("create_group_chat", { group_title: name });
+      const createdRow = Array.isArray(data) ? data[0] : data;
+      if (error || !createdRow?.chat_id) {
+        action(error?.message?.includes("create_group_chat") ? "Примени миграцию 20261028_cloud_group_chats.sql в Supabase" : "Не удалось создать облачную группу");
+        return;
+      }
+      const created: Chat = {
+        id: numericId(createdRow.chat_id), remoteId: createdRow.chat_id, name,
+        avatar: "👥", color: "group", preview: "Группа создана", time: clockTime(),
+        messages: [], group: true, members: [profileName], inviteCode: createdRow.invite_code,
+      };
+      setChats((current) => [created, ...current]);
+      setActiveId(created.id); setDraft(""); setNewChatName(""); setNewChatIsGroup(false);
+      setNewChatOpen(false); setActiveNav("Чаты");
+      action("Облачная группа создана");
+      return;
+    }
     const existing = chats.find((chat) => chat.name.toLocaleLowerCase("ru-RU") === name.toLocaleLowerCase("ru-RU"));
     if (existing) { setActiveId(existing.id); setNewChatOpen(false); setNewChatName(""); action("Этот чат уже существует"); return; }
     const id = Date.now();
@@ -506,12 +547,19 @@ export default function App() {
     } catch { action("Нет доступа к микрофону. Разреши запись аудио в браузере"); }
   }
 
-  function createInviteLink() {
+  async function createInviteLink() {
     if (!activeChat.group) { action("Приглашения доступны для групповых чатов"); return; }
-    const code = activeChat.inviteCode || Math.random().toString(36).slice(2, 10);
-    const link = `${window.location.origin}${window.location.pathname}?join=${code}`;
-    setChats((current) => current.map((chat) => chat.id === activeId ? { ...chat, inviteCode: code } : chat));
-    navigator.clipboard?.writeText(link).then(() => action("Ссылка-приглашение скопирована")).catch(() => action(`Ссылка: ${link}`));
+    if (!activeChat.remoteId || !activeChat.inviteCode) {
+      action("Для этой группы нет облачной ссылки. Создай облачную группу заново.");
+      return;
+    }
+    const link = `${window.location.origin}${window.location.pathname}?join=${activeChat.inviteCode}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      action("Ссылка-приглашение скопирована");
+    } catch {
+      action(`Ссылка: ${link}`);
+    }
   }
 
   async function sendMessage(event: FormEvent) {
