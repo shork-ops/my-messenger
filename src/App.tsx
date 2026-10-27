@@ -1,4 +1,5 @@
 import { Fragment, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { supabase } from "./lib/supabase";
 import {
   Bell, Camera, CheckCheck, ChevronRight, CircleUserRound, Gamepad2,
   Image, MessageCircle, MoreVertical, Paperclip, Phone, Plus, Search,
@@ -134,6 +135,8 @@ export default function App() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileName, setProfileName] = useState(() => window.localStorage.getItem("nexus-profile-name") || "Алексей");
   const [profileAvatar, setProfileAvatar] = useState(() => window.localStorage.getItem("nexus-profile-avatar") || "А");
+  const [accountId, setAccountId] = useState<string | null>(null);
+  const [profileReady, setProfileReady] = useState(false);
   const [theme, setTheme] = useState(() => window.localStorage.getItem("nexus-theme") || "yellow");
   const [activeGame, setActiveGame] = useState<string | null>(null);
   const [gameNotice, setGameNotice] = useState("");
@@ -154,6 +157,53 @@ export default function App() {
   const mentionQuery = draft.match(/(?:^|\s)@([^\s@]*)$/)?.[1] ?? null;
   const mentionMatches = mentionQuery === null ? [] : [...new Set([profileName, ...friends.map((friend) => friend.name), ...(activeChat.members ?? [])])].filter((name) => name.toLocaleLowerCase("ru-RU").startsWith(mentionQuery.toLocaleLowerCase("ru-RU"))).slice(0, 6);
 
+  // Stage 1: bind the visible profile to the authenticated Supabase account.
+  // Chat data stays local until the separate, tested chat migration stage.
+  useEffect(() => {
+    if (!supabase) {
+      setProfileReady(true);
+      return;
+    }
+    let alive = true;
+    const syncProfile = async () => {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (!alive) return;
+      if (userError || !user) {
+        setAccountId(null);
+        setProfileReady(true);
+        return;
+      }
+      setAccountId(user.id);
+      const metadataName = typeof user.user_metadata?.full_name === "string"
+        ? user.user_metadata.full_name
+        : typeof user.user_metadata?.name === "string" ? user.user_metadata.name : "";
+      const metadataAvatar = typeof user.user_metadata?.avatar_url === "string" ? user.user_metadata.avatar_url : "";
+      const { data: existingProfile, error: readError } = await supabase
+        .from("profiles").select("display_name, avatar").eq("id", user.id).maybeSingle();
+      if (!alive) return;
+      if (readError) {
+        setNotice("Не удалось загрузить профиль из Supabase");
+        setProfileReady(true);
+        return;
+      }
+      if (existingProfile) {
+        setProfileName(existingProfile.display_name || metadataName || "Пользователь");
+        setProfileAvatar(existingProfile.avatar || metadataName.slice(0, 1).toUpperCase() || "N");
+      } else {
+        const displayName = metadataName.trim() || user.email?.split("@")[0] || "Пользователь";
+        const avatar = metadataAvatar || displayName.slice(0, 1).toUpperCase() || "N";
+        const { error: insertError } = await supabase.from("profiles").insert({ id: user.id, display_name: displayName, avatar });
+        if (!alive) return;
+        if (insertError) setNotice("Не удалось создать профиль в Supabase");
+        else { setProfileName(displayName); setProfileAvatar(avatar); }
+      }
+      setProfileReady(true);
+    };
+    void syncProfile();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => { void syncProfile(); });
+    return () => { alive = false; subscription.unsubscribe(); };
+  }, []);
+
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem("nexus-theme", theme);
@@ -162,7 +212,18 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem("nexus-profile-name", profileName);
     window.localStorage.setItem("nexus-profile-avatar", profileAvatar);
-  }, [profileName, profileAvatar]);
+    if (!supabase || !accountId || !profileReady) return;
+    const saveProfile = async () => {
+      const { error } = await supabase.from("profiles").upsert({
+        id: accountId,
+        display_name: profileName.trim() || "Пользователь",
+        avatar: profileAvatar.trim() || "N",
+        updated_at: new Date().toISOString(),
+      });
+      if (error) setNotice("Не удалось сохранить профиль в Supabase");
+    };
+    void saveProfile();
+  }, [profileName, profileAvatar, accountId, profileReady]);
 
   useEffect(() => { window.localStorage.setItem("nexus-drafts-v1", JSON.stringify(drafts)); }, [drafts]);
 
