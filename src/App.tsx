@@ -37,43 +37,6 @@ type Chat = {
   messages: Message[];
 };
 
-const initialChats: Chat[] = [
-  {
-    id: 1, name: "Друзья", avatar: "👥", color: "group", preview: "Кто сегодня играет?", time: "19:42", unread: 2, group: true,
-    messages: [
-      { id: 1, author: "Максим", text: "Кто сегодня играет?", time: "19:32" },
-      { id: 2, author: "Игорь", text: "Я в 20:00 буду, можем в доту или кс?", time: "19:35" },
-      { id: 3, author: "Алексей", text: "Давайте в доту, я как раз хотел потренироваться", time: "19:37", mine: true },
-      { id: 4, author: "Аня", text: "Я тоже за! 🙂", time: "19:38" },
-      { id: 5, author: "Сергей", text: "Топ, собираемся в 20:00", time: "19:40" },
-    ]
-  },
-  {
-    id: 2, name: "Максим", avatar: "М", color: "blue", preview: "Скинь потом ссылку 🙂", time: "18:37", unread: 1,
-    messages: [{ id: 1, author: "Максим", text: "Скинь потом ссылку 🙂", time: "18:37" }]
-  },
-  {
-    id: 3, name: "Аня", avatar: "А", color: "pink", preview: "Хорошо, давай!", time: "17:23",
-    messages: [{ id: 1, author: "Аня", text: "Хорошо, давай!", time: "17:23" }]
-  },
-  {
-    id: 4, name: "Игорь", avatar: "И", color: "olive", preview: "Встретимся в 20:00?", time: "16:12",
-    messages: [{ id: 1, author: "Игорь", text: "Встретимся в 20:00?", time: "16:12" }]
-  },
-  {
-    id: 5, name: "Общие", avatar: "👥", color: "group", preview: "Максим: Погнали в доту?", time: "14:05", unread: 4, group: true,
-    messages: [{ id: 1, author: "Максим", text: "Погнали в доту?", time: "14:05" }]
-  },
-  {
-    id: 6, name: "Сергей", avatar: "С", color: "orange", preview: "Ок, понял", time: "12:48",
-    messages: [{ id: 1, author: "Сергей", text: "Ок, понял", time: "12:48" }]
-  },
-  {
-    id: 7, name: "Катя", avatar: "К", color: "pink", preview: "Спасибо! 🙂", time: "11:20",
-    messages: [{ id: 1, author: "Катя", text: "Спасибо! 🙂", time: "11:20" }]
-  },
-];
-
 const friends = [
   { name: "Максим", avatar: "М", color: "blue" },
   { name: "Игорь", avatar: "И", color: "olive" },
