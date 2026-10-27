@@ -506,10 +506,8 @@ export default function App() {
     const existing = chats.find((chat) => chat.name.toLocaleLowerCase("ru-RU") === name.toLocaleLowerCase("ru-RU"));
     if (existing) { setActiveId(existing.id); setNewChatOpen(false); setNewChatName(""); action("Этот чат уже существует"); return; }
     const id = Date.now();
-    const members = newChatIsGroup ? [...new Set([profileName, ...groupMembersInput.split(",").map((item) => item.trim()).filter(Boolean)])] : undefined;
-    const inviteCode = newChatIsGroup ? Math.random().toString(36).slice(2, 10) : undefined;
-    const created: Chat = { id, name, avatar: newChatIsGroup ? "👥" : name.slice(0, 1).toUpperCase(), color: newChatIsGroup ? "group" : "blue", preview: newChatIsGroup ? "Группа создана" : "Новый чат", time: clockTime(), messages: [], ...(newChatIsGroup ? { group: true, members, inviteCode } : {}) };
-    setChats((current) => [created, ...current]); setActiveId(id); setDraft(""); setNewChatName(""); setNewChatIsGroup(false); setNewChatOpen(false); setActiveNav("Чаты"); action(newChatIsGroup ? `Группа «${name}» создана локально` : `Чат «${name}» создан локально`);
+    const created: Chat = { id, name, avatar: name.slice(0, 1).toUpperCase(), color: "blue", preview: "Новый чат", time: clockTime(), messages: [] };
+    setChats((current) => [created, ...current]); setActiveId(id); setDraft(""); setNewChatName(""); setNewChatIsGroup(false); setNewChatOpen(false); setActiveNav("Чаты"); action(`Чат «${name}» создан локально`);
   }
 
   function chooseMention(name: string) {
