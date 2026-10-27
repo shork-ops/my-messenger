@@ -307,7 +307,7 @@ export default function App() {
         ? await client.from("profiles").select("id, username, display_name, avatar").in("id", memberIds)
         : { data: [] as { id: string; username: string | null; display_name: string; avatar: string }[] };
       const [{ data: messageRows, error: messagesError }] = await Promise.all([
-        client.from("messages").select("id, chat_id, sender_id, body, attachment, effect, reply_to, created_at, edited_at, deleted_at").in("chat_id", chatIds).order("created_at", { ascending: true }).limit(1000),
+        client.from("messages").select("id, chat_id, sender_id, body, attachment, effect, poll, reply_to, created_at, edited_at, deleted_at").in("chat_id", chatIds).order("created_at", { ascending: true }).limit(1000),
       ]);
       if (!alive) return;
       if (messagesError) {
@@ -333,7 +333,7 @@ export default function App() {
             text: message.deleted_at ? "Сообщение удалено" : message.body,
             time: new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(created),
             mine: message.sender_id === accountId, createdAt: created.getTime(), edited: Boolean(message.edited_at),
-            ...(message.effect ? { effect: message.effect } : {}), ...(attachment ? { attachment } : {}), reactions: (reactionRows ?? []).map((reaction) => reaction.emoji),
+            ...(message.effect ? { effect: message.effect } : {}), ...(message.poll ? { poll: message.poll as Message["poll"] } : {}), ...(attachment ? { attachment } : {}), reactions: (reactionRows ?? []).map((reaction) => reaction.emoji),
           };
         }));
         const last = chatMessages[chatMessages.length - 1];
@@ -511,18 +511,48 @@ export default function App() {
     setMentionOpen(false);
   }
 
-  function createPoll(event: FormEvent) {
+  async function createPoll(event: FormEvent) {
     event.preventDefault();
     const question = pollQuestion.trim(); const options = pollOptions.map((text) => text.trim()).filter(Boolean);
     if (!question || options.length < 2) { action("Для опроса нужны вопрос и минимум два варианта"); return; }
-    const time = clockTime(); const createdAt = Date.now();
-    const message: Message = { id: createdAt, author: profileName, text: question, time, mine: true, createdAt, poll: { question, options: options.map((text, index) => ({ id: `${createdAt}-${index}`, text, votes: [] })) } };
+    const targetChat = chats.find((chat) => chat.id === activeId);
+    const client = supabase;
+    const createdAt = Date.now();
+    const poll: NonNullable<Message["poll"]> = { question, options: options.map((text, index) => ({ id: `${createdAt}-${index}`, text, votes: [] })) };
+    let remoteId: string | undefined;
+    if (targetChat?.remoteId) {
+      if (!client || !accountId) { action("Войди в аккаунт, чтобы опубликовать опрос"); return; }
+      const { data, error } = await client.from("messages").insert({
+        chat_id: targetChat.remoteId, sender_id: accountId, body: question, poll,
+      }).select("id, created_at").single();
+      if (error || !data) { action("Опрос не сохранён. Проверь, что выполнил SQL-миграцию persistent_polls в Supabase."); return; }
+      remoteId = data.id;
+    } else if (client && accountId) {
+      action("Этот чат локальный. Создай облачный чат, чтобы опрос синхронизировался."); return;
+    }
+    const time = clockTime();
+    const message: Message = { id: remoteId ? numericId(remoteId) : createdAt, ...(remoteId ? { remoteId } : {}), author: profileName, text: question, time, mine: true, createdAt, poll };
     setChats((current) => current.map((chat) => chat.id === activeId ? { ...chat, preview: `📊 ${question}`, time, messages: [...chat.messages, message] } : chat));
     setPollOpen(false); setPollQuestion(""); setPollOptions(["", ""]); action("Опрос создан");
   }
 
-  function votePoll(messageId: number, optionId: string) {
-    setChats((current) => current.map((chat) => chat.id !== activeId ? chat : ({ ...chat, messages: chat.messages.map((message) => message.id !== messageId || !message.poll ? message : ({ ...message, poll: { ...message.poll, options: message.poll.options.map((option) => ({ ...option, votes: option.votes.includes(profileName) ? option.votes.filter((vote) => vote !== profileName) : option.id === optionId ? [...option.votes, profileName] : option.votes.filter((vote) => vote !== profileName) })) } })) })));
+  async function votePoll(messageId: number, optionId: string) {
+    const chat = chats.find((item) => item.id === activeId);
+    const message = chat?.messages.find((item) => item.id === messageId);
+    if (!message?.poll) return;
+    if (chat?.remoteId && message.remoteId) {
+      if (!supabase || !accountId) { action("Войди в аккаунт, чтобы голосовать"); return; }
+      const { data, error } = await supabase.rpc("vote_on_poll", { message_id_input: message.remoteId, option_id_input: optionId });
+      if (error || !data) { action("Не удалось сохранить голос. Проверь SQL-миграцию persistent_polls."); return; }
+      const poll = data as NonNullable<Message["poll"]>;
+      setChats((current) => current.map((item) => item.id !== activeId ? item : ({ ...item, messages: item.messages.map((entry) => entry.id === messageId ? { ...entry, poll } : entry) })));
+      return;
+    }
+    setChats((current) => current.map((item) => item.id !== activeId ? item : ({ ...item, messages: item.messages.map((entry) => {
+      if (entry.id !== messageId || !entry.poll) return entry;
+      const selected = entry.poll.options.find((option) => option.votes.includes(profileName))?.id;
+      return { ...entry, poll: { ...entry.poll, options: entry.poll.options.map((option) => ({ ...option, votes: option.id === selected ? option.votes.filter((vote) => vote !== profileName) : option.id === optionId ? [...option.votes.filter((vote) => vote !== profileName), profileName] : option.votes.filter((vote) => vote !== profileName) })) } };
+    }) })));
   }
 
   async function startVoiceRecording() {
@@ -828,7 +858,7 @@ export default function App() {
                   {!message.mine && <strong className="message-author">{message.author}</strong>}
                   <div className={`bubble ${message.mine ? "mine-bubble" : ""} ${message.effect ? `message-effect-${message.effect}` : ""}`}>
                     {message.replyTo && <div className="reply-quote"><strong>{message.replyTo.author}</strong><span>{message.replyTo.text}</span></div>}
-                    {message.poll ? <div className="poll-card"><strong>📊 {message.poll.question}</strong>{message.poll.options.map((option) => { const total = message.poll!.options.reduce((sum, item) => sum + item.votes.length, 0); const chosen = option.votes.includes(profileName); return <button type="button" className={`poll-option ${chosen ? "chosen" : ""}`} key={option.id} onClick={() => votePoll(message.id, option.id)}><span>{option.text}<b>{option.votes.length}</b></span><i style={{ width: `${total ? option.votes.length / total * 100 : 0}%` }}/></button>; })}<small>{message.poll.options.reduce((sum, option) => sum + option.votes.length, 0)} голос(ов) · можно изменить выбор</small></div> : message.attachment ? <div className="attachment-card">{message.attachment.type.startsWith("image/") ? <img className="attachment-image" src={message.attachment.data} alt={message.attachment.name}/> : message.attachment.type.startsWith("video/") ? <video className="attachment-video" controls playsInline src={message.attachment.data}/> : message.attachment.type.startsWith("audio/") ? <div className="voice-attachment"><Mic size={17}/><audio controls src={message.attachment.data}/><a href={message.attachment.data} download={message.attachment.name}>Скачать</a></div> : <a className="attachment-file" href={message.attachment.data} download={message.attachment.name}><Paperclip size={18}/><span><strong>{message.attachment.name}</strong><small>{Math.max(1, Math.round(message.attachment.size / 1024))} КБ · Скачать</small></span></a>}<span className="attachment-caption">{message.attachment.name}</span></div> : message.text.split(/(@[\p{L}\p{N}_]+)/gu).map((part, partIndex) => part.startsWith("@") ? <strong className="message-mention" key={partIndex}>{part}</strong> : part)}<span className="message-time">{message.edited ? "изменено · " : ""}{message.time}</span>{message.effect && <span className={`message-effect-mark effect-mark-${message.effect}`} aria-hidden="true">{({ sparkle: "✦", hearts: "♥", fireworks: "✧", glow: "✺" })[message.effect]}</span>}
+                    {message.poll ? <div className="poll-card"><strong>📊 {message.poll.question}</strong>{message.poll.options.map((option) => { const total = message.poll!.options.reduce((sum, item) => sum + item.votes.length, 0); const chosen = option.votes.includes(accountId || profileName); return <button type="button" className={`poll-option ${chosen ? "chosen" : ""}`} key={option.id} onClick={() => votePoll(message.id, option.id)}><span>{option.text}<b>{option.votes.length}</b></span><i style={{ width: `${total ? option.votes.length / total * 100 : 0}%` }}/></button>; })}<small>{message.poll.options.reduce((sum, option) => sum + option.votes.length, 0)} голос(ов) · можно изменить выбор</small></div> : message.attachment ? <div className="attachment-card">{message.attachment.type.startsWith("image/") ? <img className="attachment-image" src={message.attachment.data} alt={message.attachment.name}/> : message.attachment.type.startsWith("video/") ? <video className="attachment-video" controls playsInline src={message.attachment.data}/> : message.attachment.type.startsWith("audio/") ? <div className="voice-attachment"><Mic size={17}/><audio controls src={message.attachment.data}/><a href={message.attachment.data} download={message.attachment.name}>Скачать</a></div> : <a className="attachment-file" href={message.attachment.data} download={message.attachment.name}><Paperclip size={18}/><span><strong>{message.attachment.name}</strong><small>{Math.max(1, Math.round(message.attachment.size / 1024))} КБ · Скачать</small></span></a>}<span className="attachment-caption">{message.attachment.name}</span></div> : message.text.split(/(@[\p{L}\p{N}_]+)/gu).map((part, partIndex) => part.startsWith("@") ? <strong className="message-mention" key={partIndex}>{part}</strong> : part)}<span className="message-time">{message.edited ? "изменено · " : ""}{message.time}</span>{message.effect && <span className={`message-effect-mark effect-mark-${message.effect}`} aria-hidden="true">{({ sparkle: "✦", hearts: "♥", fireworks: "✧", glow: "✺" })[message.effect]}</span>}
                   </div>
                   {message.reactions && message.reactions.length > 0 && <div className="reaction-list">{message.reactions.map((emoji, reactionIndex) => <button key={emoji + reactionIndex} type="button" onClick={() => toggleReaction(message.id, emoji)}>{emoji}</button>)}</div>}
                   <div className="message-action-wrap">
