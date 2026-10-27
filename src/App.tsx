@@ -72,6 +72,8 @@ export default function App() {
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState("");
   const [search, setSearch] = useState("");
+  const [foundUsers, setFoundUsers] = useState<{ id: string; username: string; display_name: string; avatar: string }[]>([]);
+  const [userSearchLoading, setUserSearchLoading] = useState(false);
   const [chatFilter, setChatFilter] = useState<"all" | "unread" | "pinned" | "groups">("all");
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [messageSearch, setMessageSearch] = useState("");
@@ -200,6 +202,33 @@ export default function App() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [activeId, activeChat.messages.length]);
+
+  useEffect(() => {
+    const client = supabase;
+    const query = search.trim().replace(/^@/, "").toLowerCase();
+    if (!client || query.length < 3) {
+      setFoundUsers([]);
+      setUserSearchLoading(false);
+      return;
+    }
+    let alive = true;
+    setUserSearchLoading(true);
+    const timer = window.setTimeout(async () => {
+      const { data, error } = await client
+        .from("profiles")
+        .select("id, username, display_name, avatar")
+        .ilike("username", `${query}%`)
+        .limit(8);
+      if (!alive) return;
+      setUserSearchLoading(false);
+      if (error) {
+        setFoundUsers([]);
+        return;
+      }
+      setFoundUsers((data ?? []).filter((user) => user.id !== accountId && Boolean(user.username)) as { id: string; username: string; display_name: string; avatar: string }[]);
+    }, 250);
+    return () => { alive = false; window.clearTimeout(timer); };
+  }, [search, accountId]);
 
   const filteredChats = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -478,9 +507,17 @@ export default function App() {
 
       <section className="chat-list-panel">
         <div className="search-row">
-          <label className="search-box"><Search size={18}/><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Поиск чатов и сообщений..."/></label>
+          <label className="search-box"><Search size={18}/><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Поиск чатов или @username..."/></label>
           <button className="square-action" onClick={() => setNewChatOpen(true)} aria-label="Новый чат" title="Создать чат"><PencilLine size={20}/></button>
         </div>
+        {search.trim().replace(/^@/, "").length >= 3 && <div className="user-search-results">
+          <div className="chat-filters"><span>Пользователи</span>{userSearchLoading && <small>Поиск...</small>}</div>
+          {foundUsers.map((user) => <button key={user.id} type="button" className="chat-row" onClick={() => action(`Найден @${user.username} · облачные личные чаты подключим следующим этапом`)}>
+            <Avatar color="blue">{user.avatar || user.display_name.slice(0, 1).toUpperCase()}</Avatar>
+            <span className="chat-row-copy"><strong>{user.display_name}</strong><small>@{user.username}</small></span>
+          </button>)}
+          {!userSearchLoading && foundUsers.length === 0 && <div className="empty-search">Пользователи с таким username не найдены</div>}
+        </div>}
         <div className="chat-filters">{([{id:"all",label:"Все"},{id:"unread",label:"Непрочитанные"},{id:"pinned",label:"Закреплённые"},{id:"groups",label:"Группы"}] as const).map((filter) => <button key={filter.id} className={chatFilter === filter.id ? "active" : ""} onClick={() => setChatFilter(filter.id)}>{filter.label}</button>)}</div>
         <div className="chat-list">
           {sortedChats.filter((chat) => (chatFilter === "all" || (chatFilter === "unread" && Boolean(chat.unread)) || (chatFilter === "pinned" && Boolean(chat.pinned)) || (chatFilter === "groups" && Boolean(chat.group))) && (!search.trim() || filteredChats.some((item) => item.id === chat.id))).map((chat) => (
