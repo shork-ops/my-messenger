@@ -653,7 +653,7 @@ export default function App() {
     const index = chat?.messages.findIndex((message) => message.id === messageId) ?? -1;
     const message = index >= 0 ? chat?.messages[index] : undefined;
     if (!chat || !message) return;
-    if (chat.remoteId && message.remoteId && supabase) { const { error } = await supabase.from('messages').update({ deleted_at: new Date().toISOString(), body: '' }).eq('id', message.remoteId).eq('sender_id', accountId); if (error) { action('Не удалось удалить сообщение в облаке'); return; } }
+    if (chat.remoteId && message.remoteId && supabase) { const { error } = await supabase.from('messages').update({ deleted_at: new Date().toISOString() }).eq('id', message.remoteId).eq('sender_id', accountId); if (error) { action('Не удалось удалить сообщение в облаке'); return; } }
     setDeletedMessage({ chatId: activeId, message, index });
     setChats((current) => current.map((item) => {
       if (item.id !== activeId) return item;
