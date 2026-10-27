@@ -8,6 +8,7 @@ import {
 
 type Message = {
   id: number;
+  remoteId?: string;
   author: string;
   text: string;
   time: string;
@@ -24,6 +25,7 @@ type Message = {
 
 type Chat = {
   id: number;
+  remoteId?: string;
   name: string;
   avatar: string;
   color: string;
@@ -110,6 +112,8 @@ export default function App() {
   const [usernameSaving, setUsernameSaving] = useState(false);
   const [accountId, setAccountId] = useState<string | null>(null);
   const [profileReady, setProfileReady] = useState(false);
+  const [cloudChatsReady, setCloudChatsReady] = useState(false);
+  const [openingUserId, setOpeningUserId] = useState<string | null>(null);
   const [theme, setTheme] = useState(() => window.localStorage.getItem("nexus-theme") || "yellow");
   const [activeGame, setActiveGame] = useState<string | null>(null);
   const [gameNotice, setGameNotice] = useState("");
@@ -263,6 +267,119 @@ export default function App() {
     return () => { alive = false; window.clearTimeout(timer); };
   }, [search, accountId]);
 
+  function numericId(uuid: string): number {
+    return Number.parseInt(uuid.replace(/-/g, "").slice(0, 12), 16);
+  }
+
+  useEffect(() => {
+    const client = supabase;
+    if (!client || !accountId || !profileReady) {
+      if (!client || profileReady) setCloudChatsReady(true);
+      return;
+    }
+    let alive = true;
+    const loadCloudChats = async () => {
+      const { data: memberships, error: membershipError } = await client
+        .from("chat_members").select("chat_id").eq("user_id", accountId);
+      if (!alive) return;
+      if (membershipError) {
+        setNotice("Не удалось загрузить облачные чаты");
+        setCloudChatsReady(true);
+        return;
+      }
+      const chatIds = [...new Set((memberships ?? []).map((item) => item.chat_id as string))];
+      if (chatIds.length === 0) {
+        setChats([]);
+        setCloudChatsReady(true);
+        return;
+      }
+      const [{ data: cloudChatRows, error: chatsError }, { data: profileRows }] = await Promise.all([
+        client.from("chats").select("id, title, is_group, created_at").in("id", chatIds).order("updated_at", { ascending: false }),
+        client.from("chat_members").select("chat_id, user_id").in("chat_id", chatIds),
+      ]);
+      if (!alive) return;
+      if (chatsError) {
+        setNotice("Не удалось загрузить список чатов");
+        setCloudChatsReady(true);
+        return;
+      }
+      const memberIds = [...new Set((profileRows ?? []).map((row) => row.user_id as string).filter((id) => id !== accountId))];
+      const { data: memberProfiles } = memberIds.length
+        ? await client.from("profiles").select("id, username, display_name, avatar").in("id", memberIds)
+        : { data: [] as { id: string; username: string | null; display_name: string; avatar: string }[] };
+      const [{ data: messageRows, error: messagesError }] = await Promise.all([
+        client.from("messages").select("id, chat_id, sender_id, body, created_at, edited_at, deleted_at").in("chat_id", chatIds).order("created_at", { ascending: true }).limit(1000),
+      ]);
+      if (!alive) return;
+      if (messagesError) {
+        setNotice("Чаты загружены, но сообщения получить не удалось");
+      }
+      const mappedChats: Chat[] = (cloudChatRows ?? []).map((row) => {
+        const chatMembers = (profileRows ?? []).filter((member) => member.chat_id === row.id);
+        const otherId = chatMembers.find((member) => member.user_id !== accountId)?.user_id;
+        const other = (memberProfiles ?? []).find((profile) => profile.id === otherId);
+        const chatMessages: Message[] = (messageRows ?? []).filter((message) => message.chat_id === row.id).map((message) => {
+          const sender = message.sender_id === accountId ? profileName : (other?.display_name || "Пользователь");
+          const created = new Date(message.created_at);
+          return {
+            id: numericId(message.id), remoteId: message.id, author: sender,
+            text: message.deleted_at ? "Сообщение удалено" : message.body,
+            time: new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(created),
+            mine: message.sender_id === accountId, createdAt: created.getTime(), edited: Boolean(message.edited_at),
+          };
+        });
+        const last = chatMessages[chatMessages.length - 1];
+        return {
+          id: numericId(row.id), remoteId: row.id,
+          name: row.is_group ? row.title : (other?.display_name || row.title),
+          avatar: row.is_group ? "👥" : (other?.avatar || other?.display_name?.slice(0, 1) || "N"),
+          color: row.is_group ? "group" : "blue", preview: last?.text || "Начни общение",
+          time: last?.time || "", messages: chatMessages, group: row.is_group,
+          members: chatMembers.map((member) => member.user_id === accountId ? profileName : ((memberProfiles ?? []).find((profile) => profile.id === member.user_id)?.display_name || "Пользователь")),
+        };
+      });
+      setChats(mappedChats);
+      setActiveId(mappedChats[0]?.id ?? 0);
+      setCloudChatsReady(true);
+    };
+    void loadCloudChats();
+    return () => { alive = false; };
+  }, [accountId, profileReady, profileName]);
+
+  async function openDirectChat(user: { id: string; username: string; display_name: string; avatar: string }) {
+    const client = supabase;
+    if (!client || !accountId) {
+      action("Войди в аккаунт, чтобы начать переписку");
+      return;
+    }
+    const existing = chats.find((chat) => chat.members?.some((member) => member === user.display_name || member === `@${user.username}`) && !chat.group);
+    if (existing) {
+      setActiveId(existing.id);
+      setSearch("");
+      setActiveNav("Чаты");
+      return;
+    }
+    setOpeningUserId(user.id);
+    const { data, error } = await client.rpc("create_direct_chat", { target_user_id: user.id });
+    setOpeningUserId(null);
+    if (error || !data) {
+      action(error?.message.includes("function") ? "Выполни SQL-миграцию direct_chats в Supabase" : "Не удалось создать диалог. Проверь SQL-миграцию и попробуй ещё раз.");
+      return;
+    }
+    const remoteId = data as string;
+    const localId = numericId(remoteId);
+    const created: Chat = {
+      id: localId, remoteId, name: user.display_name, avatar: user.avatar || user.display_name.slice(0, 1).toUpperCase(),
+      color: "blue", preview: "Диалог создан — напиши первое сообщение", time: "", messages: [], members: [profileName, user.display_name],
+    };
+    setChats((current) => current.some((chat) => chat.remoteId === remoteId) ? current : [created, ...current]);
+    setActiveId(localId);
+    setSearch("");
+    setDraft("");
+    setActiveNav("Чаты");
+    action(`Диалог с @${user.username} создан`);
+  }
+
   const filteredChats = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return chats;
@@ -356,7 +473,7 @@ export default function App() {
     navigator.clipboard?.writeText(link).then(() => action("Ссылка-приглашение скопирована")).catch(() => action(`Ссылка: ${link}`));
   }
 
-  function sendMessage(event: FormEvent) {
+  async function sendMessage(event: FormEvent) {
     event.preventDefault();
     if (editingMessageId !== null) {
       const text = editDraft.trim();
@@ -375,8 +492,26 @@ export default function App() {
     const createdAt = Date.now();
     const time = clockTime();
     const replyTo = replyTarget ? { author: replyTarget.author, text: replyTarget.text } : undefined;
+    const targetChat = chats.find((chat) => chat.id === activeId);
+    const client = supabase;
+    let remoteMessageId: string | undefined;
+    if (targetChat?.remoteId) {
+      if (!client || !accountId) { action("Нужно войти в аккаунт, чтобы отправить сообщение"); return; }
+      const { data, error } = await client.from("messages").insert({
+        chat_id: targetChat.remoteId, sender_id: accountId, body: text,
+      }).select("id, created_at").single();
+      if (error || !data) {
+        action("Сообщение не отправлено. Проверь подключение и права Supabase.");
+        return;
+      }
+      remoteMessageId = data.id;
+    } else if (client && accountId) {
+      action("Этот чат локальный. Начни переписку, выбрав пользователя по @username.");
+      return;
+    }
+    const message: Message = { id: remoteMessageId ? numericId(remoteMessageId) : createdAt, ...(remoteMessageId ? { remoteId: remoteMessageId } : {}), author: profileName, text, time, mine: true, createdAt, ...(replyTo ? { replyTo } : {}) };
     setChats((current) => current.map((chat) => chat.id === activeId
-      ? { ...chat, preview: text, time, messages: [...chat.messages, { id: createdAt, author: profileName, text, time, mine: true, createdAt, ...(replyTo ? { replyTo } : {}) }] }
+      ? { ...chat, preview: text, time, messages: [...chat.messages, message] }
       : chat
     ));
     setDraft("");
@@ -545,9 +680,9 @@ export default function App() {
         </div>
         {search.trim().replace(/^@/, "").length >= 3 && <div className="user-search-results">
           <div className="chat-filters"><span>Пользователи</span>{userSearchLoading && <small>Поиск...</small>}</div>
-          {foundUsers.map((user) => <button key={user.id} type="button" className="chat-row" onClick={() => action(`Найден @${user.username} · облачные личные чаты подключим следующим этапом`)}>
+          {foundUsers.map((user) => <button key={user.id} type="button" className="chat-row" onClick={() => void openDirectChat(user)}>
             <Avatar color="blue">{user.avatar || user.display_name.slice(0, 1).toUpperCase()}</Avatar>
-            <span className="chat-row-copy"><strong>{user.display_name}</strong><small>@{user.username}</small></span>
+            <span className="chat-row-copy"><strong>{user.display_name}</strong><small>@{user.username}</small></span>{openingUserId === user.id && <small>Открываю…</small>}
           </button>)}
           {!userSearchLoading && foundUsers.length === 0 && <div className="empty-search">Пользователи с таким username не найдены</div>}
         </div>}
