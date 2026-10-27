@@ -428,22 +428,25 @@ export default function App() {
     return new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(new Date());
   }
 
-  function handleAttachment(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-    if (file.size > 1_500_000) { action("Файл слишком большой: максимум 1,5 МБ для локального хранения"); return; }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const data = typeof reader.result === "string" ? reader.result : "";
-      if (!data) { action("Не удалось прочитать файл"); return; }
-      const time = clockTime(); const createdAt = Date.now();
-      const message: Message = { id: createdAt, author: profileName, text: file.name, time, mine: true, createdAt, attachment: { name: file.name, type: file.type || "application/octet-stream", data, size: file.size } };
-      setChats((current) => current.map((chat) => chat.id === activeId ? { ...chat, preview: `📎 ${file.name}`, time, messages: [...chat.messages, message] } : chat));
-      action("Файл прикреплён и сохранён в этом браузере");
-    };
-    reader.onerror = () => action("Не удалось прочитать файл");
-    reader.readAsDataURL(file);
+  async function handleAttachment(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]; event.target.value = ''; if (!file) return;
+    const chat = chats.find((item) => item.id === activeId); const client = supabase;
+    if (!client || !accountId || !chat?.remoteId) { action('Открой облачный диалог, чтобы отправить файл'); return; }
+    if (file.size > 50 * 1024 * 1024) { action('Максимальный размер файла — 50 МБ'); return; }
+    if (!file.type.startsWith('image/') && !file.type.startsWith('video/') && !file.type.startsWith('audio/') && !['application/pdf','text/plain','application/zip','text/csv'].includes(file.type)) { action('Этот формат файла пока не поддерживается'); return; }
+    action('Загружаю файл…');
+    const path = chat.remoteId + '/' + accountId + '/' + crypto.randomUUID() + '-' + file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const uploaded = await client.storage.from('chat-media').upload(path, file, { contentType: file.type || 'application/octet-stream' });
+    if (uploaded.error) { action('Не удалось загрузить файл. Выполни миграцию online_media в Supabase.'); return; }
+    const signed = await client.storage.from('chat-media').createSignedUrl(path, 3600);
+    if (signed.error || !signed.data?.signedUrl) { action('Не удалось получить ссылку на файл'); return; }
+    const meta = { name: file.name, type: file.type || 'application/octet-stream', size: file.size, path: path };
+    const inserted = await client.from('messages').insert({ chat_id: chat.remoteId, sender_id: accountId, body: file.name, attachment: meta }).select('id, created_at').single();
+    if (inserted.error || !inserted.data) { await client.storage.from('chat-media').remove([path]); action('Не удалось отправить вложение'); return; }
+    const row = inserted.data; const created = new Date(row.created_at);
+    const message: Message = { id: numericId(row.id), remoteId: row.id, author: profileName, text: file.name, time: new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(created), mine: true, createdAt: created.getTime(), attachment: { ...meta, data: signed.data.signedUrl } };
+    setChats((current) => current.map((item) => item.id !== activeId ? item : ({ ...item, preview: '📎 ' + file.name, time: message.time, messages: [...item.messages, message] })));
+    action('Вложение отправлено');
   }
 
   function createChat(event: FormEvent) {
