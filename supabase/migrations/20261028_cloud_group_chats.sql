@@ -24,7 +24,7 @@ begin
     raise exception 'Group name must be between 1 and 100 characters';
   end if;
 
-  new_invite_code := encode(extensions.gen_random_bytes(18), 'hex');
+  new_invite_code := replace(gen_random_uuid()::text, '-', '');
   insert into public.chats (title, is_group, created_by, invite_code)
   values (trim(group_title), true, actor, new_invite_code)
   returning id into new_chat_id;
