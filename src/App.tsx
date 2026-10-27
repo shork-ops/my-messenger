@@ -568,14 +568,20 @@ export default function App() {
     action("Эффект сообщения обновлён");
   }
 
-  function toggleReaction(messageId: number, emoji: string) {
-    setChats((current) => current.map((chat) => chat.id !== activeId ? chat : ({
-      ...chat,
-      messages: chat.messages.map((message) => message.id !== messageId ? message : ({
-        ...message,
-        reactions: message.reactions?.includes(emoji) ? message.reactions.filter((item) => item !== emoji) : [...(message.reactions ?? []), emoji],
-      })),
-    })));
+  async function toggleReaction(messageId: number, emoji: string) {
+    const chat = chats.find((item) => item.id === activeId);
+    const message = chat?.messages.find((item) => item.id === messageId);
+    const client = supabase;
+    if (!chat || !message || !chat.remoteId || !message.remoteId || !client || !accountId) { action('Реакции доступны в облачных сообщениях'); return; }
+    const { data: existing, error: readError } = await client.from('message_reactions').select('emoji').eq('message_id', message.remoteId).eq('user_id', accountId).eq('emoji', emoji).maybeSingle();
+    if (readError) { action('Не удалось проверить реакцию'); return; }
+    const result = existing
+      ? await client.from('message_reactions').delete().eq('message_id', message.remoteId).eq('user_id', accountId).eq('emoji', emoji)
+      : await client.from('message_reactions').insert({ message_id: message.remoteId, user_id: accountId, emoji });
+    if (result.error) { action('Не удалось сохранить реакцию в облаке'); return; }
+    const { data: rows, error } = await client.from('message_reactions').select('emoji').eq('message_id', message.remoteId);
+    if (error) { action('Реакция сохранена, но список не обновился'); return; }
+    setChats((current) => current.map((item) => item.id !== activeId ? item : ({ ...item, messages: item.messages.map((m) => m.id !== messageId ? m : ({ ...m, reactions: (rows ?? []).map((row) => row.emoji) })) })));
     setOpenMessageActionsId(null);
   }
 
