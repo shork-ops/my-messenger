@@ -806,18 +806,16 @@ export default function App() {
         </button>
 
         <div className="right-divider"/>
-        <div className="online-heading"><span><i/>Онлайн</span><b>12</b></div>
-        <div className="friends-list">
-          {friends.map((friend) => <button key={friend.name} className="friend-row" onClick={() => {
-            const existing = chats.find((chat) => chat.name === friend.name);
-            if (existing) setActiveId(existing.id);
-            else action(`Открыть чат с ${friend.name} — скоро`);
-          }}>
-            <span className="friend-avatar-wrap"><Avatar color={friend.color} small>{friend.avatar}</Avatar><i/></span>
-            <span>{friend.name}</span>
-          </button>)}
-          <button className="invite-row" onClick={createInviteLink}><span><Plus size={22}/></span>{activeChat.group ? "Скопировать ссылку-приглашение" : "Приглашение доступно в группах"}</button>
-        </div>
+        {activeChat.group && (activeChat.members?.length ?? 0) > 0 && <>
+          <div className="online-heading"><span>Участники чата</span><b>{activeChat.members?.length ?? 0}</b></div>
+          <div className="friends-list">
+            {activeChat.members?.map((member) => <div key={member} className="friend-row">
+              <span className="friend-avatar-wrap"><Avatar color="blue" small>{member.slice(0, 1).toUpperCase()}</Avatar></span>
+              <span>{member}</span>
+            </div>)}
+          </div>
+        </>}
+        <button className="invite-row" onClick={createInviteLink}><span><Plus size={22}/></span>{activeChat.group ? "Скопировать ссылку-приглашение" : "Приглашение доступно в группах"}</button>
 
         <div className="right-divider games-divider"/>
         <button className="games-heading" onClick={() => { setActiveNav("Мини-игры"); openGame("Каталог"); }}><Gamepad2 size={22}/><strong>Мини-игры</strong><ChevronRight size={20}/></button>
