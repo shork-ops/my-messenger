@@ -18,6 +18,7 @@ type Message = {
   createdAt?: number;
   replyTo?: { author: string; text: string };
   reactions?: string[];
+  effect?: "sparkle" | "hearts" | "fireworks" | "glow";
 };
 
 type Chat = {
@@ -304,6 +305,15 @@ export default function App() {
     setDraft("");
   }
 
+  function applyMessageEffect(messageId: number, effect: NonNullable<Message["effect"]>) {
+    setChats((current) => current.map((chat) => chat.id !== activeId ? chat : ({
+      ...chat,
+      messages: chat.messages.map((message) => message.id !== messageId ? message : ({ ...message, effect: message.effect === effect ? undefined : effect })),
+    })));
+    setOpenMessageActionsId(null);
+    action("Эффект сообщения обновлён");
+  }
+
   function toggleReaction(messageId: number, emoji: string) {
     setChats((current) => current.map((chat) => chat.id !== activeId ? chat : ({
       ...chat,
@@ -484,9 +494,9 @@ export default function App() {
                 {!message.mine && <Avatar color={friends.find((f) => f.name === message.author)?.color ?? "blue"} small>{message.author.slice(0, 1)}</Avatar>}
                 <div className="message-content">
                   {!message.mine && <strong className="message-author">{message.author}</strong>}
-                  <div className={`bubble ${message.mine ? "mine-bubble" : ""}`}>
+                  <div className={`bubble ${message.mine ? "mine-bubble" : ""} ${message.effect ? `message-effect-${message.effect}` : ""}`}>
                     {message.replyTo && <div className="reply-quote"><strong>{message.replyTo.author}</strong><span>{message.replyTo.text}</span></div>}
-                    {message.poll ? <div className="poll-card"><strong>📊 {message.poll.question}</strong>{message.poll.options.map((option) => { const total = message.poll!.options.reduce((sum, item) => sum + item.votes.length, 0); const chosen = option.votes.includes(profileName); return <button type="button" className={`poll-option ${chosen ? "chosen" : ""}`} key={option.id} onClick={() => votePoll(message.id, option.id)}><span>{option.text}<b>{option.votes.length}</b></span><i style={{ width: `${total ? option.votes.length / total * 100 : 0}%` }}/></button>; })}<small>{message.poll.options.reduce((sum, option) => sum + option.votes.length, 0)} голос(ов) · можно изменить выбор</small></div> : message.attachment ? <div className="attachment-card">{message.attachment.type.startsWith("image/") ? <img className="attachment-image" src={message.attachment.data} alt={message.attachment.name}/> : message.attachment.type.startsWith("audio/") ? <div className="voice-attachment"><Mic size={17}/><audio controls src={message.attachment.data}/><a href={message.attachment.data} download={message.attachment.name}>Скачать</a></div> : <a className="attachment-file" href={message.attachment.data} download={message.attachment.name}><Paperclip size={18}/><span><strong>{message.attachment.name}</strong><small>{Math.max(1, Math.round(message.attachment.size / 1024))} КБ · Скачать</small></span></a>}<span className="attachment-caption">{message.attachment.name}</span></div> : message.text.split(/(@[\p{L}\p{N}_]+)/gu).map((part, partIndex) => part.startsWith("@") ? <strong className="message-mention" key={partIndex}>{part}</strong> : part)}<span className="message-time">{message.edited ? "изменено · " : ""}{message.time}</span>
+                    {message.poll ? <div className="poll-card"><strong>📊 {message.poll.question}</strong>{message.poll.options.map((option) => { const total = message.poll!.options.reduce((sum, item) => sum + item.votes.length, 0); const chosen = option.votes.includes(profileName); return <button type="button" className={`poll-option ${chosen ? "chosen" : ""}`} key={option.id} onClick={() => votePoll(message.id, option.id)}><span>{option.text}<b>{option.votes.length}</b></span><i style={{ width: `${total ? option.votes.length / total * 100 : 0}%` }}/></button>; })}<small>{message.poll.options.reduce((sum, option) => sum + option.votes.length, 0)} голос(ов) · можно изменить выбор</small></div> : message.attachment ? <div className="attachment-card">{message.attachment.type.startsWith("image/") ? <img className="attachment-image" src={message.attachment.data} alt={message.attachment.name}/> : message.attachment.type.startsWith("audio/") ? <div className="voice-attachment"><Mic size={17}/><audio controls src={message.attachment.data}/><a href={message.attachment.data} download={message.attachment.name}>Скачать</a></div> : <a className="attachment-file" href={message.attachment.data} download={message.attachment.name}><Paperclip size={18}/><span><strong>{message.attachment.name}</strong><small>{Math.max(1, Math.round(message.attachment.size / 1024))} КБ · Скачать</small></span></a>}<span className="attachment-caption">{message.attachment.name}</span></div> : message.text.split(/(@[\p{L}\p{N}_]+)/gu).map((part, partIndex) => part.startsWith("@") ? <strong className="message-mention" key={partIndex}>{part}</strong> : part)}<span className="message-time">{message.edited ? "изменено · " : ""}{message.time}</span>{message.effect && <span className={`message-effect-mark effect-mark-${message.effect}`} aria-hidden="true">{({ sparkle: "✦", hearts: "♥", fireworks: "✧", glow: "✺" })[message.effect]}</span>}
                   </div>
                   {message.reactions && message.reactions.length > 0 && <div className="reaction-list">{message.reactions.map((emoji, reactionIndex) => <button key={emoji + reactionIndex} type="button" onClick={() => toggleReaction(message.id, emoji)}>{emoji}</button>)}</div>}
                   <div className="message-action-wrap">
@@ -496,6 +506,10 @@ export default function App() {
                       <button type="button" onClick={() => { navigator.clipboard?.writeText(message.text).then(() => action("Текст скопирован")).catch(() => action("Не удалось скопировать текст")); setOpenMessageActionsId(null); }}><Paperclip size={13}/> Копировать</button>
                       <button type="button" onClick={() => toggleReaction(message.id, "❤️")}>❤️</button>
                       <button type="button" onClick={() => toggleReaction(message.id, "👍")}>👍</button>
+                      <button type="button" className="effect-action" onClick={() => applyMessageEffect(message.id, "sparkle")} title="Эффект: искры">✦</button>
+                      <button type="button" className="effect-action" onClick={() => applyMessageEffect(message.id, "hearts")} title="Эффект: сердечки">♥</button>
+                      <button type="button" className="effect-action" onClick={() => applyMessageEffect(message.id, "fireworks")} title="Эффект: салют">✧</button>
+                      <button type="button" className="effect-action" onClick={() => applyMessageEffect(message.id, "glow")} title="Эффект: сияние">✺</button>
                       {message.mine && <button type="button" onClick={() => { startEditing(message); setOpenMessageActionsId(null); }} aria-label="Редактировать сообщение"><PencilLine size={13}/> Изменить</button>}
                       {message.mine && <button type="button" onClick={() => deleteMessage(message.id)} aria-label="Удалить сообщение"><X size={13}/> Удалить</button>}
                     </div>}
