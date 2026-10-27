@@ -55,7 +55,19 @@ export default function AuthGate({ children }: AuthGateProps) {
     }
   };
 
-  if (!isSupabaseConfigured || !supabase) return <>{children}</>;
+  if (!isSupabaseConfigured || !supabase) {
+    if (!import.meta.env.PROD) return <>{children}</>;
+    return (
+      <main style={styles.page}>
+        <section style={styles.card}>
+          <div style={styles.mark}>N</div>
+          <p style={styles.eyebrow}>NEXUS MESSENGER</p>
+          <h1 style={styles.title}>Сервис временно недоступен</h1>
+          <p style={styles.subtitle}>Не настроено подключение к Supabase. В целях безопасности вход в production отключён.</p>
+        </section>
+      </main>
+    );
+  }
   if (loading) {
     return (
       <main style={styles.page}>
@@ -66,7 +78,25 @@ export default function AuthGate({ children }: AuthGateProps) {
       </main>
     );
   }
-  if (session) return <>{children}</>;
+  if (session) return (
+    <>
+      {children}
+      <button
+        type="button"
+        onClick={async () => {
+          if (!supabase) return;
+          const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
+          if (signOutError) setError(signOutError.message);
+        }}
+        style={styles.sessionButton}
+        aria-label="Выйти из текущей сессии"
+        title={session.user.email ? `Выйти (${session.user.email})` : "Выйти"}
+      >
+        Выйти
+      </button>
+      {error && <div role="alert" style={styles.sessionError}>{error}</div>}
+    </>
+  );
 
   return (
     <main style={styles.page}>
@@ -145,4 +175,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
   error: { marginTop: 16, color: "#ff8585", fontSize: 12, overflowWrap: "anywhere" },
   footnote: { margin: "24px 0 0", color: "#777981", fontSize: 11, lineHeight: 1.6 },
+  sessionButton: { position: "fixed", top: 12, right: 12, zIndex: 10000, border: "1px solid #393a40", borderRadius: 10, padding: "8px 12px", background: "#15161a", color: "#f4f4f5", cursor: "pointer" },
+  sessionError: { position: "fixed", top: 54, right: 12, zIndex: 10000, maxWidth: 320, padding: 12, borderRadius: 10, background: "#451b1b", color: "#fff", fontSize: 12 },
 };
