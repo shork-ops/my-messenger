@@ -519,6 +519,13 @@ export default function App() {
     if (editingMessageId !== null) {
       const text = editDraft.trim();
       if (!text) return;
+      const editingChat = chats.find((chat) => chat.id === activeId);
+      const editingMessage = editingChat?.messages.find((message) => message.id === editingMessageId);
+      if (editingChat?.remoteId && editingMessage?.remoteId) {
+        if (!supabase) { action('Нет подключения к Supabase'); return; }
+        const { error } = await supabase.from('messages').update({ body: text, edited_at: new Date().toISOString() }).eq('id', editingMessage.remoteId).eq('sender_id', accountId);
+        if (error) { action('Не удалось изменить сообщение в облаке'); return; }
+      }
       setChats((current) => current.map((chat) => chat.id !== activeId ? chat : {
         ...chat,
         preview: chat.messages[chat.messages.length - 1]?.id === editingMessageId ? text : chat.preview,
@@ -566,7 +573,9 @@ export default function App() {
     setDraft("");
   }
 
-  function applyMessageEffect(messageId: number, effect: NonNullable<Message["effect"]>) {
+  async function applyMessageEffect(messageId: number, effect: NonNullable<Message["effect"]>) {
+    const chat = chats.find((item) => item.id === activeId); const message = chat?.messages.find((item) => item.id === messageId);
+    if (chat?.remoteId && message?.remoteId) { if (!supabase) return; const { error } = await supabase.from('messages').update({ effect: message.effect === effect ? null : effect }).eq('id', message.remoteId).eq('sender_id', accountId); if (error) { action('Не удалось сохранить эффект в облаке'); return; } }
     setChats((current) => current.map((chat) => chat.id !== activeId ? chat : ({
       ...chat,
       messages: chat.messages.map((message) => message.id !== messageId ? message : ({ ...message, effect: message.effect === effect ? undefined : effect })),
@@ -639,11 +648,12 @@ export default function App() {
     setChats((current) => current.map((chat) => chat.id === chatId ? { ...chat, pinned: !chat.pinned } : chat));
   }
 
-  function deleteMessage(messageId: number) {
+  async function deleteMessage(messageId: number) {
     const chat = chats.find((item) => item.id === activeId);
     const index = chat?.messages.findIndex((message) => message.id === messageId) ?? -1;
     const message = index >= 0 ? chat?.messages[index] : undefined;
     if (!chat || !message) return;
+    if (chat.remoteId && message.remoteId && supabase) { const { error } = await supabase.from('messages').update({ deleted_at: new Date().toISOString(), body: '' }).eq('id', message.remoteId).eq('sender_id', accountId); if (error) { action('Не удалось удалить сообщение в облаке'); return; } }
     setDeletedMessage({ chatId: activeId, message, index });
     setChats((current) => current.map((item) => {
       if (item.id !== activeId) return item;
