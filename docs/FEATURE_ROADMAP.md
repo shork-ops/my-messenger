@@ -65,3 +65,10 @@ Nexus should not try to clone all four at once. A sensible initial position is a
 - Search latency at 10k and 100k messages.
 - Unauthorized-access test coverage per table and storage policy.
 - Account recovery success and abuse-report handling time.
+
+## Official reference sources
+
+- WhatsApp account security update (Meta, 25 August 2026): https://about.fb.com/news/2026/08/new-account-security-features-for-whatsapp/
+- Signal backup and device-transfer support: https://support.signal.org/hc/en-us/articles/10074659364122-Backups-and-Device-Transfers-on-Signal
+- Telegram FAQ (cloud chats, Secret Chats, groups and channels): https://www.telegram.org/faq
+- Telegram privacy policy: https://telegram.org/privacy/
