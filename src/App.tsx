@@ -89,7 +89,6 @@ export default function App() {
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [newChatName, setNewChatName] = useState("");
   const [newChatIsGroup, setNewChatIsGroup] = useState(false);
-  const [groupMembersInput, setGroupMembersInput] = useState("Максим, Аня");
   const [pollOpen, setPollOpen] = useState(false);
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState(["", ""]);
@@ -294,7 +293,7 @@ export default function App() {
         return;
       }
       const [{ data: cloudChatRows, error: chatsError }, { data: profileRows }] = await Promise.all([
-        client.from("chats").select("id, title, is_group, created_at").in("id", chatIds).order("updated_at", { ascending: false }),
+        client.from("chats").select("id, title, is_group, invite_code, created_at").in("id", chatIds).order("updated_at", { ascending: false }),
         client.from("chat_members").select("chat_id, user_id").in("chat_id", chatIds),
       ]);
       if (!alive) return;
@@ -308,7 +307,7 @@ export default function App() {
         ? await client.from("profiles").select("id, username, display_name, avatar").in("id", memberIds)
         : { data: [] as { id: string; username: string | null; display_name: string; avatar: string }[] };
       const [{ data: messageRows, error: messagesError }] = await Promise.all([
-        client.from("messages").select("id, chat_id, sender_id, body, attachment, effect, reply_to, created_at, edited_at, deleted_at").in("chat_id", chatIds).order("created_at", { ascending: true }).limit(1000),
+        client.from("messages").select("id, chat_id, sender_id, body, attachment, effect, poll, reply_to, created_at, edited_at, deleted_at").in("chat_id", chatIds).order("created_at", { ascending: true }).limit(1000),
       ]);
       if (!alive) return;
       if (messagesError) {
@@ -334,7 +333,7 @@ export default function App() {
             text: message.deleted_at ? "Сообщение удалено" : message.body,
             time: new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(created),
             mine: message.sender_id === accountId, createdAt: created.getTime(), edited: Boolean(message.edited_at),
-            ...(message.effect ? { effect: message.effect } : {}), ...(attachment ? { attachment } : {}), reactions: (reactionRows ?? []).map((reaction) => reaction.emoji),
+            ...(message.effect ? { effect: message.effect } : {}), ...(message.poll ? { poll: message.poll as Message["poll"] } : {}), ...(attachment ? { attachment } : {}), reactions: (reactionRows ?? []).map((reaction) => reaction.emoji),
           };
         }));
         const last = chatMessages[chatMessages.length - 1];
@@ -343,7 +342,7 @@ export default function App() {
           name: row.is_group ? row.title : (other?.display_name || row.title),
           avatar: row.is_group ? "👥" : (other?.avatar || other?.display_name?.slice(0, 1) || "N"),
           color: row.is_group ? "group" : "blue", preview: last?.text || "Начни общение",
-          time: last?.time || "", messages: chatMessages, group: row.is_group,
+          time: last?.time || "", messages: chatMessages, group: row.is_group, inviteCode: row.invite_code || undefined,
           members: chatMembers.map((member) => member.user_id === accountId ? profileName : ((memberProfiles ?? []).find((profile) => profile.id === member.user_id)?.display_name || "Пользователь")),
         };
       }));
@@ -357,21 +356,49 @@ export default function App() {
 
   useEffect(() => {
     const client = supabase;
+    const code = new URLSearchParams(window.location.search).get("join");
+    if (!client || !accountId || !code) return;
+    let cancelled = false;
+    const join = async () => {
+      const { error } = await client.rpc("join_group_by_invite", { invite_code_input: code });
+      if (cancelled) return;
+      const url = new URL(window.location.href);
+      url.searchParams.delete("join");
+      window.history.replaceState({}, "", url.toString());
+      if (error) {
+        action(error.message.includes("join_group_by_invite") ? "Примени миграцию облачных групп в Supabase" : "Ссылка недействительна или не удалось вступить в группу");
+        return;
+      }
+      action("Ты вступил в группу");
+      window.location.reload();
+    };
+    void join();
+    return () => { cancelled = true; };
+  }, [accountId]);
+
+  useEffect(() => {
+    const client = supabase;
     const active = chats.find((chat) => chat.id === activeId);
     if (!client || !accountId || !active?.remoteId) return;
     const channel = client.channel(`nexus-messages-${active.remoteId}`)
       .on("postgres_changes", {
-        event: "INSERT", schema: "public", table: "messages", filter: `chat_id=eq.${active.remoteId}`,
+        event: "*", schema: "public", table: "messages", filter: `chat_id=eq.${active.remoteId}`,
       }, async (payload) => {
-        const row = payload.new as { id: string; chat_id: string; sender_id: string; body: string; attachment?: { name?: string; type?: string; size?: number; path?: string } | null; effect?: Message['effect']; created_at: string; edited_at?: string | null; deleted_at?: string | null };
-        if (row.sender_id === accountId) return;
+        const row = payload.new as { id: string; chat_id: string; sender_id: string; body: string; poll?: Message["poll"] | null; attachment?: { name?: string; type?: string; size?: number; path?: string } | null; effect?: Message['effect']; created_at: string; edited_at?: string | null; deleted_at?: string | null };
+        if (!row?.id) return;
         let attachment: Message['attachment'];
         if (row.attachment) { let data = ''; if (row.attachment.path) { const signed = await client.storage.from('chat-media').createSignedUrl(row.attachment.path, 3600); data = signed.data?.signedUrl || ''; } attachment = { name: row.attachment.name || 'Вложение', type: row.attachment.type || 'application/octet-stream', size: row.attachment.size || 0, path: row.attachment.path, data }; }
         setChats((current) => current.map((chat) => {
-          if (chat.remoteId !== row.chat_id || chat.messages.some((message) => message.remoteId === row.id)) return chat;
+          if (chat.remoteId !== row.chat_id) return chat;
+          const existing = chat.messages.find((message) => message.remoteId === row.id);
+          if (existing) {
+            if (row.poll) return { ...chat, messages: chat.messages.map((message) => message.remoteId === row.id ? { ...message, poll: row.poll as Message["poll"] } : message) };
+            return chat;
+          }
+          if (payload.eventType !== "INSERT" || row.sender_id === accountId) return chat;
           const created = new Date(row.created_at);
-          const message: Message = { id: numericId(row.id), remoteId: row.id, author: chat.name, text: row.deleted_at ? 'Сообщение удалено' : row.body, time: new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(created), mine: false, createdAt: created.getTime(), edited: Boolean(row.edited_at), ...(row.effect ? { effect: row.effect } : {}), ...(attachment ? { attachment } : {}) };
-          return { ...chat, preview: attachment ? '📎 ' + row.body : message.text, time: message.time, messages: [...chat.messages, message] };
+          const message: Message = { id: numericId(row.id), remoteId: row.id, author: chat.name, text: row.deleted_at ? 'Сообщение удалено' : row.body, time: new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(created), mine: false, createdAt: created.getTime(), edited: Boolean(row.edited_at), ...(row.effect ? { effect: row.effect } : {}), ...(row.poll ? { poll: row.poll as Message["poll"] } : {}), ...(attachment ? { attachment } : {}) };
+          return { ...chat, preview: row.poll ? '📊 ' + row.body : attachment ? '📎 ' + row.body : message.text, time: message.time, messages: [...chat.messages, message] };
         }));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'message_reactions' }, async (payload) => {
@@ -453,10 +480,29 @@ export default function App() {
     action('Вложение отправлено');
   }
 
-  function createChat(event: FormEvent) {
+  async function createChat(event: FormEvent) {
     event.preventDefault();
     const name = newChatName.trim();
     if (!name) return;
+    if (newChatIsGroup) {
+      if (!supabase || !accountId) { action("Войди в аккаунт, чтобы создать облачную группу"); return; }
+      const { data, error } = await supabase.rpc("create_group_chat", { group_title: name });
+      const createdRow = Array.isArray(data) ? data[0] : data;
+      if (error || !createdRow?.chat_id) {
+        action(error?.message?.includes("create_group_chat") ? "Примени миграцию 20261028_cloud_group_chats.sql в Supabase" : "Не удалось создать облачную группу");
+        return;
+      }
+      const created: Chat = {
+        id: numericId(createdRow.chat_id), remoteId: createdRow.chat_id, name,
+        avatar: "👥", color: "group", preview: "Группа создана", time: clockTime(),
+        messages: [], group: true, members: [profileName], inviteCode: createdRow.invite_code,
+      };
+      setChats((current) => [created, ...current]);
+      setActiveId(created.id); setDraft(""); setNewChatName(""); setNewChatIsGroup(false);
+      setNewChatOpen(false); setActiveNav("Чаты");
+      action("Облачная группа создана");
+      return;
+    }
     const existing = chats.find((chat) => chat.name.toLocaleLowerCase("ru-RU") === name.toLocaleLowerCase("ru-RU"));
     if (existing) { setActiveId(existing.id); setNewChatOpen(false); setNewChatName(""); action("Этот чат уже существует"); return; }
     const id = Date.now();
@@ -471,18 +517,48 @@ export default function App() {
     setMentionOpen(false);
   }
 
-  function createPoll(event: FormEvent) {
+  async function createPoll(event: FormEvent) {
     event.preventDefault();
     const question = pollQuestion.trim(); const options = pollOptions.map((text) => text.trim()).filter(Boolean);
     if (!question || options.length < 2) { action("Для опроса нужны вопрос и минимум два варианта"); return; }
-    const time = clockTime(); const createdAt = Date.now();
-    const message: Message = { id: createdAt, author: profileName, text: question, time, mine: true, createdAt, poll: { question, options: options.map((text, index) => ({ id: `${createdAt}-${index}`, text, votes: [] })) } };
+    const targetChat = chats.find((chat) => chat.id === activeId);
+    const client = supabase;
+    const createdAt = Date.now();
+    const poll: NonNullable<Message["poll"]> = { question, options: options.map((text, index) => ({ id: `${createdAt}-${index}`, text, votes: [] })) };
+    let remoteId: string | undefined;
+    if (targetChat?.remoteId) {
+      if (!client || !accountId) { action("Войди в аккаунт, чтобы опубликовать опрос"); return; }
+      const { data, error } = await client.from("messages").insert({
+        chat_id: targetChat.remoteId, sender_id: accountId, body: question, poll,
+      }).select("id, created_at").single();
+      if (error || !data) { action("Опрос не сохранён. Проверь, что выполнил SQL-миграцию persistent_polls в Supabase."); return; }
+      remoteId = data.id;
+    } else if (client && accountId) {
+      action("Этот чат локальный. Создай облачный чат, чтобы опрос синхронизировался."); return;
+    }
+    const time = clockTime();
+    const message: Message = { id: remoteId ? numericId(remoteId) : createdAt, ...(remoteId ? { remoteId } : {}), author: profileName, text: question, time, mine: true, createdAt, poll };
     setChats((current) => current.map((chat) => chat.id === activeId ? { ...chat, preview: `📊 ${question}`, time, messages: [...chat.messages, message] } : chat));
     setPollOpen(false); setPollQuestion(""); setPollOptions(["", ""]); action("Опрос создан");
   }
 
-  function votePoll(messageId: number, optionId: string) {
-    setChats((current) => current.map((chat) => chat.id !== activeId ? chat : ({ ...chat, messages: chat.messages.map((message) => message.id !== messageId || !message.poll ? message : ({ ...message, poll: { ...message.poll, options: message.poll.options.map((option) => ({ ...option, votes: option.votes.includes(profileName) ? option.votes.filter((vote) => vote !== profileName) : option.id === optionId ? [...option.votes, profileName] : option.votes.filter((vote) => vote !== profileName) })) } })) })));
+  async function votePoll(messageId: number, optionId: string) {
+    const chat = chats.find((item) => item.id === activeId);
+    const message = chat?.messages.find((item) => item.id === messageId);
+    if (!message?.poll) return;
+    if (chat?.remoteId && message.remoteId) {
+      if (!supabase || !accountId) { action("Войди в аккаунт, чтобы голосовать"); return; }
+      const { data, error } = await supabase.rpc("vote_on_poll", { message_id_input: message.remoteId, option_id_input: optionId });
+      if (error || !data) { action("Не удалось сохранить голос. Проверь SQL-миграцию persistent_polls."); return; }
+      const poll = data as NonNullable<Message["poll"]>;
+      setChats((current) => current.map((item) => item.id !== activeId ? item : ({ ...item, messages: item.messages.map((entry) => entry.id === messageId ? { ...entry, poll } : entry) })));
+      return;
+    }
+    setChats((current) => current.map((item) => item.id !== activeId ? item : ({ ...item, messages: item.messages.map((entry) => {
+      if (entry.id !== messageId || !entry.poll) return entry;
+      const selected = entry.poll.options.find((option) => option.votes.includes(profileName))?.id;
+      return { ...entry, poll: { ...entry.poll, options: entry.poll.options.map((option) => ({ ...option, votes: option.id === selected ? option.votes.filter((vote) => vote !== profileName) : option.id === optionId ? [...option.votes.filter((vote) => vote !== profileName), profileName] : option.votes.filter((vote) => vote !== profileName) })) } };
+    }) })));
   }
 
   async function startVoiceRecording() {
@@ -506,12 +582,19 @@ export default function App() {
     } catch { action("Нет доступа к микрофону. Разреши запись аудио в браузере"); }
   }
 
-  function createInviteLink() {
+  async function createInviteLink() {
     if (!activeChat.group) { action("Приглашения доступны для групповых чатов"); return; }
-    const code = activeChat.inviteCode || Math.random().toString(36).slice(2, 10);
-    const link = `${window.location.origin}${window.location.pathname}?join=${code}`;
-    setChats((current) => current.map((chat) => chat.id === activeId ? { ...chat, inviteCode: code } : chat));
-    navigator.clipboard?.writeText(link).then(() => action("Ссылка-приглашение скопирована")).catch(() => action(`Ссылка: ${link}`));
+    if (!activeChat.remoteId || !activeChat.inviteCode) {
+      action("Для этой группы нет облачной ссылки. Создай облачную группу заново.");
+      return;
+    }
+    const link = `${window.location.origin}${window.location.pathname}?join=${activeChat.inviteCode}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      action("Ссылка-приглашение скопирована");
+    } catch {
+      action(`Ссылка: ${link}`);
+    }
   }
 
   async function sendMessage(event: FormEvent) {
@@ -781,7 +864,7 @@ export default function App() {
                   {!message.mine && <strong className="message-author">{message.author}</strong>}
                   <div className={`bubble ${message.mine ? "mine-bubble" : ""} ${message.effect ? `message-effect-${message.effect}` : ""}`}>
                     {message.replyTo && <div className="reply-quote"><strong>{message.replyTo.author}</strong><span>{message.replyTo.text}</span></div>}
-                    {message.poll ? <div className="poll-card"><strong>📊 {message.poll.question}</strong>{message.poll.options.map((option) => { const total = message.poll!.options.reduce((sum, item) => sum + item.votes.length, 0); const chosen = option.votes.includes(profileName); return <button type="button" className={`poll-option ${chosen ? "chosen" : ""}`} key={option.id} onClick={() => votePoll(message.id, option.id)}><span>{option.text}<b>{option.votes.length}</b></span><i style={{ width: `${total ? option.votes.length / total * 100 : 0}%` }}/></button>; })}<small>{message.poll.options.reduce((sum, option) => sum + option.votes.length, 0)} голос(ов) · можно изменить выбор</small></div> : message.attachment ? <div className="attachment-card">{message.attachment.type.startsWith("image/") ? <img className="attachment-image" src={message.attachment.data} alt={message.attachment.name}/> : message.attachment.type.startsWith("video/") ? <video className="attachment-video" controls playsInline src={message.attachment.data}/> : message.attachment.type.startsWith("audio/") ? <div className="voice-attachment"><Mic size={17}/><audio controls src={message.attachment.data}/><a href={message.attachment.data} download={message.attachment.name}>Скачать</a></div> : <a className="attachment-file" href={message.attachment.data} download={message.attachment.name}><Paperclip size={18}/><span><strong>{message.attachment.name}</strong><small>{Math.max(1, Math.round(message.attachment.size / 1024))} КБ · Скачать</small></span></a>}<span className="attachment-caption">{message.attachment.name}</span></div> : message.text.split(/(@[\p{L}\p{N}_]+)/gu).map((part, partIndex) => part.startsWith("@") ? <strong className="message-mention" key={partIndex}>{part}</strong> : part)}<span className="message-time">{message.edited ? "изменено · " : ""}{message.time}</span>{message.effect && <span className={`message-effect-mark effect-mark-${message.effect}`} aria-hidden="true">{({ sparkle: "✦", hearts: "♥", fireworks: "✧", glow: "✺" })[message.effect]}</span>}
+                    {message.poll ? <div className="poll-card"><div className="poll-heading"><strong>📊 {message.poll.question}</strong><span>{message.poll.options.reduce((sum, option) => sum + option.votes.length, 0)} голосов</span></div>{message.poll.options.map((option) => { const total = message.poll!.options.reduce((sum, item) => sum + item.votes.length, 0); const chosen = option.votes.includes(accountId || profileName); const percent = total ? Math.round(option.votes.length / total * 100) : 0; return <button type="button" className={`poll-option ${chosen ? "chosen" : ""}`} key={option.id} onClick={() => votePoll(message.id, option.id)} aria-label={`${option.text}: ${option.votes.length} голосов, ${percent}%${chosen ? ", ваш выбор" : ""}`}><span className="poll-option-label"><span>{chosen && <b className="poll-check">✓ </b>}{option.text}</span><b className="poll-result">{option.votes.length} · {percent}%</b></span><span className="poll-track"><i style={{ width: `${percent}%` }}/></span></button>; })}<small>{message.poll.options.some((option) => option.votes.includes(accountId || profileName)) ? "Ваш голос учтён · нажмите другой вариант, чтобы изменить выбор" : "Нажмите на вариант, чтобы проголосовать"}</small></div> : message.attachment ? <div className="attachment-card">{message.attachment.type.startsWith("image/") ? <img className="attachment-image" src={message.attachment.data} alt={message.attachment.name}/> : message.attachment.type.startsWith("video/") ? <video className="attachment-video" controls playsInline src={message.attachment.data}/> : message.attachment.type.startsWith("audio/") ? <div className="voice-attachment"><Mic size={17}/><audio controls src={message.attachment.data}/><a href={message.attachment.data} download={message.attachment.name}>Скачать</a></div> : <a className="attachment-file" href={message.attachment.data} download={message.attachment.name}><Paperclip size={18}/><span><strong>{message.attachment.name}</strong><small>{Math.max(1, Math.round(message.attachment.size / 1024))} КБ · Скачать</small></span></a>}<span className="attachment-caption">{message.attachment.name}</span></div> : message.text.split(/(@[\p{L}\p{N}_]+)/gu).map((part, partIndex) => part.startsWith("@") ? <strong className="message-mention" key={partIndex}>{part}</strong> : part)}<span className="message-time">{message.edited ? "изменено · " : ""}{message.time}</span>{message.effect && <span className={`message-effect-mark effect-mark-${message.effect}`} aria-hidden="true">{({ sparkle: "✦", hearts: "♥", fireworks: "✧", glow: "✺" })[message.effect]}</span>}
                   </div>
                   {message.reactions && message.reactions.length > 0 && <div className="reaction-list">{message.reactions.map((emoji, reactionIndex) => <button key={emoji + reactionIndex} type="button" onClick={() => toggleReaction(message.id, emoji)}>{emoji}</button>)}</div>}
                   <div className="message-action-wrap">
@@ -892,7 +975,7 @@ export default function App() {
           {activeGame !== "Каталог" && <button className="game-back-link" onClick={() => openGame("Каталог")}>← Все мини-игры</button>}
         </section>
       </div>}
-\n      {newChatOpen && <div className="modal-backdrop" onClick={() => setNewChatOpen(false)}><form className="settings-modal" onSubmit={createChat} onClick={(event) => event.stopPropagation()}><header><strong>Новый чат</strong><button type="button" onClick={() => setNewChatOpen(false)} aria-label="Закрыть"><X size={18}/></button></header><p className="modal-help">Создай диалог или локальную группу. Данные сохраняются в этом браузере.</p><label>Имя чата<input autoFocus value={newChatName} maxLength={48} onChange={(event) => setNewChatName(event.target.value)} placeholder="Например, Команда" required /></label><label className="group-toggle"><input type="checkbox" checked={newChatIsGroup} onChange={(event) => setNewChatIsGroup(event.target.checked)}/> Создать группу</label>{newChatIsGroup && <label>Участники через запятую<input value={groupMembersInput} onChange={(event) => setGroupMembersInput(event.target.value)} placeholder="Максим, Аня, Игорь"/></label>}<button type="submit" className="save-settings">Создать</button></form></div>}
+\n      {newChatOpen && <div className="modal-backdrop" onClick={() => setNewChatOpen(false)}><form className="settings-modal" onSubmit={createChat} onClick={(event) => event.stopPropagation()}><header><strong>Новый чат</strong><button type="button" onClick={() => setNewChatOpen(false)} aria-label="Закрыть"><X size={18}/></button></header><p className="modal-help">Создай личный чат или облачную группу. Для группового чата участники смогут вступить по ссылке-приглашению.</p><label>Имя чата<input autoFocus value={newChatName} maxLength={48} onChange={(event) => setNewChatName(event.target.value)} placeholder="Например, Команда" required /></label><label className="group-toggle"><input type="checkbox" checked={newChatIsGroup} onChange={(event) => setNewChatIsGroup(event.target.checked)}/> Создать группу</label><button type="submit" className="save-settings">Создать</button></form></div>}
       {pollOpen && <div className="modal-backdrop" onClick={() => setPollOpen(false)}><form className="settings-modal" onSubmit={createPoll} onClick={(event) => event.stopPropagation()}><header><strong>Новый опрос</strong><button type="button" onClick={() => setPollOpen(false)} aria-label="Закрыть"><X size={18}/></button></header><label>Вопрос<input autoFocus value={pollQuestion} maxLength={180} onChange={(event) => setPollQuestion(event.target.value)} placeholder="Что выбираем?" required/></label>{pollOptions.map((option, index) => <label key={index}>Вариант {index+1}<input value={option} maxLength={80} onChange={(event) => setPollOptions((current) => current.map((item, i) => i === index ? event.target.value : item))} placeholder={`Вариант ${index+1}`}/></label>)}{pollOptions.length < 6 && <button type="button" className="game-secondary" onClick={() => setPollOptions((current) => [...current, ""])}>+ Добавить вариант</button>}<button type="submit" className="save-settings">Опубликовать опрос</button></form></div>}
       {galleryOpen && <div className="modal-backdrop" onClick={() => setGalleryOpen(false)}><section className="settings-modal gallery-modal" onClick={(event) => event.stopPropagation()}><header><strong>Галерея медиа</strong><button type="button" onClick={() => setGalleryOpen(false)} aria-label="Закрыть"><X size={18}/></button></header><p className="modal-help">Изображения из всех локальных чатов</p>{galleryImages.length ? <div className="media-gallery">{galleryImages.map((image) => <button type="button" key={`${image.id}-${image.chatName}`} onClick={() => { setActiveId(chats.find((chat) => chat.name === image.chatName)?.id ?? activeId); setGalleryOpen(false); }} title={`${image.chatName} · ${image.attachment?.name}`}><img src={image.attachment!.data} alt={image.attachment!.name}/><small>{image.chatName}</small></button>)}</div> : <div className="empty-search">Пока нет изображений. Прикрепи картинку к сообщению.</div>}</section></div>}
       {profileOpen && <div className="modal-backdrop" onClick={() => setProfileOpen(false)}><section className="settings-modal" onClick={(event) => event.stopPropagation()}><header><strong>Профиль и оформление</strong><button type="button" onClick={() => setProfileOpen(false)} aria-label="Закрыть"><X size={18}/></button></header><label>Имя<input value={profileName} maxLength={32} onChange={(event) => setProfileName(event.target.value)} /></label><label>Username — уникальный<input value={username} maxLength={20} autoCapitalize="none" autoCorrect="off" spellCheck={false} onChange={(event) => setUsername(event.target.value.toLowerCase())} placeholder="например, alex_2026" /><small className="modal-help">3–20 символов: латиница, цифры и _. Username должен быть уникальным.</small></label><button type="button" className="save-settings" disabled={usernameSaving} onClick={saveUsername}>{usernameSaving ? "Сохраняю..." : "Сохранить username"}</button><label>Буква или эмодзи аватара<input value={profileAvatar} maxLength={3} onChange={(event) => setProfileAvatar(event.target.value)} /></label><label>Цветовая тема<select value={theme} onChange={(event) => setTheme(event.target.value)}><option value="yellow">Nexus — жёлтая</option><option value="blue">Синяя</option><option value="violet">Фиолетовая</option><option value="mint">Мятная</option></select></label><button type="button" className="save-settings" onClick={() => { setProfileOpen(false); action("Профиль и тема сохранены"); }}>Готово</button></section></div>}
