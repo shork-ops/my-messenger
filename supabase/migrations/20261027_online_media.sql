@@ -5,6 +5,7 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 values ('chat-media', 'chat-media', false, 52428800, array['image/*','video/*','audio/*','application/pdf','text/plain','application/zip','text/csv'])
 on conflict (id) do update set public = false, file_size_limit = 52428800;
 
+drop policy if exists "chat media upload by chat members" on storage.objects;
 create policy "chat media upload by chat members" on storage.objects
 for insert to authenticated
 with check (
@@ -13,6 +14,7 @@ with check (
   and (storage.foldername(name))[2] = auth.uid()::text
 );
 
+drop policy if exists "chat media read by chat members" on storage.objects;
 create policy "chat media read by chat members" on storage.objects
 for select to authenticated
 using (
@@ -20,6 +22,7 @@ using (
   and (storage.foldername(name))[1] in (select cm.chat_id::text from public.chat_members cm where cm.user_id = auth.uid())
 );
 
+drop policy if exists "chat media delete by uploader" on storage.objects;
 create policy "chat media delete by uploader" on storage.objects
 for delete to authenticated
 using (bucket_id = 'chat-media' and (storage.foldername(name))[2] = auth.uid()::text);
