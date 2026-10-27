@@ -346,6 +346,32 @@ export default function App() {
     return () => { alive = false; };
   }, [accountId, profileReady, profileName]);
 
+  useEffect(() => {
+    const client = supabase;
+    const active = chats.find((chat) => chat.id === activeId);
+    if (!client || !accountId || !active?.remoteId) return;
+    const channel = client.channel(`nexus-messages-${active.remoteId}`)
+      .on("postgres_changes", {
+        event: "INSERT", schema: "public", table: "messages", filter: `chat_id=eq.${active.remoteId}`,
+      }, (payload) => {
+        const row = payload.new as { id: string; chat_id: string; sender_id: string; body: string; created_at: string; edited_at?: string | null; deleted_at?: string | null };
+        if (row.sender_id === accountId) return;
+        setChats((current) => current.map((chat) => {
+          if (chat.remoteId !== row.chat_id || chat.messages.some((message) => message.remoteId === row.id)) return chat;
+          const created = new Date(row.created_at);
+          const message: Message = {
+            id: numericId(row.id), remoteId: row.id, author: chat.name,
+            text: row.deleted_at ? "Сообщение удалено" : row.body,
+            time: new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(created),
+            mine: false, createdAt: created.getTime(), edited: Boolean(row.edited_at),
+          };
+          return { ...chat, preview: message.text, time: message.time, messages: [...chat.messages, message] };
+        }));
+      })
+      .subscribe();
+    return () => { void client.removeChannel(channel); };
+  }, [accountId, activeId, chats]);
+
   async function openDirectChat(user: { id: string; username: string; display_name: string; avatar: string }) {
     const client = supabase;
     if (!client || !accountId) {
@@ -702,7 +728,7 @@ export default function App() {
       <section className="conversation-panel">
         <header className="conversation-header">
           <Avatar color={activeChat.color}>{activeChat.avatar}</Avatar>
-          <div className="conversation-title"><strong>{activeChat.name}</strong><small>{activeChat.group ? `${activeChat.members?.length ?? 1} участника(ов)` : "Локальный чат"}</small></div>
+          <div className="conversation-title"><strong>{activeChat.name}</strong><small>{activeChat.id === 0 ? "Создай чат, чтобы начать" : activeChat.group ? `${activeChat.members?.length ?? 1} участника(ов)` : activeChat.remoteId ? "Облачный диалог" : "Локальный чат"}</small></div>
           <div className="conversation-tools">
             <button onClick={() => setMessageSearchOpen((open) => !open)} aria-label="Поиск по переписке" title="Поиск по переписке"><Search/></button>
             <button onClick={() => action("Голосовые звонки подключим позже")} aria-label="Позвонить"><Phone/></button>
