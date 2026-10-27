@@ -60,11 +60,17 @@ function Avatar({ children, color = "blue", small = false }: { children: React.R
 
 export default function App() {
   const [chats, setChats] = useState<Chat[]>(() => {
+    if (!window.localStorage.getItem("nexus-demo-chats-cleared-v1")) {
+      window.localStorage.removeItem("nexus-chats-v1");
+      window.localStorage.removeItem("nexus-drafts-v1");
+      window.localStorage.setItem("nexus-demo-chats-cleared-v1", "1");
+      return [];
+    }
     try {
       const saved = window.localStorage.getItem("nexus-chats-v1");
-      return saved ? (JSON.parse(saved) as Chat[]) : initialChats;
+      return saved ? (JSON.parse(saved) as Chat[]) : [];
     } catch {
-      return initialChats;
+      return [];
     }
   });
   const [activeId, setActiveId] = useState(1);
@@ -99,7 +105,9 @@ export default function App() {
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileName, setProfileName] = useState(() => window.localStorage.getItem("nexus-profile-name") || "Алексей");
-  const [profileAvatar, setProfileAvatar] = useState(() => window.localStorage.getItem("nexus-profile-avatar") || "А");
+  const [profileAvatar, setProfileAvatar] = useState(() => window.localStorage.getItem("nexus-profile-avatar") || "N");
+  const [username, setUsername] = useState("");
+  const [usernameSaving, setUsernameSaving] = useState(false);
   const [accountId, setAccountId] = useState<string | null>(null);
   const [profileReady, setProfileReady] = useState(false);
   const [theme, setTheme] = useState(() => window.localStorage.getItem("nexus-theme") || "yellow");
@@ -115,7 +123,9 @@ export default function App() {
   const [deletedMessage, setDeletedMessage] = useState<{ chatId: number; message: Message; index: number } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  const activeChat = chats.find((chat) => chat.id === activeId) ?? chats[0];
+  const activeChat: Chat = chats.find((chat) => chat.id === activeId) ?? chats[0] ?? {
+    id: 0, name: "Новый чат", avatar: "＋", color: "blue", preview: "Создай чат или найди пользователя по username", time: "", messages: [],
+  };
   const sortedChats = useMemo(() => [...chats].sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned))), [chats]);
   const visibleMessages = useMemo(() => { const q = messageSearch.trim().toLocaleLowerCase("ru-RU"); return activeChat.messages.filter((message) => !q || message.text.toLocaleLowerCase("ru-RU").includes(q) || message.author.toLocaleLowerCase("ru-RU").includes(q)); }, [activeChat, messageSearch]);
   const galleryImages = useMemo(() => chats.flatMap((chat) => chat.messages.filter((message) => message.attachment?.type.startsWith("image/")).map((message) => ({ ...message, chatName: chat.name }))), [chats]);
@@ -131,7 +141,9 @@ export default function App() {
     }
     let alive = true;
     const syncProfile = async () => {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      const client = supabase;
+      if (!client) { setProfileReady(true); return; }
+      const { data: { user }, error: userError } = await client.auth.getUser();
       if (!alive) return;
       if (userError || !user) {
         setAccountId(null);
@@ -143,10 +155,11 @@ export default function App() {
         ? user.user_metadata.full_name
         : typeof user.user_metadata?.name === "string" ? user.user_metadata.name : "";
       const metadataAvatar = typeof user.user_metadata?.avatar_url === "string" ? user.user_metadata.avatar_url : "";
-      const { data: existingProfile, error: readError } = await supabase
-        .from("profiles").select("display_name, avatar").eq("id", user.id).maybeSingle();
+      const { data: existingProfile, error: readError } = await client
+        .from("profiles").select("display_name, avatar, username").eq("id", user.id).maybeSingle();
       if (!alive) return;
       if (readError) {
+        setAccountId(null);
         setNotice("Не удалось загрузить профиль из Supabase");
         setProfileReady(true);
         return;
@@ -154,10 +167,11 @@ export default function App() {
       if (existingProfile) {
         setProfileName(existingProfile.display_name || metadataName || "Пользователь");
         setProfileAvatar(existingProfile.avatar || metadataName.slice(0, 1).toUpperCase() || "N");
+        setUsername(existingProfile.username || "");
       } else {
         const displayName = metadataName.trim() || user.email?.split("@")[0] || "Пользователь";
-        const avatar = metadataAvatar || displayName.slice(0, 1).toUpperCase() || "N";
-        const { error: insertError } = await supabase.from("profiles").insert({ id: user.id, display_name: displayName, avatar });
+        const avatar = displayName.slice(0, 1).toUpperCase() || "N";
+        const { error: insertError } = await client.from("profiles").insert({ id: user.id, display_name: displayName, avatar });
         if (!alive) return;
         if (insertError) setNotice("Не удалось создать профиль в Supabase");
         else { setProfileName(displayName); setProfileAvatar(avatar); }
@@ -176,9 +190,10 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem("nexus-profile-name", profileName);
     window.localStorage.setItem("nexus-profile-avatar", profileAvatar);
-    if (!supabase || !accountId || !profileReady) return;
+    const client = supabase;
+    if (!client || !accountId || !profileReady) return;
     const saveProfile = async () => {
-      const { error } = await supabase.from("profiles").upsert({
+      const { error } = await client.from("profiles").upsert({
         id: accountId,
         display_name: profileName.trim() || "Пользователь",
         avatar: profileAvatar.trim() || "N",
@@ -188,6 +203,24 @@ export default function App() {
     };
     void saveProfile();
   }, [profileName, profileAvatar, accountId, profileReady]);
+
+  async function saveUsername() {
+    const client = supabase;
+    const normalized = username.trim().toLowerCase();
+    if (!client || !accountId) { action("Вход через Google необходим для сохранения username"); return; }
+    if (!/^[a-z0-9_]{3,20}$/.test(normalized)) { action("Username: 3–20 символов, только латиница, цифры и _"); return; }
+    setUsernameSaving(true);
+    const { error } = await client.from("profiles").update({ username: normalized }).eq("id", accountId);
+    setUsernameSaving(false);
+    if (error) {
+      if (error.code === "23505") action("Этот username уже занят. Выбери другой.");
+      else if (error.code === "42703" || error.message.toLowerCase().includes("username")) action("Сначала выполни SQL-миграцию username в Supabase");
+      else action("Не удалось сохранить username");
+      return;
+    }
+    setUsername(normalized);
+    action("Username сохранён — по нему тебя можно будет найти");
+  }
 
   useEffect(() => { window.localStorage.setItem("nexus-drafts-v1", JSON.stringify(drafts)); }, [drafts]);
 
@@ -672,7 +705,7 @@ export default function App() {
 \n      {newChatOpen && <div className="modal-backdrop" onClick={() => setNewChatOpen(false)}><form className="settings-modal" onSubmit={createChat} onClick={(event) => event.stopPropagation()}><header><strong>Новый чат</strong><button type="button" onClick={() => setNewChatOpen(false)} aria-label="Закрыть"><X size={18}/></button></header><p className="modal-help">Создай диалог или локальную группу. Данные сохраняются в этом браузере.</p><label>Имя чата<input autoFocus value={newChatName} maxLength={48} onChange={(event) => setNewChatName(event.target.value)} placeholder="Например, Команда" required /></label><label className="group-toggle"><input type="checkbox" checked={newChatIsGroup} onChange={(event) => setNewChatIsGroup(event.target.checked)}/> Создать группу</label>{newChatIsGroup && <label>Участники через запятую<input value={groupMembersInput} onChange={(event) => setGroupMembersInput(event.target.value)} placeholder="Максим, Аня, Игорь"/></label>}<button type="submit" className="save-settings">Создать</button></form></div>}
       {pollOpen && <div className="modal-backdrop" onClick={() => setPollOpen(false)}><form className="settings-modal" onSubmit={createPoll} onClick={(event) => event.stopPropagation()}><header><strong>Новый опрос</strong><button type="button" onClick={() => setPollOpen(false)} aria-label="Закрыть"><X size={18}/></button></header><label>Вопрос<input autoFocus value={pollQuestion} maxLength={180} onChange={(event) => setPollQuestion(event.target.value)} placeholder="Что выбираем?" required/></label>{pollOptions.map((option, index) => <label key={index}>Вариант {index+1}<input value={option} maxLength={80} onChange={(event) => setPollOptions((current) => current.map((item, i) => i === index ? event.target.value : item))} placeholder={`Вариант ${index+1}`}/></label>)}{pollOptions.length < 6 && <button type="button" className="game-secondary" onClick={() => setPollOptions((current) => [...current, ""])}>+ Добавить вариант</button>}<button type="submit" className="save-settings">Опубликовать опрос</button></form></div>}
       {galleryOpen && <div className="modal-backdrop" onClick={() => setGalleryOpen(false)}><section className="settings-modal gallery-modal" onClick={(event) => event.stopPropagation()}><header><strong>Галерея медиа</strong><button type="button" onClick={() => setGalleryOpen(false)} aria-label="Закрыть"><X size={18}/></button></header><p className="modal-help">Изображения из всех локальных чатов</p>{galleryImages.length ? <div className="media-gallery">{galleryImages.map((image) => <button type="button" key={`${image.id}-${image.chatName}`} onClick={() => { setActiveId(chats.find((chat) => chat.name === image.chatName)?.id ?? activeId); setGalleryOpen(false); }} title={`${image.chatName} · ${image.attachment?.name}`}><img src={image.attachment!.data} alt={image.attachment!.name}/><small>{image.chatName}</small></button>)}</div> : <div className="empty-search">Пока нет изображений. Прикрепи картинку к сообщению.</div>}</section></div>}
-      {profileOpen && <div className="modal-backdrop" onClick={() => setProfileOpen(false)}><section className="settings-modal" onClick={(event) => event.stopPropagation()}><header><strong>Профиль и оформление</strong><button type="button" onClick={() => setProfileOpen(false)} aria-label="Закрыть"><X size={18}/></button></header><label>Имя<input value={profileName} maxLength={32} onChange={(event) => setProfileName(event.target.value)} /></label><label>Буква или эмодзи аватара<input value={profileAvatar} maxLength={3} onChange={(event) => setProfileAvatar(event.target.value)} /></label><label>Цветовая тема<select value={theme} onChange={(event) => setTheme(event.target.value)}><option value="yellow">Nexus — жёлтая</option><option value="blue">Синяя</option><option value="violet">Фиолетовая</option><option value="mint">Мятная</option></select></label><button type="button" className="save-settings" onClick={() => { setProfileOpen(false); action("Профиль и тема сохранены"); }}>Готово</button></section></div>}
+      {profileOpen && <div className="modal-backdrop" onClick={() => setProfileOpen(false)}><section className="settings-modal" onClick={(event) => event.stopPropagation()}><header><strong>Профиль и оформление</strong><button type="button" onClick={() => setProfileOpen(false)} aria-label="Закрыть"><X size={18}/></button></header><label>Имя<input value={profileName} maxLength={32} onChange={(event) => setProfileName(event.target.value)} /></label><label>Username — уникальный<input value={username} maxLength={20} autoCapitalize="none" autoCorrect="off" spellCheck={false} onChange={(event) => setUsername(event.target.value.toLowerCase())} placeholder="например, alex_2026" /><small className="modal-help">3–20 символов: латиница, цифры и _. Username должен быть уникальным.</small></label><button type="button" className="save-settings" disabled={usernameSaving} onClick={saveUsername}>{usernameSaving ? "Сохраняю..." : "Сохранить username"}</button><label>Буква или эмодзи аватара<input value={profileAvatar} maxLength={3} onChange={(event) => setProfileAvatar(event.target.value)} /></label><label>Цветовая тема<select value={theme} onChange={(event) => setTheme(event.target.value)}><option value="yellow">Nexus — жёлтая</option><option value="blue">Синяя</option><option value="violet">Фиолетовая</option><option value="mint">Мятная</option></select></label><button type="button" className="save-settings" onClick={() => { setProfileOpen(false); action("Профиль и тема сохранены"); }}>Готово</button></section></div>}
       {deletedMessage && <div className="toast undo-toast"><span>Сообщение удалено</span><button className="undo-button" onClick={undoDelete}>Отменить</button><button onClick={() => setDeletedMessage(null)} aria-label="Закрыть"><X size={15}/></button></div>}
       {notice && <div className="toast"><Shield size={17}/>{notice}<button onClick={() => setNotice("")}><X size={15}/></button></div>}
       <button className="mobile-profile-toggle" onClick={() => setShowProfile(!showProfile)} aria-label="Профиль"><CircleUserRound/></button>
