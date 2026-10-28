@@ -2,8 +2,11 @@ import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
-export default defineConfig({
-  base: "/my-messenger/",
+export default defineConfig(({ mode }) => ({
+  // GitHub Pages serves the app from a sub-path, but a Capacitor WebView loads
+  // files from the bundle root, where an absolute /my-messenger/ prefix would
+  // 404 every asset. The mobile build therefore uses a relative base.
+  base: mode === "mobile" ? "./" : "/my-messenger/",
   plugins: [
     react(),
     VitePWA({
@@ -30,4 +33,4 @@ export default defineConfig({
     environment: "node",
     include: ["src/**/*.test.ts"],
   },
-});
+}));
