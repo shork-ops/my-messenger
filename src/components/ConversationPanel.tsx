@@ -36,6 +36,10 @@ type ConversationPanelProps = {
   onToggleReaction: (messageId: number, emoji: string) => void;
   onReply: (message: Message) => void;
   onCopy: (message: Message) => void;
+  onForward: (message: Message) => void;
+  onFavourite: (message: Message) => void;
+  onTogglePinMessage: (message: Message) => void;
+  pinnedMessageIds: Set<number>;
   onEffect: (messageId: number, effect: MessageEffect) => void;
   onEdit: (message: Message) => void;
   onDelete: (messageId: number) => void;
@@ -76,6 +80,10 @@ export default function ConversationPanel({
   onToggleReaction,
   onReply,
   onCopy,
+  onForward,
+  onFavourite,
+  onTogglePinMessage,
+  pinnedMessageIds,
   onEffect,
   onEdit,
   onDelete,
@@ -204,6 +212,10 @@ export default function ConversationPanel({
                 onToggleReaction={(emoji) => onToggleReaction(message.id, emoji)}
                 onReply={() => onReply(message)}
                 onCopy={() => onCopy(message)}
+                onForward={() => onForward(message)}
+                onFavourite={() => onFavourite(message)}
+                onTogglePin={() => onTogglePinMessage(message)}
+                pinned={pinnedMessageIds.has(message.id)}
                 onEffect={(effect) => onEffect(message.id, effect)}
                 onEdit={() => onEdit(message)}
                 onDelete={() => onDelete(message.id)}

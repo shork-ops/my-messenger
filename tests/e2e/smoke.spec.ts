@@ -60,6 +60,35 @@ test.describe("Nexus messenger smoke", () => {
     await expect(page.getByText("Реакции доступны в облачных сообщениях")).toBeVisible();
   });
 
+  test("forwards a message and keeps a copy in favourites", async ({ page }) => {
+    const text = `forward ${Date.now()}`;
+    await page.getByLabel("Текст сообщения").fill(text);
+    await page.getByLabel("Отправить сообщение").click();
+
+    const line = page.locator(".message-line").filter({ hasText: text }).last();
+    await expect(line).toBeVisible();
+    await line.getByLabel("Действия с сообщением").click();
+    await line.getByLabel("Сохранить в избранное").click();
+
+    // The favourites chat appears in the list and holds the saved copy.
+    const favourites = page.locator(".chat-list .chat-row").filter({ hasText: "Избранное" });
+    await expect(favourites).toBeVisible();
+    await favourites.click();
+    await expect(page.locator(".messages-area")).toContainText(text);
+  });
+
+  test("pins a message from the menu", async ({ page }) => {
+    const text = `pin ${Date.now()}`;
+    await page.getByLabel("Текст сообщения").fill(text);
+    await page.getByLabel("Отправить сообщение").click();
+
+    const line = page.locator(".message-line").filter({ hasText: text }).last();
+    await line.getByLabel("Действия с сообщением").click();
+    await line.getByLabel("Закрепить сообщение").click();
+
+    await expect(page.getByText("Сообщение закреплено")).toBeVisible();
+  });
+
   test("filters the chat list by the search box", async ({ page }) => {
     const chats = page.locator(".chat-list .chat-row");
     const before = await chats.count();

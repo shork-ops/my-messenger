@@ -10,6 +10,7 @@ import GameModal from "./components/GameModal";
 import { useChatMembers } from "./hooks/useChatMembers";
 import { useServerSearch } from "./hooks/useServerSearch";
 import { removeMember, rotateInvite, setMemberRole } from "./lib/groupAdmin";
+import { createFavouritesChat, favouriteMessage, formatForwardText, isFavouritesChat, nextLocalId } from "./lib/messageActions";
 import { GalleryModal, NewChatModal, PollModal, ProfileModal } from "./components/Modals";
 import { friends, isDemoMode } from "./lib/constants";
 import { clockTime, numericId } from "./lib/format";
@@ -56,6 +57,7 @@ export default function App() {
   const [activeNav, setActiveNav] = useState("Чаты");
   const [showProfile, setShowProfile] = useState(true);
   const [membersRefreshKey, setMembersRefreshKey] = useState(0);
+  const [pinnedMessageIds, setPinnedMessageIds] = useState<Set<number>>(() => new Set());
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [openingUserId, setOpeningUserId] = useState<string | null>(null);
@@ -787,6 +789,145 @@ export default function App() {
     setOpenMessageActionsId(null);
   }
 
+  /** Sends the message into the open chat with a marker naming the original author. */
+  async function forwardMessage(message: Message) {
+    setOpenMessageActionsId(null);
+    const text = formatForwardText(message);
+    const chat = chats.find((item) => item.id === activeId);
+    if (!chat) return;
+    if (chat.remoteId) {
+      const client = supabase;
+      if (!client || !accountId) {
+        action("Нет подключения к Supabase");
+        return;
+      }
+      const { data, error } = await client
+        .from("messages")
+        .insert({ chat_id: chat.remoteId, sender_id: accountId, body: text })
+        .select("id")
+        .single();
+      if (error) {
+        action("Не удалось переслать сообщение");
+        return;
+      }
+      setChats((current) =>
+        current.map((item) =>
+          item.id === chat.id
+            ? {
+                ...item,
+                messages: [
+                  ...item.messages,
+                  {
+                    id: nextLocalId(item.messages),
+                    remoteId: data.id as string,
+                    author: profileName,
+                    text,
+                    time: clockTime(new Date()),
+                    mine: true,
+                    createdAt: Date.now(),
+                  },
+                ],
+                preview: text.split("\n").pop() ?? text,
+                time: clockTime(new Date()),
+              }
+            : item
+        )
+      );
+      action("Сообщение переслано");
+      return;
+    }
+    // Local-only chat: the message never leaves this browser.
+    setChats((current) =>
+      current.map((item) =>
+        item.id === chat.id
+          ? {
+              ...item,
+              messages: [
+                ...item.messages,
+                {
+                  id: nextLocalId(item.messages),
+                  author: profileName,
+                  text,
+                  time: clockTime(new Date()),
+                  mine: true,
+                  createdAt: Date.now(),
+                },
+              ],
+              preview: text.split("\n").pop() ?? text,
+              time: clockTime(new Date()),
+            }
+          : item
+      )
+    );
+    action("Сообщение переслано");
+  }
+
+  /** Keeps a private copy in the "Избранное" chat, which never syncs. */
+  function saveToFavourites(message: Message) {
+    setOpenMessageActionsId(null);
+    const content = message.text.trim() || message.attachment?.name || "Вложение";
+    setChats((current) => {
+      const existing = current.find(isFavouritesChat);
+      const base = existing ?? createFavouritesChat();
+      const saved = favouriteMessage({ ...message, text: content }, nextLocalId(base.messages));
+      const updated = {
+        ...base,
+        messages: [...base.messages, saved],
+        preview: content,
+        time: clockTime(new Date()),
+      };
+      return existing ? current.map((item) => (isFavouritesChat(item) ? updated : item)) : [updated, ...current];
+    });
+    action("Сохранено в избранное");
+  }
+
+  /** Pins or unpins a message; groups restrict this to admins on the server. */
+  async function togglePinnedMessage(message: Message) {
+    setOpenMessageActionsId(null);
+    const chat = chats.find((item) => item.id === activeId);
+    if (!chat) return;
+    const nowPinned = !pinnedMessageIds.has(message.id);
+
+    if (chat.remoteId && message.remoteId) {
+      const client = supabase;
+      if (!client) {
+        action("Нет подключения к Supabase");
+        return;
+      }
+      const { error } = await client.rpc("set_message_pin", {
+        target_message_id: message.remoteId,
+        pinned: nowPinned,
+      });
+      if (error) {
+        action(
+          /42501|Only admins/i.test(error.message)
+            ? "В группе закреплять сообщения могут только администраторы"
+            : "Не удалось изменить закрепление"
+        );
+        return;
+      }
+    }
+    setPinnedMessageIds((current) => {
+      const next = new Set(current);
+      if (nowPinned) next.add(message.id);
+      else next.delete(message.id);
+      return next;
+    });
+    setChats((current) =>
+      current.map((item) =>
+        item.id === chat.id
+          ? {
+              ...item,
+              messages: item.messages.map((entry) =>
+                entry.id === message.id ? { ...entry, pinned: nowPinned } : entry
+              ),
+            }
+          : item
+      )
+    );
+    action(nowPinned ? "Сообщение закреплено" : "Сообщение откреплено");
+  }
+
   async function toggleNotifications() {
     const permission = await requestNotificationPermission();
     if (permission === "denied") {
@@ -879,6 +1020,10 @@ export default function App() {
         onToggleReaction={(messageId, emoji) => void toggleReaction(messageId, emoji)}
         onReply={replyToMessage}
         onCopy={copyMessage}
+        onForward={(message) => void forwardMessage(message)}
+        onFavourite={saveToFavourites}
+        onTogglePinMessage={(message) => void togglePinnedMessage(message)}
+        pinnedMessageIds={pinnedMessageIds}
         onEffect={(messageId, effect) => void applyMessageEffect(messageId, effect)}
         onEdit={(message) => {
           startEditing(message);

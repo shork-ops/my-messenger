@@ -1,7 +1,8 @@
-import { MessageCircle, MoreVertical, Paperclip, PencilLine, Send, X, Mic } from "lucide-react";
+import { Forward, MessageCircle, MoreVertical, Paperclip, PencilLine, Pin, Send, Star, X, Mic } from "lucide-react";
 import Avatar from "./Avatar";
 import { friends } from "../lib/constants";
 import { hasUserVoted, pollPercent, pollTotal } from "../lib/polls";
+import { splitForward } from "../lib/messageActions";
 import type { Message, MessageEffect, Poll } from "../types";
 
 type VoteHandler = (optionId: string) => void;
@@ -96,6 +97,10 @@ type MessageBubbleProps = {
   onToggleReaction: (emoji: string) => void;
   onReply: () => void;
   onCopy: () => void;
+  onForward: () => void;
+  onFavourite: () => void;
+  onTogglePin: () => void;
+  pinned: boolean;
   onEffect: (effect: MessageEffect) => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -114,11 +119,17 @@ export default function MessageBubble({
   onToggleReaction,
   onReply,
   onCopy,
+  onForward,
+  onFavourite,
+  onTogglePin,
+  pinned,
   onEffect,
   onEdit,
   onDelete,
   onGameInvite,
 }: MessageBubbleProps) {
+  // Forwarded bodies carry a marker line, which renders as a label instead of text.
+  const forwardRelease = splitForward(message.text);
   return (
     <div className={`message-line ${message.mine ? "mine" : ""}`}>
       {!message.mine && (
@@ -135,12 +146,18 @@ export default function MessageBubble({
               <span>{message.replyTo.text}</span>
             </div>
           )}
+          {/* A forward is a normal message whose body starts with a marker line. */}
+          {forwardRelease.label && (
+            <div className="forward-label">
+              <Forward size={12} /> {forwardRelease.label.replace("↪ ", "")}
+            </div>
+          )}
           {message.poll ? (
             <PollCard poll={message.poll} accountId={accountId} profileName={profileName} onVote={onVote} />
           ) : message.attachment ? (
             <AttachmentCard attachment={message.attachment} />
           ) : (
-            message.text.split(/(@[\p{L}\p{N}_]+)/gu).map((part, partIndex) =>
+            <>{(forwardRelease.label ? forwardRelease.body : message.text).split(/(@[\p{L}\p{N}_]+)/gu).map((part, partIndex) =>
               part.startsWith("@") ? (
                 <strong className="message-mention" key={partIndex}>
                   {part}
@@ -148,7 +165,7 @@ export default function MessageBubble({
               ) : (
                 part
               )
-            )
+            )}</>
           )}
           <span className="message-time">
             {message.edited ? "изменено · " : ""}
@@ -193,24 +210,37 @@ export default function MessageBubble({
               <button type="button" onClick={onCopy}>
                 <Paperclip size={13} /> Копировать
               </button>
-              <button type="button" onClick={() => onToggleReaction("❤️")}>
-                ❤️
+              <button type="button" onClick={onForward} aria-label="Переслать сообщение">
+                <Forward size={13} /> Переслать
               </button>
-              <button type="button" onClick={() => onToggleReaction("👍")}>
-                👍
+              <button type="button" onClick={onFavourite} aria-label="Сохранить в избранное">
+                <Star size={13} /> В избранное
               </button>
-              <button type="button" className="effect-action" onClick={() => onEffect("sparkle")} title="Эффект: искры">
-                ✦
+              <button type="button" onClick={onTogglePin} aria-label={pinned ? "Открепить сообщение" : "Закрепить сообщение"}>
+                <Pin size={13} /> {pinned ? "Открепить" : "Закрепить"}
               </button>
-              <button type="button" className="effect-action" onClick={() => onEffect("hearts")} title="Эффект: сердечки">
-                ♥
-              </button>
-              <button type="button" className="effect-action" onClick={() => onEffect("fireworks")} title="Эффект: салют">
-                ✧
-              </button>
-              <button type="button" className="effect-action" onClick={() => onEffect("glow")} title="Эффект: сияние">
-                ✺
-              </button>
+              <span className="message-actions-group" role="group" aria-label="Реакции">
+                <button type="button" onClick={() => onToggleReaction("❤️")} aria-label="Реакция ❤️">
+                  ❤️
+                </button>
+                <button type="button" onClick={() => onToggleReaction("👍")} aria-label="Реакция 👍">
+                  👍
+                </button>
+              </span>
+              <span className="message-actions-group" role="group" aria-label="Эффекты">
+                <button type="button" className="effect-action" onClick={() => onEffect("sparkle")} title="Эффект: искры" aria-label="Эффект: искры">
+                  ✦
+                </button>
+                <button type="button" className="effect-action" onClick={() => onEffect("hearts")} title="Эффект: сердечки" aria-label="Эффект: сердечки">
+                  ♥
+                </button>
+                <button type="button" className="effect-action" onClick={() => onEffect("fireworks")} title="Эффект: салют" aria-label="Эффект: салют">
+                  ✧
+                </button>
+                <button type="button" className="effect-action" onClick={() => onEffect("glow")} title="Эффект: сияние" aria-label="Эффект: сияние">
+                  ✺
+                </button>
+              </span>
               {message.mine && (
                 <button type="button" onClick={onEdit} aria-label="Редактировать сообщение">
                   <PencilLine size={13} /> Изменить

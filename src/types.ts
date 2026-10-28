@@ -29,6 +29,8 @@ export type Message = {
   replyTo?: ReplyPreview;
   reactions?: string[];
   effect?: MessageEffect;
+  /** Message pinned to the chat header; servers store the timestamp. */
+  pinned?: boolean;
 };
 
 export type Chat = {
