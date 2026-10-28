@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { CircleUserRound, Shield, X } from "lucide-react";
 import { supabase } from "./lib/supabase";
@@ -10,57 +10,27 @@ import GameModal from "./components/GameModal";
 import { GalleryModal, NewChatModal, PollModal, ProfileModal } from "./components/Modals";
 import { friends, isDemoMode } from "./lib/constants";
 import { clockTime, numericId } from "./lib/format";
-import {
-  appendMessage,
-  filterChats,
-  getGalleryImages,
-  getVisibleMessages,
-  mapMessages,
-  mapMessagesByRemoteId,
-  markRead,
-  matchesChatFilter,
-  removeMessage,
-  restoreMessage,
-  sortChats,
-  togglePinned,
-  updateChat,
-} from "./lib/chats";
+import { appendMessage, mapMessages, markRead, removeMessage, restoreMessage, updateChat } from "./lib/chats";
 import { toggleLocalVote } from "./lib/polls";
-import type { Chat, ChatFilter, ChatMessageRow, Message, MessageEffect, UserSearchResult } from "./types";
+import { useNotice } from "./hooks/useNotice";
+import { useTheme } from "./hooks/useTheme";
+import { useProfile } from "./hooks/useProfile";
+import { useGames } from "./hooks/useGames";
+import { useChatCollection } from "./hooks/useChatCollection";
+import { useUserSearch } from "./hooks/useUserSearch";
+import { useCloudChats } from "./hooks/useCloudChats";
+import { useRealtimeChat } from "./hooks/useRealtimeChat";
+import { useAutoScroll } from "./hooks/useAutoScroll";
+import type { Chat, ChatFilter, Message, MessageEffect, UserSearchResult } from "./types";
 
 export default function App() {
-  const [chats, setChats] = useState<Chat[]>(() => {
-    if (!isDemoMode) return [];
-    if (!window.localStorage.getItem("nexus-demo-chats-cleared-v1")) {
-      window.localStorage.removeItem("nexus-chats-v1");
-      window.localStorage.removeItem("nexus-drafts-v1");
-      window.localStorage.setItem("nexus-demo-chats-cleared-v1", "1");
-      return [];
-    }
-    try {
-      const saved = window.localStorage.getItem("nexus-chats-v1");
-      return saved ? (JSON.parse(saved) as Chat[]) : [];
-    } catch {
-      return [];
-    }
-  });
-  const [activeId, setActiveId] = useState(1);
+  const [search, setSearch] = useState("");
+  const [chatFilter, setChatFilter] = useState<ChatFilter>("all");
+  const [messageSearch, setMessageSearch] = useState("");
+  const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState("");
-  const [search, setSearch] = useState("");
-  const [foundUsers, setFoundUsers] = useState<UserSearchResult[]>([]);
-  const [userSearchLoading, setUserSearchLoading] = useState(false);
-  const [chatFilter, setChatFilter] = useState<ChatFilter>("all");
-  const [messageSearchOpen, setMessageSearchOpen] = useState(false);
-  const [messageSearch, setMessageSearch] = useState("");
-  const [drafts, setDrafts] = useState<Record<number, string>>(() => {
-    try {
-      return JSON.parse(window.localStorage.getItem("nexus-drafts-v1") || "{}") as Record<number, string>;
-    } catch {
-      return {};
-    }
-  });
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [newChatName, setNewChatName] = useState("");
   const [newChatIsGroup, setNewChatIsGroup] = useState(() => !isDemoMode);
@@ -76,55 +46,53 @@ export default function App() {
   const [mentionOpen, setMentionOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [activeNav, setActiveNav] = useState("Чаты");
-  const [notice, setNotice] = useState("");
   const [showProfile, setShowProfile] = useState(true);
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [profileName, setProfileName] = useState(() => window.localStorage.getItem("nexus-profile-name") || "Алексей");
-  const [profileAvatar, setProfileAvatar] = useState(() => window.localStorage.getItem("nexus-profile-avatar") || "N");
-  const [username, setUsername] = useState("");
-  const [usernameSaving, setUsernameSaving] = useState(false);
-  const [accountId, setAccountId] = useState<string | null>(null);
-  const [profileReady, setProfileReady] = useState(false);
   const [openingUserId, setOpeningUserId] = useState<string | null>(null);
-  const [theme, setTheme] = useState(() => window.localStorage.getItem("nexus-theme") || "yellow");
-  const [activeGame, setActiveGame] = useState<string | null>(null);
-  const [gameNotice, setGameNotice] = useState("");
-  const [chessSolved, setChessSolved] = useState(false);
-  const [unoHand, setUnoHand] = useState(["🔴 3", "🔵 7", "🟡 2", "🟢 5", "🔴 9"]);
-  const [unoTop, setUnoTop] = useState("🔵 4");
-  const [baldaInput, setBaldaInput] = useState("");
-  const [baldaWords, setBaldaWords] = useState<string[]>([]);
-  const [baldaScore, setBaldaScore] = useState(0);
   const [openMessageActionsId, setOpenMessageActionsId] = useState<number | null>(null);
   const [deletedMessage, setDeletedMessage] = useState<{ chatId: number; message: Message; index: number } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  const activeChat: Chat = chats.find((chat) => chat.id === activeId) ?? chats[0] ?? {
-    id: 0,
-    name: "Новый чат",
-    avatar: "＋",
-    color: "blue",
-    preview: "Создай чат или найди пользователя по username",
-    time: "",
-    messages: [],
-  };
-  const sortedChats = useMemo(() => sortChats(chats), [chats]);
+  const { notice, notify: action, clearNotice } = useNotice();
+  const { theme, setTheme } = useTheme();
+  const {
+    profileName,
+    setProfileName,
+    profileAvatar,
+    setProfileAvatar,
+    username,
+    setUsername,
+    usernameSaving,
+    accountId,
+    profileReady,
+    saveUsername,
+  } = useProfile({ notify: action });
+  const {
+    activeGame,
+    setActiveGame,
+    gameNotice,
+    chessSolved,
+    unoHand,
+    unoTop,
+    baldaInput,
+    baldaWords,
+    baldaScore,
+    setBaldaInput,
+    openGame,
+    playUnoCard,
+    drawUnoCard,
+    submitBaldaWord,
+    answerChess,
+  } = useGames();
+  const { chats, setChats, activeId, setActiveId, drafts, setDrafts, activeChat, displayChats, visibleMessages, galleryImages, unreadTotal, toggleChatPin } =
+    useChatCollection({ search, chatFilter, messageSearch, notify: action });
+  const { foundUsers, userSearchLoading } = useUserSearch({ search, accountId });
 
-  useEffect(() => {
-    if (chats.length > 0 && !chats.some((chat) => chat.id === activeId)) setActiveId(chats[0].id);
-  }, [chats, activeId]);
-  const visibleMessages = useMemo(() => getVisibleMessages(activeChat.messages, messageSearch), [activeChat, messageSearch]);
-  const galleryImages = useMemo(() => getGalleryImages(chats), [chats]);
-  const filteredChats = useMemo(() => filterChats(chats, search), [chats, search]);
-  const displayChats = useMemo(
-    () =>
-      sortedChats.filter(
-        (chat) => matchesChatFilter(chat, chatFilter) && (!search.trim() || filteredChats.some((item) => item.id === chat.id))
-      ),
-    [sortedChats, chatFilter, search, filteredChats]
-  );
-  const unreadTotal = useMemo(() => chats.reduce((sum, chat) => sum + (chat.unread ?? 0), 0), [chats]);
+  useCloudChats({ accountId, profileReady, profileName, notify: action, setChats, setActiveId });
+  useRealtimeChat({ accountId, remoteId: activeChat.remoteId, setChats });
+  useAutoScroll(messagesEndRef, [activeId, activeChat.messages.length]);
+
   const mentionQuery = draft.match(/(?:^|\s)@([^\s@]*)$/)?.[1] ?? null;
   const mentionMatches =
     mentionQuery === null
@@ -132,356 +100,6 @@ export default function App() {
       : [...new Set([profileName, ...friends.map((friend) => friend.name), ...(activeChat.members ?? [])])]
           .filter((name) => name.toLocaleLowerCase("ru-RU").startsWith(mentionQuery.toLocaleLowerCase("ru-RU")))
           .slice(0, 6);
-
-  useEffect(() => {
-    if (!supabase) {
-      setProfileReady(true);
-      return;
-    }
-    let alive = true;
-    const syncProfile = async () => {
-      const client = supabase;
-      if (!client) {
-        setProfileReady(true);
-        return;
-      }
-      const { data: { user }, error: userError } = await client.auth.getUser();
-      if (!alive) return;
-      if (userError || !user) {
-        setAccountId(null);
-        setProfileReady(true);
-        return;
-      }
-      setAccountId(user.id);
-      const metadataName =
-        typeof user.user_metadata?.full_name === "string"
-          ? user.user_metadata.full_name
-          : typeof user.user_metadata?.name === "string"
-            ? user.user_metadata.name
-            : "";
-      const { data: existingProfile, error: readError } = await client
-        .from("profiles")
-        .select("display_name, avatar, username")
-        .eq("id", user.id)
-        .maybeSingle();
-      if (!alive) return;
-      if (readError) {
-        setAccountId(null);
-        setNotice("Не удалось загрузить профиль из Supabase");
-        setProfileReady(true);
-        return;
-      }
-      if (existingProfile) {
-        setProfileName(existingProfile.display_name || metadataName || "Пользователь");
-        setProfileAvatar(existingProfile.avatar || metadataName.slice(0, 1).toUpperCase() || "N");
-        setUsername(existingProfile.username || "");
-      } else {
-        const displayName = metadataName.trim() || user.email?.split("@")[0] || "Пользователь";
-        const avatar = displayName.slice(0, 1).toUpperCase() || "N";
-        const { error: insertError } = await client.from("profiles").insert({ id: user.id, display_name: displayName, avatar });
-        if (!alive) return;
-        if (insertError) setNotice("Не удалось создать профиль в Supabase");
-        else {
-          setProfileName(displayName);
-          setProfileAvatar(avatar);
-        }
-      }
-      setProfileReady(true);
-    };
-    void syncProfile();
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    window.localStorage.setItem("nexus-theme", theme);
-  }, [theme]);
-
-  useEffect(() => {
-    window.localStorage.setItem("nexus-profile-name", profileName);
-    window.localStorage.setItem("nexus-profile-avatar", profileAvatar);
-    const client = supabase;
-    if (!client || !accountId || !profileReady) return;
-    const saveProfile = async () => {
-      const { error } = await client.from("profiles").upsert({
-        id: accountId,
-        display_name: profileName.trim() || "Пользователь",
-        avatar: profileAvatar.trim() || "N",
-        updated_at: new Date().toISOString(),
-      });
-      if (error) setNotice("Не удалось сохранить профиль в Supabase");
-    };
-    void saveProfile();
-  }, [profileName, profileAvatar, accountId, profileReady]);
-
-  async function saveUsername() {
-    const client = supabase;
-    const normalized = username.trim().toLowerCase();
-    if (!client || !accountId) {
-      action("Вход через Google необходим для сохранения username");
-      return;
-    }
-    if (!/^[a-z0-9_]{3,20}$/.test(normalized)) {
-      action("Username: 3–20 символов, только латиница, цифры и _");
-      return;
-    }
-    setUsernameSaving(true);
-    const { error } = await client.from("profiles").update({ username: normalized }).eq("id", accountId);
-    setUsernameSaving(false);
-    if (error) {
-      if (error.code === "23505") action("Этот username уже занят. Выбери другой.");
-      else if (error.code === "42703" || error.message.toLowerCase().includes("username")) action("Сначала выполни SQL-миграцию username в Supabase");
-      else action("Не удалось сохранить username");
-      return;
-    }
-    setUsername(normalized);
-    action("Username сохранён — по нему тебя можно будет найти");
-  }
-
-  useEffect(() => {
-    window.localStorage.setItem("nexus-drafts-v1", JSON.stringify(drafts));
-  }, [drafts]);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem("nexus-chats-v1", JSON.stringify(chats));
-    } catch {
-      // The app remains usable if browser storage is unavailable.
-    }
-  }, [chats]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [activeId, activeChat.messages.length]);
-
-  useEffect(() => {
-    const client = supabase;
-    const query = search.trim().replace(/^@/, "").toLowerCase();
-    if (!client || query.length < 3) {
-      setFoundUsers([]);
-      setUserSearchLoading(false);
-      return;
-    }
-    let alive = true;
-    setUserSearchLoading(true);
-    const timer = window.setTimeout(async () => {
-      const { data, error } = await client.from("profiles").select("id, username, display_name, avatar").ilike("username", `${query}%`).limit(8);
-      if (!alive) return;
-      setUserSearchLoading(false);
-      if (error) {
-        setFoundUsers([]);
-        return;
-      }
-      setFoundUsers((data ?? []).filter((user) => user.id !== accountId && Boolean(user.username)) as UserSearchResult[]);
-    }, 250);
-    return () => {
-      alive = false;
-      window.clearTimeout(timer);
-    };
-  }, [search, accountId]);
-
-  useEffect(() => {
-    const client = supabase;
-    if (!client || !accountId || !profileReady) return;
-    let alive = true;
-    const loadCloudChats = async () => {
-      const { data: memberships, error: membershipError } = await client.from("chat_members").select("chat_id").eq("user_id", accountId);
-      if (!alive) return;
-      if (membershipError) {
-        setNotice("Не удалось загрузить облачные чаты");
-        return;
-      }
-      const chatIds = [...new Set((memberships ?? []).map((item) => item.chat_id as string))];
-      if (chatIds.length === 0) {
-        setChats([]);
-        return;
-      }
-      const [{ data: cloudChatRows, error: chatsError }, { data: profileRows }] = await Promise.all([
-        client.from("chats").select("id, title, is_group, invite_code, created_at").in("id", chatIds).order("updated_at", { ascending: false }),
-        client.from("chat_members").select("chat_id, user_id").in("chat_id", chatIds),
-      ]);
-      if (!alive) return;
-      if (chatsError) {
-        setNotice("Не удалось загрузить список чатов");
-        return;
-      }
-      const memberIds = [...new Set((profileRows ?? []).map((row) => row.user_id as string).filter((id) => id !== accountId))];
-      const { data: memberProfiles } = memberIds.length
-        ? await client.from("profiles").select("id, username, display_name, avatar").in("id", memberIds)
-        : { data: [] as { id: string; username: string | null; display_name: string; avatar: string }[] };
-      const { data: messageRows, error: messagesError } = await client
-        .from("messages")
-        .select("id, chat_id, sender_id, body, attachment, effect, poll, reply_to, created_at, edited_at, deleted_at")
-        .in("chat_id", chatIds)
-        .order("created_at", { ascending: true })
-        .limit(1000);
-      if (!alive) return;
-      if (messagesError) setNotice("Чаты загружены, но сообщения получить не удалось");
-
-      const mappedChats: Chat[] = await Promise.all(
-        (cloudChatRows ?? []).map(async (row) => {
-          const chatMembers = (profileRows ?? []).filter((member) => member.chat_id === row.id);
-          const otherId = chatMembers.find((member) => member.user_id !== accountId)?.user_id;
-          const other = (memberProfiles ?? []).find((profile) => profile.id === otherId);
-          const chatMessages: Message[] = await Promise.all(
-            (messageRows ?? [])
-              .filter((message) => message.chat_id === row.id)
-              .map(async (message) => {
-                const sender = message.sender_id === accountId ? profileName : other?.display_name || "Пользователь";
-                const created = new Date(message.created_at);
-                const { data: reactionRows } = await client.from("message_reactions").select("emoji").eq("message_id", message.id);
-                const attachmentMeta = message.attachment as { name?: string; type?: string; size?: number; path?: string } | null;
-                let attachment: Message["attachment"];
-                if (attachmentMeta) {
-                  let data = "";
-                  if (attachmentMeta.path) {
-                    const { data: signed } = await client.storage.from("chat-media").createSignedUrl(attachmentMeta.path, 3600);
-                    data = signed?.signedUrl || "";
-                  }
-                  attachment = {
-                    name: attachmentMeta.name || "Вложение",
-                    type: attachmentMeta.type || "application/octet-stream",
-                    size: attachmentMeta.size || 0,
-                    data,
-                    ...(attachmentMeta.path ? { path: attachmentMeta.path } : {}),
-                  };
-                }
-                return {
-                  id: numericId(message.id),
-                  remoteId: message.id,
-                  author: sender,
-                  text: message.deleted_at ? "Сообщение удалено" : message.body,
-                  time: clockTime(created),
-                  mine: message.sender_id === accountId,
-                  createdAt: created.getTime(),
-                  edited: Boolean(message.edited_at),
-                  ...(message.effect ? { effect: message.effect } : {}),
-                  ...(message.poll ? { poll: message.poll as Message["poll"] } : {}),
-                  ...(attachment ? { attachment } : {}),
-                  reactions: (reactionRows ?? []).map((reaction) => reaction.emoji),
-                };
-              })
-          );
-          const last = chatMessages[chatMessages.length - 1];
-          return {
-            id: numericId(row.id),
-            remoteId: row.id,
-            name: row.is_group ? row.title : other?.display_name || row.title,
-            avatar: row.is_group ? "👥" : other?.avatar || other?.display_name?.slice(0, 1) || "N",
-            color: row.is_group ? "group" : "blue",
-            preview: last?.text || "Начни общение",
-            time: last?.time || "",
-            messages: chatMessages,
-            group: row.is_group,
-            inviteCode: row.invite_code || undefined,
-            members: chatMembers.map(
-              (member) =>
-                member.user_id === accountId
-                  ? profileName
-                  : (memberProfiles ?? []).find((profile) => profile.id === member.user_id)?.display_name || "Пользователь"
-            ),
-          };
-        })
-      );
-      setChats(mappedChats);
-      setActiveId(mappedChats[0]?.id ?? 0);
-    };
-    void loadCloudChats();
-    return () => {
-      alive = false;
-    };
-  }, [accountId, profileReady, profileName]);
-
-  useEffect(() => {
-    const client = supabase;
-    const code = new URLSearchParams(window.location.search).get("join");
-    if (!client || !accountId || !code) return;
-    let cancelled = false;
-    const join = async () => {
-      const { error } = await client.rpc("join_group_by_invite", { invite_code_input: code });
-      if (cancelled) return;
-      const url = new URL(window.location.href);
-      url.searchParams.delete("join");
-      window.history.replaceState({}, "", url.toString());
-      if (error) {
-        action(error.message.includes("join_group_by_invite") ? "Примени миграцию облачных групп в Supabase" : "Ссылка недействительна или не удалось вступить в группу");
-        return;
-      }
-      action("Ты вступил в группу");
-      window.location.reload();
-    };
-    void join();
-    return () => {
-      cancelled = true;
-    };
-  }, [accountId]);
-
-  const activeRemoteId = chats.find((chat) => chat.id === activeId)?.remoteId;
-
-  useEffect(() => {
-    const client = supabase;
-    if (!client || !accountId || !activeRemoteId) return;
-    const channel = client
-      .channel(`nexus-messages-${activeRemoteId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "messages", filter: `chat_id=eq.${activeRemoteId}` }, async (payload) => {
-        const row = payload.new as ChatMessageRow;
-        if (!row?.id) return;
-        let attachment: Message["attachment"];
-        if (row.attachment) {
-          let data = "";
-          if (row.attachment.path) {
-            const signed = await client.storage.from("chat-media").createSignedUrl(row.attachment.path, 3600);
-            data = signed.data?.signedUrl || "";
-          }
-          attachment = {
-            name: row.attachment.name || "Вложение",
-            type: row.attachment.type || "application/octet-stream",
-            size: row.attachment.size || 0,
-            path: row.attachment.path,
-            data,
-          };
-        }
-        setChats((current) => {
-          const chat = current.find((item) => item.remoteId === row.chat_id);
-          if (!chat) return current;
-          const existing = chat.messages.find((message) => message.remoteId === row.id);
-          if (existing) {
-            if (!row.poll) return current;
-            return mapMessagesByRemoteId(current, row.id, (message) => ({ ...message, poll: row.poll as Message["poll"] }));
-          }
-          if (payload.eventType !== "INSERT" || row.sender_id === accountId) return current;
-          const created = new Date(row.created_at);
-          const message: Message = {
-            id: numericId(row.id),
-            remoteId: row.id,
-            author: chat.name,
-            text: row.deleted_at ? "Сообщение удалено" : row.body,
-            time: clockTime(created),
-            mine: false,
-            createdAt: created.getTime(),
-            edited: Boolean(row.edited_at),
-            ...(row.effect ? { effect: row.effect } : {}),
-            ...(row.poll ? { poll: row.poll as Message["poll"] } : {}),
-            ...(attachment ? { attachment } : {}),
-          };
-          const preview = row.poll ? "📊 " + row.body : attachment ? "📎 " + row.body : message.text;
-          return appendMessage(current, chat.id, message, preview, message.time);
-        });
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "message_reactions" }, async (payload) => {
-        const row = (payload.new && Object.keys(payload.new).length ? payload.new : payload.old) as { message_id?: string };
-        if (!row.message_id) return;
-        const { data: reactions } = await client.from("message_reactions").select("emoji").eq("message_id", row.message_id);
-        const emojis = (reactions ?? []).map((item) => item.emoji);
-        setChats((current) => mapMessagesByRemoteId(current, row.message_id!, (message) => ({ ...message, reactions: emojis })));
-      })
-      .subscribe();
-    return () => {
-      void client.removeChannel(channel);
-    };
-  }, [accountId, activeRemoteId]);
 
   async function openDirectChat(user: UserSearchResult) {
     const client = supabase;
@@ -942,72 +560,11 @@ export default function App() {
     setOpenMessageActionsId(null);
   }
 
-  function openGame(name: string) {
-    setActiveGame(name);
-    setGameNotice("");
-    if (name === "Шахматы") setChessSolved(false);
-    if (name === "Uno") {
-      setUnoHand(["🔴 3", "🔵 7", "🟡 2", "🟢 5", "🔴 9"]);
-      setUnoTop("🔵 4");
-    }
-    if (name === "Балда") {
-      setBaldaInput("");
-      setBaldaWords([]);
-      setBaldaScore(0);
-    }
-  }
-
-  function playUnoCard(card: string) {
-    const cardColor = card.slice(0, 2);
-    const topColor = unoTop.slice(0, 2);
-    const cardNumber = card.trim().slice(-1);
-    const topNumber = unoTop.trim().slice(-1);
-    if (cardColor !== topColor && cardNumber !== topNumber) {
-      setGameNotice("Можно положить карту того же цвета или числа.");
-      return;
-    }
-    const nextHand = unoHand.filter((item) => item !== card);
-    const colors = ["🔴", "🔵", "🟡", "🟢"];
-    const nextCard = `${colors[Math.floor(Math.random() * colors.length)]} ${Math.floor(Math.random() * 9) + 1}`;
-    setUnoHand(nextHand);
-    setUnoTop(nextCard);
-    setGameNotice(nextHand.length === 0 ? "УНО! Ты выиграл раунд 🎉" : "Карта сыграна! Ход виртуального соперника завершён.");
-  }
-
-  function drawUnoCard() {
-    const colors = ["🔴", "🔵", "🟡", "🟢"];
-    const card = `${colors[Math.floor(Math.random() * colors.length)]} ${Math.floor(Math.random() * 9) + 1}`;
-    setUnoHand((hand) => [...hand, card]);
-    setGameNotice("Ты взял карту. Теперь можно сыграть подходящую.");
-  }
-
-  function submitBaldaWord(event: FormEvent) {
-    event.preventDefault();
-    const word = baldaInput.trim().toLocaleLowerCase("ru-RU").replace(/ё/g, "е");
-    if (word.length < 3 || !/^[а-я]+$/.test(word)) {
-      setGameNotice("Введи русское слово минимум из 3 букв.");
-      return;
-    }
-    if (baldaWords.includes(word)) {
-      setGameNotice("Это слово уже использовано.");
-      return;
-    }
-    setBaldaWords((words) => [...words, word]);
-    setBaldaScore((score) => score + word.length);
-    setBaldaInput("");
-    setGameNotice(`Принято: +${word.length} очков!`);
-  }
-
   function selectChat(chat: Chat) {
     setActiveId(chat.id);
     setDraft(drafts[chat.id] ?? "");
     setMessageSearch("");
     setChats((current) => markRead(current, chat.id));
-  }
-
-  function toggleChatPin(chat: Chat) {
-    setChats((current) => togglePinned(current, chat.id));
-    action(chat.pinned ? "Чат откреплён" : "Чат закреплён");
   }
 
   async function deleteMessage(messageId: number) {
@@ -1078,11 +635,6 @@ export default function App() {
   function replyToMessage(message: Message) {
     setReplyTarget(message);
     setOpenMessageActionsId(null);
-  }
-
-  function action(label: string) {
-    setNotice(label);
-    window.setTimeout(() => setNotice(""), 2600);
   }
 
   return (
@@ -1212,15 +764,7 @@ export default function App() {
           onOpenGame={openGame}
           onPlayUno={playUnoCard}
           onDrawUno={drawUnoCard}
-          onChessAnswer={(answer) => {
-            if (!answer) {
-              setChessSolved(false);
-              setGameNotice("");
-              return;
-            }
-            setChessSolved(true);
-            setGameNotice(answer === "Шах" ? "Верно! ♟️ Король под атакой." : "Не совсем. Правильный ответ — «Шах».");
-          }}
+          onChessAnswer={answerChess}
           onBaldaInput={setBaldaInput}
           onBaldaSubmit={submitBaldaWord}
         />
@@ -1292,7 +836,7 @@ export default function App() {
         <div className="toast">
           <Shield size={17} />
           {notice}
-          <button onClick={() => setNotice("")}>
+          <button onClick={clearNotice}>
             <X size={15} />
           </button>
         </div>
