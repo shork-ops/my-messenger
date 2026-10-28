@@ -8,6 +8,7 @@ import ConversationPanel from "./components/ConversationPanel";
 import RightPanel from "./components/RightPanel";
 import GameModal from "./components/GameModal";
 import { useChatMembers } from "./hooks/useChatMembers";
+import { useServerSearch } from "./hooks/useServerSearch";
 import { removeMember, rotateInvite, setMemberRole } from "./lib/groupAdmin";
 import { GalleryModal, NewChatModal, PollModal, ProfileModal } from "./components/Modals";
 import { friends, isDemoMode } from "./lib/constants";
@@ -119,6 +120,13 @@ export default function App() {
     refreshKey: membersRefreshKey,
   });
   const myChatRole = accountId ? chatMembers.find((member) => member.user_id === accountId)?.role ?? null : null;
+
+  // Full-history search: the local filter only sees already-downloaded pages.
+  const serverSearch = useServerSearch({
+    chatId: activeChat.remoteId ?? null,
+    query: messageSearch,
+    enabled: messageSearchOpen && Boolean(activeChat.remoteId),
+  });
 
   const { typingUsers, notifyTyping } = useTyping({ remoteId: activeChat.remoteId, accountId, profileName });
   const { onlineIds } = usePresence({ accountId, profileName });
@@ -518,6 +526,44 @@ export default function App() {
     setChats((current) => current.filter((chat) => chat.id !== activeId));
   }
 
+  function searchAuthor(userId: string): string {
+    const member = chatMembers.find((item) => item.user_id === userId);
+    if (member?.display_name) return member.display_name;
+    if (userId === accountId) return profileName;
+    return chatMembers.some((item) => item.user_id === userId) ? "Участник" : activeChat.name;
+  }
+
+  function searchTime(iso: string): string {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  }
+
+  /**
+   * A hit may live further back than the loaded page, so pages are pulled in
+   * until the message is on screen or history runs out.
+   */
+  async function openSearchHit(hitCreatedAt: string) {
+    const target = new Date(hitCreatedAt).getTime();
+    if (Number.isNaN(target)) return;
+    setMessageSearchOpen(false);
+    setMessageSearch("");
+
+    const current = chats.find((chat) => chat.id === activeId);
+    if (!current?.remoteId) return;
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const oldest = current.messages.reduce(
+        (min, message) => Math.min(min, message.createdAt ?? Number.POSITIVE_INFINITY),
+        Number.POSITIVE_INFINITY
+      );
+      if (oldest <= target || current.historyExhausted) break;
+      await loadOlder(current);
+      const updated = chats.find((chat) => chat.id === activeId) ?? current;
+      if (updated.messages.length === current.messages.length) break;
+      if (updated.historyExhausted) break;
+    }
+  }
+
   async function sendMessage(event: FormEvent) {
     event.preventDefault();
     if (editingMessageId !== null) {
@@ -818,6 +864,10 @@ export default function App() {
           setMessageSearchOpen(false);
           setMessageSearch("");
         }}
+        searchHits={serverSearch}
+        searchAuthor={searchAuthor}
+        searchTime={searchTime}
+        onOpenSearchHit={(createdAt) => void openSearchHit(createdAt)}
         onCall={() => action("Голосовые звонки подключим позже")}
         onVideo={() => action("Видеозвонки подключим позже")}
         onTogglePin={() => toggleChatPin(activeChat)}

@@ -4,8 +4,10 @@ import { MoreVertical, Phone, Pin, Search, Video, X } from "lucide-react";
 import Avatar from "./Avatar";
 import Composer from "./Composer";
 import MessageBubble from "./MessageBubble";
+import SearchHits from "./SearchHits";
 import { dateLabel, lastSeenLabel } from "../lib/format";
 import { receiptFor } from "../lib/readState";
+import type { useServerSearch } from "../hooks/useServerSearch";
 import type { Chat, Message, MessageEffect } from "../types";
 
 type ConversationPanelProps = {
@@ -18,6 +20,11 @@ type ConversationPanelProps = {
   onToggleSearch: () => void;
   onSearchChange: (value: string) => void;
   onCloseSearch: () => void;
+  /** Full-history results from Postgres, shown above the loaded messages. */
+  searchHits: ReturnType<typeof useServerSearch>;
+  searchAuthor: (userId: string) => string;
+  searchTime: (iso: string) => string;
+  onOpenSearchHit: (createdAt: string) => void;
   onCall: () => void;
   onVideo: () => void;
   onTogglePin: () => void;
@@ -54,6 +61,10 @@ export default function ConversationPanel({
   onToggleSearch,
   onSearchChange,
   onCloseSearch,
+  searchHits,
+  searchAuthor,
+  searchTime,
+  onOpenSearchHit,
   onCall,
   onVideo,
   onTogglePin,
@@ -130,6 +141,19 @@ export default function ConversationPanel({
             <X size={15} />
           </button>
         </label>
+      )}
+
+      {searchOpen && searchValue.trim().length >= 2 && (
+        <SearchHits
+          hits={searchHits.hits}
+          loading={searchHits.loading}
+          hasMore={searchHits.hasMore}
+          error={searchHits.error}
+          authorOf={searchAuthor}
+          timeOf={searchTime}
+          onOpen={(hit) => onOpenSearchHit(hit.createdAt)}
+          onLoadMore={() => void searchHits.loadMore()}
+        />
       )}
 
       <div className="messages-area" ref={messagesRef}>
