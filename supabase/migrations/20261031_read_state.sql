@@ -31,17 +31,21 @@ $$;
 revoke all on function public.mark_chat_read(uuid) from public;
 grant execute on function public.mark_chat_read(uuid) to authenticated;
 
--- Unread counting reads member rows of a chat; keep that scan cheap.
 create index if not exists chat_members_chat_user_idx
   on public.chat_members (chat_id, user_id);
 
--- Read receipts need member read timestamps streamed to the chat participants.
-do $$
+do $do$
 begin
-  if not exists (
-    select 1 from pg_publication_tables
-    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'chat_members'
+  if exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'chat_members'
   ) then
-    alter publication supabase_realtime add table public.chat_members;
+    return;
   end if;
-end $$;
+
+  alter publication supabase_realtime add table public.chat_members;
+end
+$do$;
