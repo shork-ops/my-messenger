@@ -690,6 +690,7 @@ export default function App() {
     if (push === "subscribed") action("Уведомления включены, в том числе в фоне");
     else if (push === "not-configured") action("Локальные уведомления включены. Для фоновых нужен VAPID-ключ");
     else if (push === "unsupported") action("Браузер не поддерживает фоновые уведомления");
+    else if (push === "push-service") action("Push-служба браузера недоступна: перезапусти браузер или проверь VPN");
     else if (push === "error") action("Не удалось включить фоновые уведомления");
     else action("Локальные уведомления включены");
   }

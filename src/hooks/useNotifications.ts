@@ -158,9 +158,9 @@ export function useNotificationsPrompt({ accountId, enabled, onNotice }: UseNoti
       const permission = await requestNotificationPermission();
       if (permission === "granted") {
         const result = await subscribeToPush(accountId);
-        noticeRef.current(
-          result === "subscribed" ? "Уведомления включены, в том числе в фоне" : "Уведомления включены"
-        );
+        if (result === "subscribed") noticeRef.current("Уведомления включены, в том числе в фоне");
+        else if (result === "push-service") noticeRef.current("Push-служба браузера недоступна: перезапусти браузер или проверь VPN");
+        else noticeRef.current("Уведомления включены");
       } else if (permission === "denied") {
         noticeRef.current("Уведомления запрещены в браузере — включи их в настройках сайта");
       }

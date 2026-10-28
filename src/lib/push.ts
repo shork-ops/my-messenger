@@ -19,6 +19,24 @@ export function pushConfigured(): boolean {
   return Boolean(import.meta.env.VITE_VAPID_PUBLIC_KEY);
 }
 
+export type PushSubscribeResult =
+  | "subscribed"
+  | "unsupported"
+  | "denied"
+  | "not-configured"
+  | "push-service"
+  | "error";
+
+/** Maps a failed pushManager.subscribe() call to a status the UI can explain. */
+function classifySubscribeError(error: unknown): PushSubscribeResult {
+  const name = (error as { name?: string } | null)?.name;
+  // AbortError means Chrome could not reach its push service (FCM); the
+  // subscription never reaches the network, so it is not a backend problem.
+  if (name === "AbortError" || name === "NotAllowedError") return "push-service";
+  console.warn("[push] subscribe failed", error);
+  return "error";
+}
+
 /**
  * Registers a PushSubscription for the current user. Requires:
  * - Notification permission,
@@ -26,7 +44,7 @@ export function pushConfigured(): boolean {
  * - VITE_VAPID_PUBLIC_KEY in the build.
  * Returns a human-readable status so the UI can explain what stopped the flow.
  */
-export async function subscribeToPush(accountId: string): Promise<"subscribed" | "unsupported" | "denied" | "not-configured" | "error"> {
+export async function subscribeToPush(accountId: string): Promise<PushSubscribeResult> {
   const publicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
   if (!publicKey) return "not-configured";
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) return "unsupported";
@@ -36,17 +54,23 @@ export async function subscribeToPush(accountId: string): Promise<"subscribed" |
   const registration = await getServiceWorkerRegistration();
   if (!registration) return "error";
 
+  let subscription: PushSubscription;
   try {
     const existing = await registration.pushManager.getSubscription();
-    const subscription =
+    subscription =
       existing ??
       (await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicKey),
       }));
-    const json = subscription.toJSON();
-    if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return "error";
-    if (!supabase) return "not-configured";
+  } catch (error) {
+    return classifySubscribeError(error);
+  }
+
+  const json = subscription.toJSON();
+  if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return "error";
+  if (!supabase) return "not-configured";
+  try {
     const { error } = await supabase.from("push_subscriptions").upsert(
       {
         user_id: accountId,
@@ -58,8 +82,13 @@ export async function subscribeToPush(accountId: string): Promise<"subscribed" |
       },
       { onConflict: "user_id,endpoint" }
     );
-    return error ? "error" : "subscribed";
-  } catch {
+    if (error) {
+      console.warn("[push] storing the subscription failed", error);
+      return "error";
+    }
+    return "subscribed";
+  } catch (error) {
+    console.warn("[push] storing the subscription failed", error);
     return "error";
   }
 }
