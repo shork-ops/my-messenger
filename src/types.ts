@@ -14,6 +14,10 @@ export type Attachment = {
   thumbnail?: string;
   width?: number;
   height?: number;
+  /** Length of a voice message in seconds. */
+  duration?: number;
+  /** Quantised peaks (0..255) used to draw the waveform. */
+  waveform?: number[];
 };
 
 export type ReplyPreview = { author: string; text: string };

@@ -1,5 +1,6 @@
-import { Forward, MessageCircle, MoreVertical, Paperclip, PencilLine, Pin, Send, Star, X, Mic } from "lucide-react";
+import { Forward, MessageCircle, MoreVertical, Paperclip, PencilLine, Pin, Send, Star, X } from "lucide-react";
 import Avatar from "./Avatar";
+import VoicePlayer from "./VoicePlayer";
 import { friends } from "../lib/constants";
 import { hasUserVoted, pollPercent, pollTotal } from "../lib/polls";
 import { splitForward } from "../lib/messageActions";
@@ -67,13 +68,7 @@ function AttachmentCard({ attachment }: { attachment: NonNullable<Message["attac
       ) : attachment.type.startsWith("video/") ? (
         <video className="attachment-video" controls playsInline src={attachment.data} />
       ) : attachment.type.startsWith("audio/") ? (
-        <div className="voice-attachment">
-          <Mic size={17} />
-          <audio controls src={attachment.data} />
-          <a href={attachment.data} download={attachment.name}>
-            Скачать
-          </a>
-        </div>
+        <VoicePlayer attachment={attachment} />
       ) : (
         <a className="attachment-file" href={attachment.data} download={attachment.name}>
           <Paperclip size={18} />

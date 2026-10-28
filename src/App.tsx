@@ -11,7 +11,8 @@ import { useChatMembers } from "./hooks/useChatMembers";
 import { useServerSearch } from "./hooks/useServerSearch";
 import { removeMember, rotateInvite, setMemberRole } from "./lib/groupAdmin";
 import { createFavouritesChat, favouriteMessage, formatForwardText, isFavouritesChat, nextLocalId } from "./lib/messageActions";
-import { MAX_UPLOAD_BYTES, buildStoragePath, formatBytes, isSupportedFile, prepareImage, shouldCompress } from "./lib/media";
+import { MAX_UPLOAD_BYTES, blobToDataUrl, buildStoragePath, formatBytes, isSupportedFile, prepareImage, shouldCompress } from "./lib/media";
+import { analyseWaveform } from "./lib/voice";
 import { GalleryModal, NewChatModal, PollModal, ProfileModal } from "./components/Modals";
 import { friends, isDemoMode } from "./lib/constants";
 import { clockTime, numericId } from "./lib/format";
@@ -440,31 +441,7 @@ export default function App() {
           action("Запись получилась пустой");
           return;
         }
-        if (blob.size > 1_500_000) {
-          action("Аудио больше 1,5 МБ. Попробуй записать короче");
-          return;
-        }
-        const reader = new FileReader();
-        reader.onload = () => {
-          const data = typeof reader.result === "string" ? reader.result : "";
-          if (!data) return;
-          const time = clockTime();
-          const createdAt = Date.now();
-          const duration = Math.max(1, Math.round((Date.now() - recordingStartedRef.current) / 1000));
-          const message: Message = {
-            id: createdAt,
-            author: profileName,
-            text: `Голосовое сообщение · ${duration} сек.`,
-            time,
-            mine: true,
-            createdAt,
-            attachment: { name: `voice-${createdAt}.webm`, type: blob.type || "audio/webm", data, size: blob.size },
-          };
-          setChats((current) => appendMessage(current, activeId, message, "🎤 Голосовое сообщение", time));
-          setRecordingSeconds(0);
-          action("Голосовое сообщение добавлено в чат");
-        };
-        reader.readAsDataURL(blob);
+        void sendVoiceMessage(blob);
       };
       recorder.start();
       setRecording(true);
@@ -480,6 +457,91 @@ export default function App() {
     } catch {
       action("Нет доступа к микрофону. Разреши запись аудио в браузере");
     }
+  }
+
+  /**
+   * Uploads a finished recording to Storage and publishes it as a message.
+   *
+   * The audio has to live in the bucket like any other attachment: keeping it
+   * inline meant the recipient never received it, because the message row was
+   * only ever written to local state.
+   */
+  async function sendVoiceMessage(blob: Blob) {
+    const duration = Math.max(1, Math.round((Date.now() - (recordingStartedRef.current || Date.now())) / 1000));
+    const time = clockTime();
+    const createdAt = Date.now();
+    const extension = blob.type.includes("ogg") ? "ogg" : blob.type.includes("mp4") ? "m4a" : "webm";
+    const fileName = `voice-${createdAt}.${extension}`;
+    const chat = chats.find((item) => item.id === activeId);
+    const client = supabase;
+
+    // A local-only chat has nowhere to upload to; keep an inline copy so the
+    // bubble still plays back in this session.
+    if (!chat?.remoteId || !client || !accountId) {
+      const data = await blobToDataUrl(blob);
+      const message: Message = {
+        id: createdAt,
+        author: profileName,
+        text: `Голосовое сообщение · ${duration} сек.`,
+        time,
+        mine: true,
+        createdAt,
+        attachment: { name: fileName, type: blob.type || "audio/webm", data, size: blob.size, duration },
+      };
+      setChats((current) => appendMessage(current, activeId, message, "🎤 Голосовое сообщение", time));
+      setRecordingSeconds(0);
+      action("Голосовое сообщение добавлено в этот браузер");
+      return;
+    }
+
+    setUploadProgress({ name: fileName, percent: 30, stage: "Отправляю голосовое…" });
+    const path = buildStoragePath(chat.remoteId, accountId, fileName, crypto.randomUUID());
+    const uploaded = await client.storage.from("chat-media").upload(path, blob, { contentType: blob.type || "audio/webm" });
+    if (uploaded.error) {
+      setUploadProgress(null);
+      action("Не удалось загрузить голосовое сообщение");
+      return;
+    }
+
+    const waveform = await analyseWaveform(blob);
+    setUploadProgress({ name: fileName, percent: 70, stage: "Публикую сообщение…" });
+    const signed = await client.storage.from("chat-media").createSignedUrl(path, 3600);
+    const meta = {
+      name: fileName,
+      type: blob.type || "audio/webm",
+      size: blob.size,
+      path,
+      duration,
+      waveform,
+    };
+    const inserted = await client
+      .from("messages")
+      .insert({ chat_id: chat.remoteId, sender_id: accountId, body: `Голосовое сообщение · ${duration} сек.`, attachment: meta })
+      .select("id, created_at")
+      .single();
+    if (inserted.error || !inserted.data) {
+      await client.storage.from("chat-media").remove([path]);
+      setUploadProgress(null);
+      action("Не удалось отправить голосовое сообщение");
+      return;
+    }
+
+    const row = inserted.data;
+    const created = new Date(row.created_at);
+    const message: Message = {
+      id: numericId(row.id),
+      remoteId: row.id,
+      author: profileName,
+      text: `Голосовое сообщение · ${duration} сек.`,
+      time: clockTime(created),
+      mine: true,
+      createdAt: created.getTime(),
+      attachment: { ...meta, data: signed.data?.signedUrl ?? "" },
+    };
+    setChats((current) => appendMessage(current, activeId, message, "🎤 Голосовое сообщение", message.time));
+    setUploadProgress(null);
+    setRecordingSeconds(0);
+    action("Голосовое сообщение отправлено");
   }
 
   async function createInviteLink() {

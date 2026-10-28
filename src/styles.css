@@ -387,6 +387,17 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .message-search button { display: grid; place-items: center; border: 0; background: transparent; color: #aaa; }
 /* Forward marker rendered above the forwarded body. */
 .forward-label { display: flex; align-items: center; gap: 5px; margin-bottom: 4px; padding-left: 8px; border-left: 2px solid #4a4b52; color: #9b9ca4; font-size: 10px; font-style: italic; }
+/* Voice message player: play button, waveform progress and time. */
+.voice-player { display: flex; align-items: center; gap: 8px; min-width: 200px; max-width: 320px; }
+.voice-toggle { display: grid; place-items: center; flex: 0 0 auto; width: 32px; height: 32px; border: 0; border-radius: 50%; background: var(--yellow); color: #101010; cursor: pointer; }
+.voice-toggle:hover { filter: brightness(1.08); }
+.voice-wave { position: relative; flex: 1; min-width: 0; height: 30px; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.voice-bars { position: absolute; inset: 0; display: flex; align-items: center; gap: 2px; pointer-events: none; }
+.voice-bars i { flex: 1; min-width: 1px; border-radius: 2px; background: #4a4b52; }
+.voice-bars-played i { background: var(--yellow); }
+.voice-time { flex: 0 0 auto; color: #a6a7ae; font-size: 10px; font-variant-numeric: tabular-nums; }
+.voice-download { flex: 0 0 auto; color: #85868f; font-size: 9px; text-decoration: none; }
+.voice-download:hover { color: var(--yellow); }
 /* Upload progress: stage label, bar and file name above the composer. */
 .upload-progress { margin: 8px 16px 0; padding: 9px 12px; border: 1px solid #26272c; border-radius: 11px; background: #0d0e11; }
 .upload-progress-row { display: flex; align-items: center; justify-content: space-between; color: #a6a7ae; font-size: 11px; }
