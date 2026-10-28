@@ -27,9 +27,9 @@ npm run preview
 SQL настраивается в Supabase Dashboard → SQL Editor. Выполняй в следующем порядке:
 
 1. `supabase/schema.sql` — базовые таблицы, триггеры, RLS и Realtime.
-2. `supabase/migrations/20261027_unique_usernames.sql` — уникальные имена пользователей.
-3. `supabase/migrations/20261027_direct_chats.sql` — безопасное создание личных диалогов.
-4. `supabase/migrations/20261027_online_media.sql` — приватный bucket `chat-media`, политики Storage и публикация Realtime.
+2. `supabase/migrations/20261025_unique_usernames.sql` — уникальные имена пользователей.
+3. `supabase/migrations/20261026_online_media.sql` — приватный bucket `chat-media`, политики Storage и публикация Realtime.
+4. `supabase/migrations/20261027_direct_chats.sql` — безопасное создание личных диалогов.
 5. `supabase/migrations/20261028_cloud_group_chats.sql` — облачные группы и безопасные ссылки-приглашения.
 6. `supabase/migrations/20261029_persistent_polls.sql` — сохранение опросов и серверная обработка голосов.
 7. `supabase/migrations/20261030_poll_and_message_hardening.sql` — защита голосов и сообщений триггерами.
