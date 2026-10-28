@@ -21,7 +21,7 @@ import { useUserSearch } from "./hooks/useUserSearch";
 import { useCloudChats } from "./hooks/useCloudChats";
 import { useRealtimeChat } from "./hooks/useRealtimeChat";
 import { useHistoryPagination, useInfiniteHistory } from "./hooks/useHistoryPagination";
-import { useUnreadBadge, useMessageNotifications, requestNotificationPermission } from "./hooks/useNotifications";
+import { useUnreadBadge, useMessageNotifications, usePushSubscriptionSync, requestNotificationPermission } from "./hooks/useNotifications";
 import { subscribeToPush } from "./lib/push";
 import { useAutoScroll } from "./hooks/useAutoScroll";
 import { useTyping } from "./hooks/useTyping";
@@ -103,6 +103,10 @@ export default function App() {
   useInfiniteHistory(messagesAreaRef, activeChat, loadOlder);
   useUnreadBadge(unreadTotal);
   useMessageNotifications({ accountId, chats });
+  // Re-register the push subscription on every sign-in: a cleared cache, a fresh
+  // PWA install or a rotated endpoint would otherwise leave the user silently
+  // unsubscribed until they pressed the bell again.
+  usePushSubscriptionSync(accountId);
 
   const { typingUsers, notifyTyping } = useTyping({ remoteId: activeChat.remoteId, accountId, profileName });
   const { onlineIds } = usePresence({ accountId, profileName });

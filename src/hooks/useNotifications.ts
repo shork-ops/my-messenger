@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import { badgeCount, formatDocumentTitle } from "../lib/notifications";
+import { pushConfigured, subscribeToPush } from "../lib/push";
 
 /**
  * Mirrors unread chats into the browser tab title and the installed-PWA badge.
@@ -85,4 +86,39 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
   } catch {
     return "denied";
   }
+}
+
+/**
+ * Keeps the stored push subscription in sync with the browser once the user has
+ * already granted notification permission.
+ *
+ * Without this the subscription only ever exists because the user pressed the
+ * bell: clearing site data, reinstalling the PWA or letting the push service
+ * rotate the endpoint would leave the account receiving nothing, with no hint
+ * in the UI. Re-running `subscribeToPush` is cheap — it reuses an existing
+ * subscription and upserts the same row on (user_id, endpoint).
+ *
+ * It never prompts: permission must already be granted, otherwise the flow
+ * stays behind the bell button.
+ */
+export function usePushSubscriptionSync(accountId: string | null) {
+  const syncedForRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!accountId) return;
+    if (!pushConfigured()) return;
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    // Guard against StrictMode double-invocation and re-renders.
+    if (syncedForRef.current === accountId) return;
+    syncedForRef.current = accountId;
+
+    let cancelled = false;
+    void subscribeToPush(accountId).then((result) => {
+      // Allow a later retry when the attempt failed for a transient reason.
+      if (!cancelled && result !== "subscribed" && result !== "not-configured") syncedForRef.current = null;
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId]);
 }
