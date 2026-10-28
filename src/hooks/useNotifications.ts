@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import { badgeCount, formatDocumentTitle } from "../lib/notifications";
 import { pushConfigured, subscribeToPush } from "../lib/push";
+import { pushPromptAlreadySeen, rememberPushPrompt } from "../lib/pushPrompt";
 
 /**
  * Mirrors unread chats into the browser tab title and the installed-PWA badge.
@@ -121,4 +122,58 @@ export function usePushSubscriptionSync(accountId: string | null) {
       cancelled = true;
     };
   }, [accountId]);
+}
+
+type UseNotificationsPromptOptions = {
+  accountId: string | null;
+  enabled: boolean;
+  onNotice: (message: string) => void;
+};
+
+/**
+ * Offers chat notifications right after the app starts, so a new user does not
+ * have to discover the bell first.
+ *
+ * Browsers only show the permission prompt in response to a user gesture, so
+ * the request is bound to the first click/keystroke after the app is ready. It
+ * fires at most once per browser and only while permission is still
+ * "default" — a denied permission is respected and never re-asked.
+ */
+export function useNotificationsPrompt({ accountId, enabled, onNotice }: UseNotificationsPromptOptions) {
+  const noticeRef = useRef(onNotice);
+  noticeRef.current = onNotice;
+
+  useEffect(() => {
+    if (!enabled || !accountId) return;
+    if (typeof Notification === "undefined") return;
+    if (Notification.permission !== "default") return;
+    if (pushPromptAlreadySeen()) return;
+
+    let done = false;
+    const request = async () => {
+      if (done) return;
+      done = true;
+      remove();
+      rememberPushPrompt();
+      const permission = await requestNotificationPermission();
+      if (permission === "granted") {
+        const result = await subscribeToPush(accountId);
+        noticeRef.current(
+          result === "subscribed" ? "Уведомления включены, в том числе в фоне" : "Уведомления включены"
+        );
+      } else if (permission === "denied") {
+        noticeRef.current("Уведомления запрещены в браузере — включи их в настройках сайта");
+      }
+    };
+
+    const events = ["pointerdown", "keydown", "touchstart"] as const;
+    const remove = () => {
+      for (const event of events) window.removeEventListener(event, request);
+    };
+    for (const event of events) window.addEventListener(event, request, { passive: true, once: true });
+
+    return () => {
+      remove();
+    };
+  }, [accountId, enabled]);
 }

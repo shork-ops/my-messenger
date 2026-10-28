@@ -21,7 +21,7 @@ import { useUserSearch } from "./hooks/useUserSearch";
 import { useCloudChats } from "./hooks/useCloudChats";
 import { useRealtimeChat } from "./hooks/useRealtimeChat";
 import { useHistoryPagination, useInfiniteHistory } from "./hooks/useHistoryPagination";
-import { useUnreadBadge, useMessageNotifications, usePushSubscriptionSync, requestNotificationPermission } from "./hooks/useNotifications";
+import { useUnreadBadge, useMessageNotifications, usePushSubscriptionSync, useNotificationsPrompt, requestNotificationPermission } from "./hooks/useNotifications";
 import { subscribeToPush } from "./lib/push";
 import { useAutoScroll } from "./hooks/useAutoScroll";
 import { useTyping } from "./hooks/useTyping";
@@ -107,6 +107,8 @@ export default function App() {
   // PWA install or a rotated endpoint would otherwise leave the user silently
   // unsubscribed until they pressed the bell again.
   usePushSubscriptionSync(accountId);
+  // Offer notifications once, on the first interaction after the app is ready.
+  useNotificationsPrompt({ accountId, enabled: profileReady, onNotice: action });
 
   const { typingUsers, notifyTyping } = useTyping({ remoteId: activeChat.remoteId, accountId, profileName });
   const { onlineIds } = usePresence({ accountId, profileName });
