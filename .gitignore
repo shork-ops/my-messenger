@@ -47,3 +47,8 @@ blob-report/
 # Ignore the preview and dev server logs.
 prev.log
 prev.err
+
+# Live QA artifacts (created by scripts/qa-*.mjs, contain real sessions)
+qa-accounts.json
+qa-results.json
+qa-step-create.png
