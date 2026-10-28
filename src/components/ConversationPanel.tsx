@@ -37,6 +37,10 @@ type ConversationPanelProps = {
   peerOnline: boolean;
   peerLastSeenAt: number | null;
   endRef: MutableRefObject<HTMLDivElement | null>;
+  messagesRef: MutableRefObject<HTMLDivElement | null>;
+  loadingHistory: boolean;
+  historyExhausted: boolean;
+  onLoadOlder: () => void;
   composer: ComponentProps<typeof Composer>;
 };
 
@@ -69,6 +73,10 @@ export default function ConversationPanel({
   peerOnline,
   peerLastSeenAt,
   endRef,
+  messagesRef,
+  loadingHistory,
+  historyExhausted,
+  onLoadOlder,
   composer,
 }: ConversationPanelProps) {
   const subtitle =
@@ -124,10 +132,23 @@ export default function ConversationPanel({
         </label>
       )}
 
-      <div className="messages-area">
+      <div className="messages-area" ref={messagesRef}>
         {chat.messages.length > 0 && !chat.messages.some((message) => message.createdAt) && (
           <div className="date-divider">
             <span>История переписки</span>
+          </div>
+        )}
+        {chat.remoteId && (
+          <div className="history-loader">
+            {loadingHistory ? (
+              <span>Загружаю историю…</span>
+            ) : historyExhausted ? (
+              <span>Начало переписки</span>
+            ) : (
+              <button type="button" onClick={onLoadOlder}>
+                Загрузить ещё
+              </button>
+            )}
           </div>
         )}
         {visibleMessages.length === 0 && (

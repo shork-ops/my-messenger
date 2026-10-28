@@ -1,4 +1,4 @@
-import { Gamepad2, MessageCircle, Phone, Settings, Video } from "lucide-react";
+import { Bell, Gamepad2, MessageCircle, Phone, Settings, Video } from "lucide-react";
 import Avatar from "./Avatar";
 
 type RailProps = {
@@ -6,10 +6,12 @@ type RailProps = {
   profileName: string;
   profileAvatar: string;
   unreadTotal: number;
+  notificationsGranted: boolean;
   onNavigate: (label: string) => void;
   onOpenSettings: () => void;
   onOpenGames: () => void;
   onOpenProfile: () => void;
+  onToggleNotifications: () => void;
 };
 
 export default function Rail({
@@ -17,10 +19,12 @@ export default function Rail({
   profileName,
   profileAvatar,
   unreadTotal,
+  notificationsGranted,
   onNavigate,
   onOpenSettings,
   onOpenGames,
   onOpenProfile,
+  onToggleNotifications,
 }: RailProps) {
   return (
     <aside className="rail">
@@ -46,6 +50,15 @@ export default function Rail({
         <button className={`nav-link ${activeNav === "Мини-игры" ? "active" : ""}`} onClick={onOpenGames}>
           <Gamepad2 size={22} />
           <span>Мини-игры</span>
+        </button>
+        <button
+          className={`nav-link ${notificationsGranted ? "notifications-on" : ""}`}
+          onClick={onToggleNotifications}
+          title={notificationsGranted ? "Уведомления включены" : "Включить уведомления"}
+          aria-label={notificationsGranted ? "Уведомления включены" : "Включить уведомления"}
+        >
+          <Bell size={22} />
+          <span>Уведомления</span>
         </button>
         <div className="nav-divider" />
         <button className={`nav-link ${activeNav === "Настройки" ? "active" : ""}`} onClick={onOpenSettings}>

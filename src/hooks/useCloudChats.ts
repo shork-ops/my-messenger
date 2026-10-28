@@ -1,8 +1,10 @@
 import { useEffect } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { supabase } from "../lib/supabase";
-import { clockTime, numericId } from "../lib/format";
+import { numericId } from "../lib/format";
 import { countUnread } from "../lib/readState";
+import { fetchReactions } from "../lib/messageSync";
+import { DEFAULT_MESSAGE_PAGE_SIZE, loadMessagePage } from "../lib/messageLoader";
 import type { Chat, Message } from "../types";
 
 type UseCloudChatsOptions = {
@@ -14,11 +16,16 @@ type UseCloudChatsOptions = {
   setActiveId: Dispatch<SetStateAction<number>>;
 };
 
+/**
+ * Loads cloud chats with the newest page of history for each one.
+ * Older pages are fetched lazily by `useHistoryPagination`.
+ */
 export function useCloudChats({ accountId, profileReady, profileName, notify, setChats, setActiveId }: UseCloudChatsOptions) {
   useEffect(() => {
     const client = supabase;
     if (!client || !accountId || !profileReady) return;
     let alive = true;
+
     const loadCloudChats = async () => {
       const { data: memberships, error: membershipError } = await client.from("chat_members").select("chat_id").eq("user_id", accountId);
       if (!alive) return;
@@ -44,97 +51,71 @@ export function useCloudChats({ accountId, profileReady, profileName, notify, se
       const { data: memberProfiles } = memberIds.length
         ? await client.from("profiles").select("id, username, display_name, avatar, last_seen_at").in("id", memberIds)
         : { data: [] as { id: string; username: string | null; display_name: string; avatar: string; last_seen_at: string | null }[] };
-      const { data: messageRows, error: messagesError } = await client
-        .from("messages")
-        .select("id, chat_id, sender_id, body, attachment, effect, poll, reply_to, created_at, edited_at, deleted_at")
-        .in("chat_id", chatIds)
-        .order("created_at", { ascending: true })
-        .limit(1000);
-      if (!alive) return;
-      if (messagesError) notify("Чаты загружены, но сообщения получить не удалось");
 
-      const mappedChats: Chat[] = await Promise.all(
+      // One first page per chat, loaded in parallel instead of the old single limit(1000) request.
+      const pages = await Promise.all(
         (cloudChatRows ?? []).map(async (row) => {
           const chatMembers = (profileRows ?? []).filter((member) => member.chat_id === row.id);
           const otherId = chatMembers.find((member) => member.user_id !== accountId)?.user_id;
           const other = (memberProfiles ?? []).find((profile) => profile.id === otherId);
-          const chatMessages: Message[] = await Promise.all(
-            (messageRows ?? [])
-              .filter((message) => message.chat_id === row.id)
-              .map(async (message) => {
-                const sender = message.sender_id === accountId ? profileName : other?.display_name || "Пользователь";
-                const created = new Date(message.created_at);
-                const { data: reactionRows } = await client.from("message_reactions").select("emoji").eq("message_id", message.id);
-                const attachmentMeta = message.attachment as { name?: string; type?: string; size?: number; path?: string } | null;
-                let attachment: Message["attachment"];
-                if (attachmentMeta) {
-                  let data = "";
-                  if (attachmentMeta.path) {
-                    const { data: signed } = await client.storage.from("chat-media").createSignedUrl(attachmentMeta.path, 3600);
-                    data = signed?.signedUrl || "";
-                  }
-                  attachment = {
-                    name: attachmentMeta.name || "Вложение",
-                    type: attachmentMeta.type || "application/octet-stream",
-                    size: attachmentMeta.size || 0,
-                    data,
-                    ...(attachmentMeta.path ? { path: attachmentMeta.path } : {}),
-                  };
-                }
-                return {
-                  id: numericId(message.id),
-                  remoteId: message.id,
-                  author: sender,
-                  text: message.deleted_at ? "Сообщение удалено" : message.body,
-                  time: clockTime(created),
-                  mine: message.sender_id === accountId,
-                  createdAt: created.getTime(),
-                  edited: Boolean(message.edited_at),
-                  ...(message.effect ? { effect: message.effect } : {}),
-                  ...(message.poll ? { poll: message.poll as Message["poll"] } : {}),
-                  ...(attachment ? { attachment } : {}),
-                  reactions: (reactionRows ?? []).map((reaction) => reaction.emoji),
-                };
-              })
-          );
-          const last = chatMessages[chatMessages.length - 1];
-          const memberReadAt: Record<string, number> = {};
-          for (const member of chatMembers) {
-            memberReadAt[member.user_id as string] = member.last_read_at ? Date.parse(member.last_read_at as string) : 0;
-          }
-          const lastReadAt = memberReadAt[accountId] ?? 0;
-          const memberLastSeenAt: Record<string, number> = {};
-          for (const member of chatMembers) {
-            const profile = (memberProfiles ?? []).find((entry) => entry.id === member.user_id);
-            memberLastSeenAt[member.user_id as string] = profile?.last_seen_at ? Date.parse(profile.last_seen_at) : 0;
-          }
-          return {
-            id: numericId(row.id),
-            remoteId: row.id,
-            name: row.is_group ? row.title : other?.display_name || row.title,
-            avatar: row.is_group ? "👥" : other?.avatar || other?.display_name?.slice(0, 1) || "N",
-            color: row.is_group ? "group" : "blue",
-            preview: last?.text || "Начни общение",
-            time: last?.time || "",
-            messages: chatMessages,
-            group: row.is_group,
-            inviteCode: row.invite_code || undefined,
-            lastReadAt,
-            memberReadAt,
-            memberLastSeenAt,
-            unread: countUnread(chatMessages, lastReadAt),
-            members: chatMembers.map(
-              (member) =>
-                member.user_id === accountId
-                  ? profileName
-                  : (memberProfiles ?? []).find((profile) => profile.id === member.user_id)?.display_name || "Пользователь"
-            ),
-          };
+          const page =
+            (await loadMessagePage({
+              chatId: row.id,
+              accountId,
+              selfName: profileName,
+              authorName: other?.display_name || "Пользователь",
+              pageSize: DEFAULT_MESSAGE_PAGE_SIZE,
+            })) ?? [];
+          const reactions = await fetchReactions(page.map((message) => message.remoteId!).filter(Boolean));
+          const chatMessages: Message[] = page.map((message) => ({
+            ...message,
+            reactions: message.remoteId ? (reactions[message.remoteId] ?? []) : [],
+          }));
+          return { row, chatMembers, other, chatMessages };
         })
       );
+      if (!alive) return;
+
+      const mappedChats: Chat[] = pages.map(({ row, chatMembers, other, chatMessages }) => {
+        const last = chatMessages[chatMessages.length - 1];
+        const memberReadAt: Record<string, number> = {};
+        for (const member of chatMembers) {
+          memberReadAt[member.user_id as string] = member.last_read_at ? Date.parse(member.last_read_at as string) : 0;
+        }
+        const lastReadAt = memberReadAt[accountId] ?? 0;
+        const memberLastSeenAt: Record<string, number> = {};
+        for (const member of chatMembers) {
+          const profile = (memberProfiles ?? []).find((entry) => entry.id === member.user_id);
+          memberLastSeenAt[member.user_id as string] = profile?.last_seen_at ? Date.parse(profile.last_seen_at) : 0;
+        }
+        return {
+          id: numericId(row.id),
+          remoteId: row.id,
+          name: row.is_group ? row.title : other?.display_name || row.title,
+          avatar: row.is_group ? "👥" : other?.avatar || other?.display_name?.slice(0, 1) || "N",
+          color: row.is_group ? "group" : "blue",
+          preview: last?.text || "Начни общение",
+          time: last?.time || "",
+          messages: chatMessages,
+          group: row.is_group,
+          inviteCode: row.invite_code || undefined,
+          lastReadAt,
+          memberReadAt,
+          memberLastSeenAt,
+          historyExhausted: chatMessages.length < DEFAULT_MESSAGE_PAGE_SIZE,
+          unread: countUnread(chatMessages, lastReadAt),
+          members: chatMembers.map(
+            (member) =>
+              member.user_id === accountId
+                ? profileName
+                : (memberProfiles ?? []).find((profile) => profile.id === member.user_id)?.display_name || "Пользователь"
+          ),
+        };
+      });
       setChats(mappedChats);
       setActiveId(mappedChats[0]?.id ?? 0);
     };
+
     void loadCloudChats();
     return () => {
       alive = false;

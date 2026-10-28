@@ -47,6 +47,8 @@ export type Chat = {
   lastReadAt?: number;
   memberReadAt?: Record<string, number>;
   memberLastSeenAt?: Record<string, number>;
+  /** True once the server returned a short page, meaning no older history exists. */
+  historyExhausted?: boolean;
   messages: Message[];
 };
 

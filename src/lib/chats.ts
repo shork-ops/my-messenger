@@ -113,6 +113,25 @@ export function upsertChat(chats: Chat[], chat: Chat): Chat[] {
     : [chat, ...chats];
 }
 
+/** Replaces the loaded message window of a chat (used by history pagination). */
+export function setChatHistory(chats: Chat[], chatId: number, messages: Message[]): Chat[] {
+  return updateChat(chats, chatId, (chat) => {
+    const last = messages[messages.length - 1];
+    return {
+      ...chat,
+      messages,
+      ...(last ? { preview: last.text, time: last.time } : {}),
+    };
+  });
+}
+
+/** Drops the oldest loaded messages so memory stays bounded while scrolling. */
+export function trimHistory(chats: Chat[], chatId: number, maxMessages: number): Chat[] {
+  return updateChat(chats, chatId, (chat) =>
+    chat.messages.length <= maxMessages ? chat : { ...chat, messages: chat.messages.slice(chat.messages.length - maxMessages) }
+  );
+}
+
 export function togglePinned(chats: Chat[], chatId: number): Chat[] {
   return updateChat(chats, chatId, (chat) => ({ ...chat, pinned: !chat.pinned }));
 }

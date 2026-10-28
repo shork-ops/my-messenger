@@ -1,17 +1,18 @@
 import { useEffect } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { supabase } from "../lib/supabase";
-import { clockTime, numericId } from "../lib/format";
 import { appendMessage, applyRemoteMemberRead, mapMessagesByRemoteId } from "../lib/chats";
+import { mapMessageRow } from "../lib/messageSync";
 import type { Chat, ChatMessageRow, Message } from "../types";
 
 type UseRealtimeChatOptions = {
   accountId: string | null;
+  profileName: string;
   remoteId?: string;
   setChats: Dispatch<SetStateAction<Chat[]>>;
 };
 
-export function useRealtimeChat({ accountId, remoteId, setChats }: UseRealtimeChatOptions) {
+export function useRealtimeChat({ accountId, profileName, remoteId, setChats }: UseRealtimeChatOptions) {
   useEffect(() => {
     const client = supabase;
     if (!client || !accountId || !remoteId) return;
@@ -20,56 +21,26 @@ export function useRealtimeChat({ accountId, remoteId, setChats }: UseRealtimeCh
       .on("postgres_changes", { event: "*", schema: "public", table: "messages", filter: `chat_id=eq.${remoteId}` }, async (payload) => {
         const row = payload.new as ChatMessageRow;
         if (!row?.id) return;
-        let attachment: Message["attachment"];
-        if (row.attachment) {
-          let data = "";
-          if (row.attachment.path) {
-            const signed = await client.storage.from("chat-media").createSignedUrl(row.attachment.path, 3600);
-            data = signed.data?.signedUrl || "";
-          }
-          attachment = {
-            name: row.attachment.name || "Вложение",
-            type: row.attachment.type || "application/octet-stream",
-            size: row.attachment.size || 0,
-            path: row.attachment.path,
-            data,
-          };
-        }
-        setChats((current) => {
-          const chat = current.find((item) => item.remoteId === row.chat_id);
-          if (!chat) return current;
-          const existing = chat.messages.find((message) => message.remoteId === row.id);
-          if (existing) {
-            if (!row.poll) return current;
-            return mapMessagesByRemoteId(current, row.id, (message) => ({ ...message, poll: row.poll as Message["poll"] }));
-          }
-          if (payload.eventType !== "INSERT" || row.sender_id === accountId) return current;
-          const created = new Date(row.created_at);
-          const message: Message = {
-            id: numericId(row.id),
-            remoteId: row.id,
-            author: chat.name,
-            text: row.deleted_at ? "Сообщение удалено" : row.body,
-            time: clockTime(created),
-            mine: false,
-            createdAt: created.getTime(),
-            edited: Boolean(row.edited_at),
-            ...(row.effect ? { effect: row.effect } : {}),
-            ...(row.poll ? { poll: row.poll as Message["poll"] } : {}),
-            ...(attachment ? { attachment } : {}),
-          };
-          const preview = row.poll ? "📊 " + row.body : attachment ? "📎 " + row.body : message.text;
-          return appendMessage(current, chat.id, message, preview, message.time);
-        });
+        // Inbound INSERTs become new bubbles; everything else only refreshes an existing message (e.g. a poll).
         if (payload.eventType === "INSERT" && row.sender_id !== accountId) {
+          const message = await mapMessageRow(row, { accountId, selfName: profileName, authorName: "Собеседник" });
+          if (!message) return;
+          setChats((current) => {
+            const chat = current.find((item) => item.remoteId === row.chat_id);
+            if (!chat || chat.messages.some((entry) => entry.remoteId === row.id)) return current;
+            const preview = row.poll ? "📊 " + row.body : message.attachment ? "📎 " + message.text : message.text;
+            return appendMessage(current, chat.id, message, preview, message.time);
+          });
           const marked = await client.rpc("mark_chat_read", { target_chat_id: row.chat_id });
           if (typeof marked.data === "string") {
             const at = Date.parse(marked.data);
-            if (!Number.isNaN(at)) {
-              setChats((current) => applyRemoteMemberRead(current, row.chat_id, accountId, at, accountId));
-            }
+            if (!Number.isNaN(at)) setChats((current) => applyRemoteMemberRead(current, row.chat_id, accountId, at, accountId));
           }
+          return;
         }
+        const updatedPoll = row.poll as Message["poll"] | null | undefined;
+        if (!updatedPoll) return;
+        setChats((current) => mapMessagesByRemoteId(current, row.id, (message) => ({ ...message, poll: updatedPoll })));
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "chat_members", filter: `chat_id=eq.${remoteId}` }, (payload) => {
         const row = payload.new as { user_id?: string; last_read_at?: string | null };
@@ -89,5 +60,5 @@ export function useRealtimeChat({ accountId, remoteId, setChats }: UseRealtimeCh
     return () => {
       void client.removeChannel(channel);
     };
-  }, [accountId, remoteId, setChats]);
+  }, [accountId, profileName, remoteId, setChats]);
 }

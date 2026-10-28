@@ -105,6 +105,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .message-receipt { margin-left: 4px; letter-spacing: -1px; }
 .message-receipt.read { color: #2f8f4e; }
 .typing-indicator { padding: 6px 24px 0; color: var(--muted); font-size: 12px; }
+.history-loader { display: flex; justify-content: center; margin: 0 0 6px; color: var(--muted); font-size: 11px; }
+.history-loader button { padding: 7px 15px; border: 1px solid #2a2b30; border-radius: 999px; background: #121316; color: #d9d9de; font-size: 11px; }
+.history-loader button:hover { border-color: var(--yellow); color: var(--yellow); }
+.nav-link.notifications-on svg { color: var(--yellow); }
 .game-preview { width: min(325px, 100%); margin-top: 10px; overflow: hidden; border: 1px solid #28292e; border-radius: 16px; background: #151619; }
 .game-art { position: relative; display: flex; align-items: center; height: 104px; overflow: hidden; padding: 15px; background: radial-gradient(ellipse at 75% 20%, #7e4d7b 0%, transparent 35%), radial-gradient(ellipse at 48% 100%, #1f4c74 0%, transparent 42%), linear-gradient(120deg, #170f1a, #171e2b 60%, #24202c); }
 .game-art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, #0005, transparent 70%); }

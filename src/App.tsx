@@ -20,6 +20,9 @@ import { useChatCollection } from "./hooks/useChatCollection";
 import { useUserSearch } from "./hooks/useUserSearch";
 import { useCloudChats } from "./hooks/useCloudChats";
 import { useRealtimeChat } from "./hooks/useRealtimeChat";
+import { useHistoryPagination, useInfiniteHistory } from "./hooks/useHistoryPagination";
+import { useUnreadBadge, useMessageNotifications, requestNotificationPermission } from "./hooks/useNotifications";
+import { subscribeToPush } from "./lib/push";
 import { useAutoScroll } from "./hooks/useAutoScroll";
 import { useTyping } from "./hooks/useTyping";
 import { usePresence } from "./hooks/usePresence";
@@ -55,6 +58,7 @@ export default function App() {
   const [openMessageActionsId, setOpenMessageActionsId] = useState<number | null>(null);
   const [deletedMessage, setDeletedMessage] = useState<{ chatId: number; message: Message; index: number } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messagesAreaRef = useRef<HTMLDivElement | null>(null);
 
   const { notice, notify: action, clearNotice } = useNotice();
   const { theme, setTheme } = useTheme();
@@ -92,8 +96,13 @@ export default function App() {
   const { foundUsers, userSearchLoading } = useUserSearch({ search, accountId });
 
   useCloudChats({ accountId, profileReady, profileName, notify: action, setChats, setActiveId });
-  useRealtimeChat({ accountId, remoteId: activeChat.remoteId, setChats });
+  useRealtimeChat({ accountId, profileName, remoteId: activeChat.remoteId, setChats });
   useAutoScroll(messagesEndRef, [activeId, activeChat.messages.length]);
+
+  const { loadOlder, loadingChatIds } = useHistoryPagination({ accountId, profileName, notify: action, setChats });
+  useInfiniteHistory(messagesAreaRef, activeChat, loadOlder);
+  useUnreadBadge(unreadTotal);
+  useMessageNotifications({ accountId, chats });
 
   const { typingUsers, notifyTyping } = useTyping({ remoteId: activeChat.remoteId, accountId, profileName });
   const { onlineIds } = usePresence({ accountId, profileName });
@@ -656,6 +665,29 @@ export default function App() {
     setOpenMessageActionsId(null);
   }
 
+  async function toggleNotifications() {
+    const permission = await requestNotificationPermission();
+    if (permission === "denied") {
+      action("Уведомления запрещены в настройках браузера");
+      return;
+    }
+    if (permission === "unsupported") {
+      action("Браузер не поддерживает уведомления");
+      return;
+    }
+    if (permission !== "granted") {
+      action("Разреши уведомления, чтобы получать их в фоне");
+      return;
+    }
+    if (!accountId) return;
+    const push = await subscribeToPush(accountId);
+    if (push === "subscribed") action("Уведомления включены, в том числе в фоне");
+    else if (push === "not-configured") action("Локальные уведомления включены. Для фоновых нужен VAPID-ключ");
+    else if (push === "unsupported") action("Браузер не поддерживает фоновые уведомления");
+    else if (push === "error") action("Не удалось включить фоновые уведомления");
+    else action("Локальные уведомления включены");
+  }
+
   return (
     <main className="app-shell">
       <Rail
@@ -677,6 +709,8 @@ export default function App() {
           openGame("Каталог");
         }}
         onOpenProfile={() => setProfileOpen(true)}
+        onToggleNotifications={() => void toggleNotifications()}
+        notificationsGranted={typeof Notification !== "undefined" && Notification.permission === "granted"}
       />
 
       <ChatListPanel
@@ -729,6 +763,10 @@ export default function App() {
         peerOnline={peerOnline}
         peerLastSeenAt={peerLastSeenAt}
         endRef={messagesEndRef}
+        messagesRef={messagesAreaRef}
+        loadingHistory={Boolean(activeChat.remoteId && loadingChatIds.includes(activeChat.remoteId))}
+        historyExhausted={Boolean(activeChat.historyExhausted)}
+        onLoadOlder={() => void loadOlder(activeChat)}
         composer={{
           draft,
           editDraft,
