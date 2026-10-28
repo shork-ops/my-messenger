@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { supabase } from "../lib/supabase";
 import { clockTime, numericId } from "../lib/format";
-import { appendMessage, mapMessagesByRemoteId } from "../lib/chats";
+import { appendMessage, applyRemoteMemberRead, mapMessagesByRemoteId } from "../lib/chats";
 import type { Chat, ChatMessageRow, Message } from "../types";
 
 type UseRealtimeChatOptions = {
@@ -61,6 +61,22 @@ export function useRealtimeChat({ accountId, remoteId, setChats }: UseRealtimeCh
           const preview = row.poll ? "📊 " + row.body : attachment ? "📎 " + row.body : message.text;
           return appendMessage(current, chat.id, message, preview, message.time);
         });
+        if (payload.eventType === "INSERT" && row.sender_id !== accountId) {
+          const marked = await client.rpc("mark_chat_read", { target_chat_id: row.chat_id });
+          if (typeof marked.data === "string") {
+            const at = Date.parse(marked.data);
+            if (!Number.isNaN(at)) {
+              setChats((current) => applyRemoteMemberRead(current, row.chat_id, accountId, at, accountId));
+            }
+          }
+        }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "chat_members", filter: `chat_id=eq.${remoteId}` }, (payload) => {
+        const row = payload.new as { user_id?: string; last_read_at?: string | null };
+        if (!row?.user_id || !row.last_read_at) return;
+        const at = Date.parse(row.last_read_at);
+        if (Number.isNaN(at)) return;
+        setChats((current) => applyRemoteMemberRead(current, remoteId, row.user_id!, at, accountId));
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "message_reactions" }, async (payload) => {
         const row = (payload.new && Object.keys(payload.new).length ? payload.new : payload.old) as { message_id?: string };

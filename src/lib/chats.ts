@@ -120,3 +120,22 @@ export function togglePinned(chats: Chat[], chatId: number): Chat[] {
 export function markRead(chats: Chat[], chatId: number): Chat[] {
   return updateChat(chats, chatId, (chat) => ({ ...chat, unread: 0 }));
 }
+
+export function applyReadStamp(chats: Chat[], chatId: number, userId: string, at: number): Chat[] {
+  return updateChat(chats, chatId, (chat) => ({
+    ...chat,
+    lastReadAt: Math.max(chat.lastReadAt ?? 0, at),
+    memberReadAt: { ...(chat.memberReadAt ?? {}), [userId]: Math.max(chat.memberReadAt?.[userId] ?? 0, at) },
+  }));
+}
+
+export function applyRemoteMemberRead(chats: Chat[], remoteId: string, userId: string, at: number, selfId: string | null): Chat[] {
+  return chats.map((chat) => {
+    if (chat.remoteId !== remoteId) return chat;
+    return {
+      ...chat,
+      ...(userId === selfId ? { lastReadAt: Math.max(chat.lastReadAt ?? 0, at) } : {}),
+      memberReadAt: { ...(chat.memberReadAt ?? {}), [userId]: Math.max(chat.memberReadAt?.[userId] ?? 0, at) },
+    };
+  });
+}

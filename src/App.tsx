@@ -10,7 +10,7 @@ import GameModal from "./components/GameModal";
 import { GalleryModal, NewChatModal, PollModal, ProfileModal } from "./components/Modals";
 import { friends, isDemoMode } from "./lib/constants";
 import { clockTime, numericId } from "./lib/format";
-import { appendMessage, mapMessages, markRead, removeMessage, restoreMessage, updateChat } from "./lib/chats";
+import { appendMessage, applyReadStamp, mapMessages, markRead, removeMessage, restoreMessage, updateChat } from "./lib/chats";
 import { toggleLocalVote } from "./lib/polls";
 import { useNotice } from "./hooks/useNotice";
 import { useTheme } from "./hooks/useTheme";
@@ -560,11 +560,18 @@ export default function App() {
     setOpenMessageActionsId(null);
   }
 
-  function selectChat(chat: Chat) {
+  async function selectChat(chat: Chat) {
     setActiveId(chat.id);
     setDraft(drafts[chat.id] ?? "");
     setMessageSearch("");
     setChats((current) => markRead(current, chat.id));
+    const client = supabase;
+    if (!client || !accountId || !chat.remoteId) return;
+    const { data, error } = await client.rpc("mark_chat_read", { target_chat_id: chat.remoteId });
+    if (error || typeof data !== "string") return;
+    const stamped = Date.parse(data);
+    if (Number.isNaN(stamped)) return;
+    setChats((current) => applyReadStamp(current, chat.id, accountId, stamped));
   }
 
   async function deleteMessage(messageId: number) {

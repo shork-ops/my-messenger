@@ -5,6 +5,7 @@ import Avatar from "./Avatar";
 import Composer from "./Composer";
 import MessageBubble from "./MessageBubble";
 import { dateLabel } from "../lib/format";
+import { receiptFor } from "../lib/readState";
 import type { Chat, Message, MessageEffect } from "../types";
 
 type ConversationPanelProps = {
@@ -140,6 +141,7 @@ export default function ConversationPanel({
                 profileName={profileName}
                 actionsOpen={actionsOpenId === message.id}
                 showGamePreview={showGamePreview}
+                receipt={chat.remoteId ? receiptFor(message, chat.memberReadAt ?? {}, accountId) : null}
                 onToggleActions={() => onToggleActions(message.id)}
                 onVote={(optionId) => onVote(message.id, optionId)}
                 onToggleReaction={(emoji) => onToggleReaction(message.id, emoji)}

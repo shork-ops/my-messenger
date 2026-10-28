@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { supabase } from "../lib/supabase";
 import { clockTime, numericId } from "../lib/format";
+import { countUnread } from "../lib/readState";
 import type { Chat, Message } from "../types";
 
 type UseCloudChatsOptions = {
@@ -32,7 +33,7 @@ export function useCloudChats({ accountId, profileReady, profileName, notify, se
       }
       const [{ data: cloudChatRows, error: chatsError }, { data: profileRows }] = await Promise.all([
         client.from("chats").select("id, title, is_group, invite_code, created_at").in("id", chatIds).order("updated_at", { ascending: false }),
-        client.from("chat_members").select("chat_id, user_id").in("chat_id", chatIds),
+        client.from("chat_members").select("chat_id, user_id, last_read_at").in("chat_id", chatIds),
       ]);
       if (!alive) return;
       if (chatsError) {
@@ -97,6 +98,11 @@ export function useCloudChats({ accountId, profileReady, profileName, notify, se
               })
           );
           const last = chatMessages[chatMessages.length - 1];
+          const memberReadAt: Record<string, number> = {};
+          for (const member of chatMembers) {
+            memberReadAt[member.user_id as string] = member.last_read_at ? Date.parse(member.last_read_at as string) : 0;
+          }
+          const lastReadAt = memberReadAt[accountId] ?? 0;
           return {
             id: numericId(row.id),
             remoteId: row.id,
@@ -108,6 +114,9 @@ export function useCloudChats({ accountId, profileReady, profileName, notify, se
             messages: chatMessages,
             group: row.is_group,
             inviteCode: row.invite_code || undefined,
+            lastReadAt,
+            memberReadAt,
+            unread: countUnread(chatMessages, lastReadAt),
             members: chatMembers.map(
               (member) =>
                 member.user_id === accountId

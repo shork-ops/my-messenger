@@ -44,6 +44,8 @@ export type Chat = {
   members?: string[];
   inviteCode?: string;
   pinned?: boolean;
+  lastReadAt?: number;
+  memberReadAt?: Record<string, number>;
   messages: Message[];
 };
 

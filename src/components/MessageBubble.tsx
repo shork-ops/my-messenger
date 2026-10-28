@@ -90,6 +90,7 @@ type MessageBubbleProps = {
   profileName: string;
   actionsOpen: boolean;
   showGamePreview: boolean;
+  receipt?: "sent" | "read" | null;
   onToggleActions: () => void;
   onVote: (optionId: string) => void;
   onToggleReaction: (emoji: string) => void;
@@ -107,6 +108,7 @@ export default function MessageBubble({
   profileName,
   actionsOpen,
   showGamePreview,
+  receipt,
   onToggleActions,
   onVote,
   onToggleReaction,
@@ -151,6 +153,11 @@ export default function MessageBubble({
           <span className="message-time">
             {message.edited ? "изменено · " : ""}
             {message.time}
+            {receipt && (
+              <span className={`message-receipt ${receipt === "read" ? "read" : ""}`} aria-label={receipt === "read" ? "Прочитано" : "Отправлено"}>
+                {receipt === "read" ? "✓✓" : "✓"}
+              </span>
+            )}
           </span>
           {message.effect && (
             <span className={`message-effect-mark effect-mark-${message.effect}`} aria-hidden="true">

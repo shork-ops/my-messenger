@@ -1,4 +1,4 @@
-import { CheckCheck, PencilLine, Search } from "lucide-react";
+import { PencilLine, Search } from "lucide-react";
 import Avatar from "./Avatar";
 import type { Chat, ChatFilter, UserSearchResult } from "../types";
 
@@ -103,7 +103,7 @@ export default function ChatListPanel({
             </span>
             <span className="chat-meta">
               <small>{chat.time}</small>
-              {chat.unread ? <b>{chat.unread}</b> : chat.id !== activeId ? <CheckCheck size={15} /> : null}
+              {chat.unread ? <b>{chat.unread}</b> : null}
             </span>
           </button>
         ))}
