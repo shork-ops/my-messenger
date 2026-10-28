@@ -1,15 +1,28 @@
-import { ChevronRight, Gamepad2, Plus, X } from "lucide-react";
+import { ChevronRight, Gamepad2, Plus, ShieldCheck, ShieldMinus, LogOut, UserMinus, X } from "lucide-react";
 import Avatar from "./Avatar";
 import { games } from "../lib/constants";
+import type { ChatMember } from "../lib/groupAdmin";
 import type { Chat } from "../types";
+
+const ROLE_LABEL: Record<string, string> = {
+  owner: "Владелец",
+  admin: "Администратор",
+  member: "Участник",
+};
 
 type RightPanelProps = {
   profileName: string;
   profileAvatar: string;
   chat: Chat;
+  members: ChatMember[];
+  myRole: string | null;
   onClose: () => void;
   onOpenProfile: () => void;
   onCreateInvite: () => void;
+  onRotateInvite: () => void;
+  onChangeRole: (userId: string, role: "admin" | "member") => void;
+  onRemoveMember: (userId: string) => void;
+  onLeaveGroup: () => void;
   onClearHistory: () => void;
   onOpenGames: () => void;
   onOpenGame: (name: string) => void;
@@ -19,13 +32,23 @@ export default function RightPanel({
   profileName,
   profileAvatar,
   chat,
+  members,
+  myRole,
   onClose,
   onOpenProfile,
   onCreateInvite,
+  onRotateInvite,
+  onChangeRole,
+  onRemoveMember,
+  onLeaveGroup,
   onClearHistory,
   onOpenGames,
   onOpenGame,
 }: RightPanelProps) {
+  const isOwner = myRole === "owner";
+  const isAdmin = myRole === "owner" || myRole === "admin";
+  const listed = chat.group ? members : [];
+
   return (
     <aside className="right-panel">
       <div className="right-heading">
@@ -46,23 +69,70 @@ export default function RightPanel({
       </button>
 
       <div className="right-divider" />
-      {chat.group && (chat.members?.length ?? 0) > 0 && (
+      {chat.group && listed.length > 0 && (
         <>
           <div className="online-heading">
             <span>Участники чата</span>
-            <b>{chat.members?.length ?? 0}</b>
+            <b>{listed.length}</b>
           </div>
           <div className="friends-list">
-            {chat.members?.map((member) => (
-              <div key={member} className="friend-row">
-                <span className="friend-avatar-wrap">
-                  <Avatar color="blue" small>
-                    {member.slice(0, 1).toUpperCase()}
-                  </Avatar>
-                </span>
-                <span>{member}</span>
-              </div>
-            ))}
+            {listed.map((member) => {
+              const name = member.display_name ?? "Пользователь";
+              const isTargetOwner = member.role === "owner";
+              const canPromote = isOwner && member.role === "member";
+              const canDemote = isOwner && member.role === "admin";
+              // Admins remove plain members; the owner may remove admins too.
+              const canRemove =
+                !isTargetOwner &&
+                (isOwner || (myRole === "admin" && member.role === "member"));
+              return (
+                <div key={member.user_id} className="friend-row member-row">
+                  <span className="friend-avatar-wrap">
+                    <Avatar color="blue" small>
+                      {name.slice(0, 1).toUpperCase()}
+                    </Avatar>
+                  </span>
+                  <span className="member-copy">
+                    <strong>{name}</strong>
+                    <small>{ROLE_LABEL[member.role] ?? member.role}</small>
+                  </span>
+                  {(canPromote || canDemote || canRemove) && (
+                    <span className="member-actions">
+                      {canPromote && (
+                        <button
+                          type="button"
+                          title="Сделать администратором"
+                          aria-label={`Сделать ${name} администратором`}
+                          onClick={() => onChangeRole(member.user_id, "admin")}
+                        >
+                          <ShieldCheck size={15} />
+                        </button>
+                      )}
+                      {canDemote && (
+                        <button
+                          type="button"
+                          title="Снять администратора"
+                          aria-label={`Снять ${name} с должности администратора`}
+                          onClick={() => onChangeRole(member.user_id, "member")}
+                        >
+                          <ShieldMinus size={15} />
+                        </button>
+                      )}
+                      {canRemove && (
+                        <button
+                          type="button"
+                          title="Удалить из группы"
+                          aria-label={`Удалить ${name} из группы`}
+                          onClick={() => onRemoveMember(member.user_id)}
+                        >
+                          <UserMinus size={15} />
+                        </button>
+                      )}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </>
       )}
@@ -72,6 +142,16 @@ export default function RightPanel({
         </span>
         {chat.group ? "Скопировать ссылку-приглашение" : "Приглашение доступно в группах"}
       </button>
+      {chat.group && isAdmin && (
+        <button className="clear-history-button" onClick={onRotateInvite}>
+          Обновить ссылку-приглашение
+        </button>
+      )}
+      {chat.group && chat.remoteId && myRole !== null && myRole !== "owner" && (
+        <button className="clear-history-button danger" onClick={onLeaveGroup}>
+          <LogOut size={15} /> Покинуть группу
+        </button>
+      )}
 
       <div className="right-divider games-divider" />
       <button className="games-heading" onClick={onOpenGames}>

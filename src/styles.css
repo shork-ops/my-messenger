@@ -145,6 +145,26 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .friends-list { display: flex; flex-direction: column; gap: 7px; }
 .friend-row { display: flex; align-items: center; gap: 12px; padding: 0; border: 0; background: transparent; text-align: left; }
 .friend-row > span:last-child { color: #e7e7eb; font-size: 12px; }
+/* Group member rows: name + role on the left, management icons on hover. */
+.member-row { justify-content: space-between; }
+.member-copy { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.member-copy strong { color: #e7e7eb; font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.member-copy small { color: #85868f; font-size: 10px; }
+.member-actions { display: flex; align-items: center; gap: 4px; opacity: 0; transition: opacity 0.15s ease; }
+.member-row:hover .member-actions, .member-actions:focus-within { opacity: 1; }
+.member-actions button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid #26272c;
+  border-radius: 8px;
+  background: #141519;
+  color: #a6a7ae;
+  cursor: pointer;
+}
+.member-actions button:hover { border-color: #3a3b42; color: #ffd400; }
+.clear-history-button.danger { display: flex; align-items: center; gap: 6px; }
 .friend-avatar-wrap { position: relative; }
 .friend-avatar-wrap .avatar { width: 38px; height: 38px; }
 .friend-avatar-wrap i { position: absolute; right: -1px; bottom: 0; width: 10px; height: 10px; border: 2px solid #090a0c; }

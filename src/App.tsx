@@ -7,6 +7,8 @@ import ChatListPanel from "./components/ChatListPanel";
 import ConversationPanel from "./components/ConversationPanel";
 import RightPanel from "./components/RightPanel";
 import GameModal from "./components/GameModal";
+import { useChatMembers } from "./hooks/useChatMembers";
+import { removeMember, rotateInvite, setMemberRole } from "./lib/groupAdmin";
 import { GalleryModal, NewChatModal, PollModal, ProfileModal } from "./components/Modals";
 import { friends, isDemoMode } from "./lib/constants";
 import { clockTime, numericId } from "./lib/format";
@@ -52,6 +54,7 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [activeNav, setActiveNav] = useState("Чаты");
   const [showProfile, setShowProfile] = useState(true);
+  const [membersRefreshKey, setMembersRefreshKey] = useState(0);
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [openingUserId, setOpeningUserId] = useState<string | null>(null);
@@ -109,6 +112,13 @@ export default function App() {
   usePushSubscriptionSync(accountId);
   // Offer notifications once, on the first interaction after the app is ready.
   useNotificationsPrompt({ accountId, enabled: profileReady, onNotice: action });
+
+  const { members: chatMembers, reload: reloadMembers } = useChatMembers({
+    chatId: activeChat.remoteId ?? null,
+    isGroup: Boolean(activeChat.group),
+    refreshKey: membersRefreshKey,
+  });
+  const myChatRole = accountId ? chatMembers.find((member) => member.user_id === accountId)?.role ?? null : null;
 
   const { typingUsers, notifyTyping } = useTyping({ remoteId: activeChat.remoteId, accountId, profileName });
   const { onlineIds } = usePresence({ accountId, profileName });
@@ -446,6 +456,66 @@ export default function App() {
     } catch {
       action(`Ссылка: ${link}`);
     }
+  }
+
+  /** Issues a new invite code, which immediately invalidates the previous link. */
+  async function rotateInviteLink() {
+    const client = supabase;
+    if (!client || !activeChat.remoteId) {
+      action("Обновление ссылки доступно только для облачных групп");
+      return;
+    }
+    const result = await rotateInvite(client, activeChat.remoteId);
+    if (!result.ok) {
+      action(result.message);
+      return;
+    }
+    setChats((current) =>
+      current.map((chat) => (chat.id === activeId ? { ...chat, inviteCode: result.data } : chat))
+    );
+    const link = `${window.location.origin}${window.location.pathname}?join=${result.data}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      action("Новая ссылка-приглашение создана и скопирована");
+    } catch {
+      action(`Новая ссылка: ${link}`);
+    }
+  }
+
+  async function changeMemberRole(userId: string, role: "admin" | "member") {
+    const client = supabase;
+    if (!client || !activeChat.remoteId) return;
+    const result = await setMemberRole(client, activeChat.remoteId, userId, role);
+    if (!result.ok) {
+      action(result.message);
+      return;
+    }
+    action(role === "admin" ? "Участник назначен администратором" : "Администратор снят");
+    setMembersRefreshKey((key) => key + 1);
+  }
+
+  async function kickMember(userId: string) {
+    const client = supabase;
+    if (!client || !activeChat.remoteId) return;
+    const result = await removeMember(client, activeChat.remoteId, userId);
+    if (!result.ok) {
+      action(result.message);
+      return;
+    }
+    action("Участник удалён из группы");
+    setMembersRefreshKey((key) => key + 1);
+  }
+
+  async function leaveGroup() {
+    const client = supabase;
+    if (!client || !activeChat.remoteId || !accountId) return;
+    const result = await removeMember(client, activeChat.remoteId, accountId);
+    if (!result.ok) {
+      action(result.message);
+      return;
+    }
+    action("Ты покинул группу");
+    setChats((current) => current.filter((chat) => chat.id !== activeId));
   }
 
   async function sendMessage(event: FormEvent) {
@@ -805,9 +875,15 @@ export default function App() {
           profileName={profileName}
           profileAvatar={profileAvatar}
           chat={activeChat}
+          members={chatMembers}
+          myRole={myChatRole}
           onClose={() => setShowProfile(false)}
           onOpenProfile={() => setProfileOpen(true)}
           onCreateInvite={() => void createInviteLink()}
+          onRotateInvite={() => void rotateInviteLink()}
+          onChangeRole={(userId, role) => void changeMemberRole(userId, role)}
+          onRemoveMember={(userId) => void kickMember(userId)}
+          onLeaveGroup={() => void leaveGroup()}
           onClearHistory={clearHistory}
           onOpenGames={() => {
             setActiveNav("Мини-игры");
