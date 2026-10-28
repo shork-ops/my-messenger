@@ -46,6 +46,7 @@ export type Chat = {
   pinned?: boolean;
   lastReadAt?: number;
   memberReadAt?: Record<string, number>;
+  memberLastSeenAt?: Record<string, number>;
   messages: Message[];
 };
 

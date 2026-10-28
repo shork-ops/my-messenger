@@ -4,7 +4,7 @@ import { MoreVertical, Phone, Pin, Search, Video, X } from "lucide-react";
 import Avatar from "./Avatar";
 import Composer from "./Composer";
 import MessageBubble from "./MessageBubble";
-import { dateLabel } from "../lib/format";
+import { dateLabel, lastSeenLabel } from "../lib/format";
 import { receiptFor } from "../lib/readState";
 import type { Chat, Message, MessageEffect } from "../types";
 
@@ -33,6 +33,9 @@ type ConversationPanelProps = {
   onEdit: (message: Message) => void;
   onDelete: (messageId: number) => void;
   onGameInvite: () => void;
+  typingNames: string[];
+  peerOnline: boolean;
+  peerLastSeenAt: number | null;
   endRef: MutableRefObject<HTMLDivElement | null>;
   composer: ComponentProps<typeof Composer>;
 };
@@ -62,6 +65,9 @@ export default function ConversationPanel({
   onEdit,
   onDelete,
   onGameInvite,
+  typingNames,
+  peerOnline,
+  peerLastSeenAt,
   endRef,
   composer,
 }: ConversationPanelProps) {
@@ -71,8 +77,14 @@ export default function ConversationPanel({
       : chat.group
         ? `${chat.members?.length ?? 1} участника(ов)`
         : chat.remoteId
-          ? "Облачный диалог"
+          ? peerOnline
+            ? "в сети"
+            : peerLastSeenAt
+              ? lastSeenLabel(peerLastSeenAt)
+              : "Облачный диалог"
           : "Локальный чат";
+  const typingLabel =
+    typingNames.length === 0 ? "" : typingNames.length === 1 ? `${typingNames[0]} печатает…` : `${typingNames.join(", ")} печатают…`;
 
   return (
     <section className="conversation-panel">
@@ -158,6 +170,11 @@ export default function ConversationPanel({
         <div ref={endRef} />
       </div>
 
+      {typingLabel && (
+        <div className="typing-indicator" role="status">
+          {typingLabel}
+        </div>
+      )}
       <Composer {...composer} />
     </section>
   );

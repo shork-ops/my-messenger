@@ -21,6 +21,8 @@ import { useUserSearch } from "./hooks/useUserSearch";
 import { useCloudChats } from "./hooks/useCloudChats";
 import { useRealtimeChat } from "./hooks/useRealtimeChat";
 import { useAutoScroll } from "./hooks/useAutoScroll";
+import { useTyping } from "./hooks/useTyping";
+import { usePresence } from "./hooks/usePresence";
 import type { Chat, ChatFilter, Message, MessageEffect, UserSearchResult } from "./types";
 
 export default function App() {
@@ -92,6 +94,15 @@ export default function App() {
   useCloudChats({ accountId, profileReady, profileName, notify: action, setChats, setActiveId });
   useRealtimeChat({ accountId, remoteId: activeChat.remoteId, setChats });
   useAutoScroll(messagesEndRef, [activeId, activeChat.messages.length]);
+
+  const { typingUsers, notifyTyping } = useTyping({ remoteId: activeChat.remoteId, accountId, profileName });
+  const { onlineIds } = usePresence({ accountId, profileName });
+  const peerId =
+    activeChat.group || !activeChat.remoteId
+      ? null
+      : Object.keys(activeChat.memberReadAt ?? {}).find((id) => id !== accountId) ?? null;
+  const peerOnline = Boolean(peerId && onlineIds.includes(peerId));
+  const peerLastSeenAt = peerId ? activeChat.memberLastSeenAt?.[peerId] || null : null;
 
   const mentionQuery = draft.match(/(?:^|\s)@([^\s@]*)$/)?.[1] ?? null;
   const mentionMatches =
@@ -624,6 +635,7 @@ export default function App() {
     setDraft(value);
     setDrafts((current) => ({ ...current, [activeId]: value }));
     setMentionOpen(value.includes("@"));
+    if (value) notifyTyping();
   }
 
   function addEmoji() {
@@ -713,6 +725,9 @@ export default function App() {
         }}
         onDelete={(messageId) => void deleteMessage(messageId)}
         onGameInvite={() => action("Приглашение в игру скоро появится")}
+        typingNames={typingUsers.map((user) => user.name)}
+        peerOnline={peerOnline}
+        peerLastSeenAt={peerLastSeenAt}
         endRef={messagesEndRef}
         composer={{
           draft,

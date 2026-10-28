@@ -42,8 +42,8 @@ export function useCloudChats({ accountId, profileReady, profileName, notify, se
       }
       const memberIds = [...new Set((profileRows ?? []).map((row) => row.user_id as string).filter((id) => id !== accountId))];
       const { data: memberProfiles } = memberIds.length
-        ? await client.from("profiles").select("id, username, display_name, avatar").in("id", memberIds)
-        : { data: [] as { id: string; username: string | null; display_name: string; avatar: string }[] };
+        ? await client.from("profiles").select("id, username, display_name, avatar, last_seen_at").in("id", memberIds)
+        : { data: [] as { id: string; username: string | null; display_name: string; avatar: string; last_seen_at: string | null }[] };
       const { data: messageRows, error: messagesError } = await client
         .from("messages")
         .select("id, chat_id, sender_id, body, attachment, effect, poll, reply_to, created_at, edited_at, deleted_at")
@@ -103,6 +103,11 @@ export function useCloudChats({ accountId, profileReady, profileName, notify, se
             memberReadAt[member.user_id as string] = member.last_read_at ? Date.parse(member.last_read_at as string) : 0;
           }
           const lastReadAt = memberReadAt[accountId] ?? 0;
+          const memberLastSeenAt: Record<string, number> = {};
+          for (const member of chatMembers) {
+            const profile = (memberProfiles ?? []).find((entry) => entry.id === member.user_id);
+            memberLastSeenAt[member.user_id as string] = profile?.last_seen_at ? Date.parse(profile.last_seen_at) : 0;
+          }
           return {
             id: numericId(row.id),
             remoteId: row.id,
@@ -116,6 +121,7 @@ export function useCloudChats({ accountId, profileReady, profileName, notify, se
             inviteCode: row.invite_code || undefined,
             lastReadAt,
             memberReadAt,
+            memberLastSeenAt,
             unread: countUnread(chatMessages, lastReadAt),
             members: chatMembers.map(
               (member) =>

@@ -26,3 +26,10 @@ export function dateLabel(timestamp: number, now: Date = new Date()): string {
     year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
   }).format(date);
 }
+
+export function lastSeenLabel(timestamp: number, now: Date = new Date()): string {
+  const minutes = Math.max(0, Math.floor((now.getTime() - timestamp) / 60000));
+  if (minutes < 1) return "был(а) только что";
+  if (minutes < 60) return `был(а) ${minutes} мин назад`;
+  return `был(а) в ${formatClock(new Date(timestamp))}`;
+}

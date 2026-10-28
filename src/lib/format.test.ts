@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clockTime, dateLabel, formatClock, numericId } from "./format";
+import { clockTime, dateLabel, formatClock, lastSeenLabel, numericId } from "./format";
 
 describe("numericId", () => {
   it("derives a stable number from a uuid", () => {
@@ -35,5 +35,21 @@ describe("dateLabel", () => {
   it("adds the year for dates from another year", () => {
     const label = dateLabel(new Date(2025, 11, 31, 10, 0).getTime(), now);
     expect(label).toMatch(/2025/);
+  });
+});
+
+describe("lastSeenLabel", () => {
+  const now = new Date(2026, 9, 28, 12, 0);
+
+  it("marks recent activity as just now", () => {
+    expect(lastSeenLabel(now.getTime() - 30_000, now)).toBe("был(а) только что");
+  });
+
+  it("counts minutes within the hour", () => {
+    expect(lastSeenLabel(now.getTime() - 5 * 60_000, now)).toBe("был(а) 5 мин назад");
+  });
+
+  it("shows the clock time for older activity", () => {
+    expect(lastSeenLabel(new Date(2026, 9, 28, 9, 15).getTime(), now)).toBe("был(а) в 09:15");
   });
 });
