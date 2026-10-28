@@ -89,6 +89,19 @@ test.describe("Nexus messenger smoke", () => {
     await expect(page.getByText("Сообщение закреплено")).toBeVisible();
   });
 
+  test("opens the privacy settings", async ({ page }) => {
+    await page.getByText("Приватность и блокировки").click();
+    const modal = page.locator(".privacy-modal");
+    await expect(modal).toBeVisible();
+
+    // Both switches start off: nothing is hidden until the user asks.
+    const switches = modal.locator(".privacy-row input");
+    await expect(switches).toHaveCount(2);
+    for (const checkbox of await switches.all()) await expect(checkbox).not.toBeChecked();
+
+    await expect(modal.locator(".danger-button")).toHaveText(/Удалить аккаунт/);
+  });
+
   test("filters the chat list by the search box", async ({ page }) => {
     const chats = page.locator(".chat-list .chat-row");
     const before = await chats.count();

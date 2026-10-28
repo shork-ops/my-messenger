@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { CircleUserRound, Shield, X } from "lucide-react";
 import { supabase } from "./lib/supabase";
@@ -9,6 +9,17 @@ import RightPanel from "./components/RightPanel";
 import GameModal from "./components/GameModal";
 import { useChatMembers } from "./hooks/useChatMembers";
 import { useServerSearch } from "./hooks/useServerSearch";
+import PrivacyModal from "./components/PrivacyModal";
+import {
+  DEFAULT_PRIVACY,
+  blockUser,
+  deleteAccount,
+  fetchBlockedIds,
+  fetchPrivacyPreferences,
+  savePrivacyPreferences,
+  unblockUser,
+} from "./lib/privacy";
+import type { PrivacyPreferences } from "./lib/privacy";
 import { removeMember, rotateInvite, setMemberRole } from "./lib/groupAdmin";
 import { createFavouritesChat, favouriteMessage, formatForwardText, isFavouritesChat, nextLocalId } from "./lib/messageActions";
 import { MAX_UPLOAD_BYTES, blobToDataUrl, buildStoragePath, formatBytes, isSupportedFile, prepareImage, shouldCompress } from "./lib/media";
@@ -63,6 +74,11 @@ export default function App() {
   const [uploadProgress, setUploadProgress] = useState<{ name: string; percent: number; stage: string } | null>(null);
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
+  const [privacy, setPrivacy] = useState<PrivacyPreferences>(DEFAULT_PRIVACY);
+  const [privacySaving, setPrivacySaving] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [blockedEntries, setBlockedEntries] = useState<string[]>([]);
   const [openingUserId, setOpeningUserId] = useState<string | null>(null);
   const [openMessageActionsId, setOpenMessageActionsId] = useState<number | null>(null);
   const [deletedMessage, setDeletedMessage] = useState<{ chatId: number; message: Message; index: number } | null>(null);
@@ -542,6 +558,69 @@ export default function App() {
     setUploadProgress(null);
     setRecordingSeconds(0);
     action("Голосовое сообщение отправлено");
+  }
+
+  /** Loads the stored preferences and the block list once the account is known. */
+  useEffect(() => {
+    const client = supabase;
+    if (!client || !accountId) return;
+    let active = true;
+    void (async () => {
+      const stored = await fetchPrivacyPreferences(client, accountId);
+      if (active) setPrivacy(stored);
+      const blocked = await fetchBlockedIds(client);
+      if (!active || blocked.length === 0) {
+        if (active) setBlockedEntries([]);
+        return;
+      }
+      // Resolve names once, so the modal can list "id:name" pairs.
+      const { data } = await client.from("profiles").select("id, display_name").in("id", blocked);
+      const names = new Map((data ?? []).map((row) => [row.id as string, row.display_name as string]));
+      if (active) setBlockedEntries(blocked.map((id) => `${id}:${names.get(id) ?? "Пользователь"}`));
+    })();
+    return () => {
+      active = false;
+    };
+  }, [accountId]);
+
+  async function changePrivacy(next: PrivacyPreferences) {
+    const client = supabase;
+    const previous = privacy;
+    setPrivacy(next);
+    if (!client || !accountId) return;
+    setPrivacySaving(true);
+    const result = await savePrivacyPreferences(client, accountId, next);
+    setPrivacySaving(false);
+    if (!result.ok) {
+      setPrivacy(previous);
+      action("Не удалось сохранить настройку приватности");
+    }
+  }
+
+  async function unblockPerson(userId: string) {
+    const client = supabase;
+    if (!client) return;
+    const result = await unblockUser(client, userId);
+    if (!result.ok) {
+      action(result.message);
+      return;
+    }
+    setBlockedEntries((current) => current.filter((entry) => !entry.startsWith(`${userId}:`)));
+    action("Пользователь разблокирован");
+  }
+
+  async function confirmDeleteAccount() {
+    const client = supabase;
+    if (!client) return;
+    if (!window.confirm("Удалить аккаунт навсегда? Это действие нельзя отменить.")) return;
+    setDeletingAccount(true);
+    const result = await deleteAccount(client);
+    setDeletingAccount(false);
+    if (!result.ok) {
+      action(result.message);
+      return;
+    }
+    action("Аккаунт удалён");
   }
 
   async function createInviteLink() {
@@ -1169,6 +1248,7 @@ export default function App() {
           myRole={myChatRole}
           onClose={() => setShowProfile(false)}
           onOpenProfile={() => setProfileOpen(true)}
+          onOpenPrivacy={() => setPrivacyOpen(true)}
           onCreateInvite={() => void createInviteLink()}
           onRotateInvite={() => void rotateInviteLink()}
           onChangeRole={(userId, role) => void changeMemberRole(userId, role)}
@@ -1233,6 +1313,18 @@ export default function App() {
           setActiveId(chats.find((chat) => chat.name === image.chatName)?.id ?? activeId);
           setGalleryOpen(false);
         }}
+      />
+
+      <PrivacyModal
+        open={privacyOpen}
+        preferences={privacy}
+        blockedNames={blockedEntries}
+        saving={privacySaving}
+        deleting={deletingAccount}
+        onChange={(next) => void changePrivacy(next)}
+        onUnblock={(userId) => void unblockPerson(userId)}
+        onDeleteAccount={() => void confirmDeleteAccount()}
+        onClose={() => setPrivacyOpen(false)}
       />
 
       <ProfileModal

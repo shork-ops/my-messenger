@@ -29,3 +29,7 @@ verify_jwt = false
 # Maintenance job: called with the service role key by a scheduler, never by the browser.
 [functions.cleanup-media]
 verify_jwt = false
+
+# Called by the signed-in user; the JWT identifies whose account is removed.
+[functions.delete-account]
+verify_jwt = true
