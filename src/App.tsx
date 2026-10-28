@@ -1,67 +1,36 @@
-import { Fragment, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { ChangeEvent, FormEvent } from "react";
+import { CircleUserRound, Shield, X } from "lucide-react";
 import { supabase } from "./lib/supabase";
+import Rail from "./components/Rail";
+import ChatListPanel from "./components/ChatListPanel";
+import ConversationPanel from "./components/ConversationPanel";
+import RightPanel from "./components/RightPanel";
+import GameModal from "./components/GameModal";
+import { GalleryModal, NewChatModal, PollModal, ProfileModal } from "./components/Modals";
+import { friends, isDemoMode } from "./lib/constants";
+import { clockTime, numericId } from "./lib/format";
 import {
-  Bell, Camera, CheckCheck, ChevronRight, CircleUserRound, Gamepad2,
-  Image, MessageCircle, MoreVertical, Paperclip, Phone, Plus, Search,
-  Send, Settings, Shield, Smile, Video, X, Mic, Users, PencilLine, Pin
-} from "lucide-react";
-
-type Message = {
-  id: number;
-  remoteId?: string;
-  author: string;
-  text: string;
-  time: string;
-  mine?: boolean;
-  image?: boolean;
-  attachment?: { name: string; type: string; data: string; size: number; path?: string };
-  poll?: { question: string; options: { id: string; text: string; votes: string[] }[] };
-  edited?: boolean;
-  createdAt?: number;
-  replyTo?: { author: string; text: string };
-  reactions?: string[];
-  effect?: "sparkle" | "hearts" | "fireworks" | "glow";
-};
-
-type Chat = {
-  id: number;
-  remoteId?: string;
-  name: string;
-  avatar: string;
-  color: string;
-  preview: string;
-  time: string;
-  unread?: number;
-  group?: boolean;
-  members?: string[];
-  inviteCode?: string;
-  pinned?: boolean;
-  messages: Message[];
-};
-
-const friends = [
-  { name: "Максим", avatar: "М", color: "blue" },
-  { name: "Игорь", avatar: "И", color: "olive" },
-  { name: "Аня", avatar: "А", color: "pink" },
-  { name: "Сергей", avatar: "С", color: "orange" },
-  { name: "Катя", avatar: "К", color: "pink" },
-  { name: "Дима", avatar: "Д", color: "blue" },
-  { name: "Настя", avatar: "Н", color: "pink" },
-  { name: "Влад", avatar: "В", color: "olive" },
-];
-
-const games = [
-  { name: "Шахматы", desc: "Играть с друзьями", icon: "♟", cls: "chess" },
-  { name: "Uno", desc: "Быстрая игра", icon: "UNO", cls: "uno" },
-  { name: "Балда", desc: "Слова и друзья", icon: "А", cls: "balda" },
-];
-
-function Avatar({ children, color = "blue", small = false }: { children: React.ReactNode; color?: string; small?: boolean }) {
-  return <div className={`avatar ${color} ${small ? "small" : ""}`}>{children}</div>;
-}
+  appendMessage,
+  filterChats,
+  getGalleryImages,
+  getVisibleMessages,
+  mapMessages,
+  mapMessagesByRemoteId,
+  markRead,
+  matchesChatFilter,
+  removeMessage,
+  restoreMessage,
+  sortChats,
+  togglePinned,
+  updateChat,
+} from "./lib/chats";
+import { toggleLocalVote } from "./lib/polls";
+import type { Chat, ChatFilter, ChatMessageRow, Message, MessageEffect, UserSearchResult } from "./types";
 
 export default function App() {
   const [chats, setChats] = useState<Chat[]>(() => {
+    if (!isDemoMode) return [];
     if (!window.localStorage.getItem("nexus-demo-chats-cleared-v1")) {
       window.localStorage.removeItem("nexus-chats-v1");
       window.localStorage.removeItem("nexus-drafts-v1");
@@ -80,15 +49,21 @@ export default function App() {
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState("");
   const [search, setSearch] = useState("");
-  const [foundUsers, setFoundUsers] = useState<{ id: string; username: string; display_name: string; avatar: string }[]>([]);
+  const [foundUsers, setFoundUsers] = useState<UserSearchResult[]>([]);
   const [userSearchLoading, setUserSearchLoading] = useState(false);
-  const [chatFilter, setChatFilter] = useState<"all" | "unread" | "pinned" | "groups">("all");
+  const [chatFilter, setChatFilter] = useState<ChatFilter>("all");
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [messageSearch, setMessageSearch] = useState("");
-  const [drafts, setDrafts] = useState<Record<number, string>>(() => { try { return JSON.parse(window.localStorage.getItem("nexus-drafts-v1") || "{}") as Record<number, string>; } catch { return {}; } });
+  const [drafts, setDrafts] = useState<Record<number, string>>(() => {
+    try {
+      return JSON.parse(window.localStorage.getItem("nexus-drafts-v1") || "{}") as Record<number, string>;
+    } catch {
+      return {};
+    }
+  });
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [newChatName, setNewChatName] = useState("");
-  const [newChatIsGroup, setNewChatIsGroup] = useState(false);
+  const [newChatIsGroup, setNewChatIsGroup] = useState(() => !isDemoMode);
   const [pollOpen, setPollOpen] = useState(false);
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState(["", ""]);
@@ -111,7 +86,6 @@ export default function App() {
   const [usernameSaving, setUsernameSaving] = useState(false);
   const [accountId, setAccountId] = useState<string | null>(null);
   const [profileReady, setProfileReady] = useState(false);
-  const [cloudChatsReady, setCloudChatsReady] = useState(false);
   const [openingUserId, setOpeningUserId] = useState<string | null>(null);
   const [theme, setTheme] = useState(() => window.localStorage.getItem("nexus-theme") || "yellow");
   const [activeGame, setActiveGame] = useState<string | null>(null);
@@ -127,16 +101,38 @@ export default function App() {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const activeChat: Chat = chats.find((chat) => chat.id === activeId) ?? chats[0] ?? {
-    id: 0, name: "Новый чат", avatar: "＋", color: "blue", preview: "Создай чат или найди пользователя по username", time: "", messages: [],
+    id: 0,
+    name: "Новый чат",
+    avatar: "＋",
+    color: "blue",
+    preview: "Создай чат или найди пользователя по username",
+    time: "",
+    messages: [],
   };
-  const sortedChats = useMemo(() => [...chats].sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned))), [chats]);
-  const visibleMessages = useMemo(() => { const q = messageSearch.trim().toLocaleLowerCase("ru-RU"); return activeChat.messages.filter((message) => !q || message.text.toLocaleLowerCase("ru-RU").includes(q) || message.author.toLocaleLowerCase("ru-RU").includes(q)); }, [activeChat, messageSearch]);
-  const galleryImages = useMemo(() => chats.flatMap((chat) => chat.messages.filter((message) => message.attachment?.type.startsWith("image/")).map((message) => ({ ...message, chatName: chat.name }))), [chats]);
-  const mentionQuery = draft.match(/(?:^|\s)@([^\s@]*)$/)?.[1] ?? null;
-  const mentionMatches = mentionQuery === null ? [] : [...new Set([profileName, ...friends.map((friend) => friend.name), ...(activeChat.members ?? [])])].filter((name) => name.toLocaleLowerCase("ru-RU").startsWith(mentionQuery.toLocaleLowerCase("ru-RU"))).slice(0, 6);
+  const sortedChats = useMemo(() => sortChats(chats), [chats]);
 
-  // Stage 1: bind the visible profile to the authenticated Supabase account.
-  // Chat data stays local until the separate, tested chat migration stage.
+  useEffect(() => {
+    if (chats.length > 0 && !chats.some((chat) => chat.id === activeId)) setActiveId(chats[0].id);
+  }, [chats, activeId]);
+  const visibleMessages = useMemo(() => getVisibleMessages(activeChat.messages, messageSearch), [activeChat, messageSearch]);
+  const galleryImages = useMemo(() => getGalleryImages(chats), [chats]);
+  const filteredChats = useMemo(() => filterChats(chats, search), [chats, search]);
+  const displayChats = useMemo(
+    () =>
+      sortedChats.filter(
+        (chat) => matchesChatFilter(chat, chatFilter) && (!search.trim() || filteredChats.some((item) => item.id === chat.id))
+      ),
+    [sortedChats, chatFilter, search, filteredChats]
+  );
+  const unreadTotal = useMemo(() => chats.reduce((sum, chat) => sum + (chat.unread ?? 0), 0), [chats]);
+  const mentionQuery = draft.match(/(?:^|\s)@([^\s@]*)$/)?.[1] ?? null;
+  const mentionMatches =
+    mentionQuery === null
+      ? []
+      : [...new Set([profileName, ...friends.map((friend) => friend.name), ...(activeChat.members ?? [])])]
+          .filter((name) => name.toLocaleLowerCase("ru-RU").startsWith(mentionQuery.toLocaleLowerCase("ru-RU")))
+          .slice(0, 6);
+
   useEffect(() => {
     if (!supabase) {
       setProfileReady(true);
@@ -145,7 +141,10 @@ export default function App() {
     let alive = true;
     const syncProfile = async () => {
       const client = supabase;
-      if (!client) { setProfileReady(true); return; }
+      if (!client) {
+        setProfileReady(true);
+        return;
+      }
       const { data: { user }, error: userError } = await client.auth.getUser();
       if (!alive) return;
       if (userError || !user) {
@@ -154,12 +153,17 @@ export default function App() {
         return;
       }
       setAccountId(user.id);
-      const metadataName = typeof user.user_metadata?.full_name === "string"
-        ? user.user_metadata.full_name
-        : typeof user.user_metadata?.name === "string" ? user.user_metadata.name : "";
-      const metadataAvatar = typeof user.user_metadata?.avatar_url === "string" ? user.user_metadata.avatar_url : "";
+      const metadataName =
+        typeof user.user_metadata?.full_name === "string"
+          ? user.user_metadata.full_name
+          : typeof user.user_metadata?.name === "string"
+            ? user.user_metadata.name
+            : "";
       const { data: existingProfile, error: readError } = await client
-        .from("profiles").select("display_name, avatar, username").eq("id", user.id).maybeSingle();
+        .from("profiles")
+        .select("display_name, avatar, username")
+        .eq("id", user.id)
+        .maybeSingle();
       if (!alive) return;
       if (readError) {
         setAccountId(null);
@@ -177,12 +181,17 @@ export default function App() {
         const { error: insertError } = await client.from("profiles").insert({ id: user.id, display_name: displayName, avatar });
         if (!alive) return;
         if (insertError) setNotice("Не удалось создать профиль в Supabase");
-        else { setProfileName(displayName); setProfileAvatar(avatar); }
+        else {
+          setProfileName(displayName);
+          setProfileAvatar(avatar);
+        }
       }
       setProfileReady(true);
     };
     void syncProfile();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -210,8 +219,14 @@ export default function App() {
   async function saveUsername() {
     const client = supabase;
     const normalized = username.trim().toLowerCase();
-    if (!client || !accountId) { action("Вход через Google необходим для сохранения username"); return; }
-    if (!/^[a-z0-9_]{3,20}$/.test(normalized)) { action("Username: 3–20 символов, только латиница, цифры и _"); return; }
+    if (!client || !accountId) {
+      action("Вход через Google необходим для сохранения username");
+      return;
+    }
+    if (!/^[a-z0-9_]{3,20}$/.test(normalized)) {
+      action("Username: 3–20 символов, только латиница, цифры и _");
+      return;
+    }
     setUsernameSaving(true);
     const { error } = await client.from("profiles").update({ username: normalized }).eq("id", accountId);
     setUsernameSaving(false);
@@ -225,7 +240,9 @@ export default function App() {
     action("Username сохранён — по нему тебя можно будет найти");
   }
 
-  useEffect(() => { window.localStorage.setItem("nexus-drafts-v1", JSON.stringify(drafts)); }, [drafts]);
+  useEffect(() => {
+    window.localStorage.setItem("nexus-drafts-v1", JSON.stringify(drafts));
+  }, [drafts]);
 
   useEffect(() => {
     try {
@@ -250,46 +267,35 @@ export default function App() {
     let alive = true;
     setUserSearchLoading(true);
     const timer = window.setTimeout(async () => {
-      const { data, error } = await client
-        .from("profiles")
-        .select("id, username, display_name, avatar")
-        .ilike("username", `${query}%`)
-        .limit(8);
+      const { data, error } = await client.from("profiles").select("id, username, display_name, avatar").ilike("username", `${query}%`).limit(8);
       if (!alive) return;
       setUserSearchLoading(false);
       if (error) {
         setFoundUsers([]);
         return;
       }
-      setFoundUsers((data ?? []).filter((user) => user.id !== accountId && Boolean(user.username)) as { id: string; username: string; display_name: string; avatar: string }[]);
+      setFoundUsers((data ?? []).filter((user) => user.id !== accountId && Boolean(user.username)) as UserSearchResult[]);
     }, 250);
-    return () => { alive = false; window.clearTimeout(timer); };
+    return () => {
+      alive = false;
+      window.clearTimeout(timer);
+    };
   }, [search, accountId]);
-
-  function numericId(uuid: string): number {
-    return Number.parseInt(uuid.replace(/-/g, "").slice(0, 12), 16);
-  }
 
   useEffect(() => {
     const client = supabase;
-    if (!client || !accountId || !profileReady) {
-      if (!client || profileReady) setCloudChatsReady(true);
-      return;
-    }
+    if (!client || !accountId || !profileReady) return;
     let alive = true;
     const loadCloudChats = async () => {
-      const { data: memberships, error: membershipError } = await client
-        .from("chat_members").select("chat_id").eq("user_id", accountId);
+      const { data: memberships, error: membershipError } = await client.from("chat_members").select("chat_id").eq("user_id", accountId);
       if (!alive) return;
       if (membershipError) {
         setNotice("Не удалось загрузить облачные чаты");
-        setCloudChatsReady(true);
         return;
       }
       const chatIds = [...new Set((memberships ?? []).map((item) => item.chat_id as string))];
       if (chatIds.length === 0) {
         setChats([]);
-        setCloudChatsReady(true);
         return;
       }
       const [{ data: cloudChatRows, error: chatsError }, { data: profileRows }] = await Promise.all([
@@ -299,59 +305,93 @@ export default function App() {
       if (!alive) return;
       if (chatsError) {
         setNotice("Не удалось загрузить список чатов");
-        setCloudChatsReady(true);
         return;
       }
       const memberIds = [...new Set((profileRows ?? []).map((row) => row.user_id as string).filter((id) => id !== accountId))];
       const { data: memberProfiles } = memberIds.length
         ? await client.from("profiles").select("id, username, display_name, avatar").in("id", memberIds)
         : { data: [] as { id: string; username: string | null; display_name: string; avatar: string }[] };
-      const [{ data: messageRows, error: messagesError }] = await Promise.all([
-        client.from("messages").select("id, chat_id, sender_id, body, attachment, effect, poll, reply_to, created_at, edited_at, deleted_at").in("chat_id", chatIds).order("created_at", { ascending: true }).limit(1000),
-      ]);
+      const { data: messageRows, error: messagesError } = await client
+        .from("messages")
+        .select("id, chat_id, sender_id, body, attachment, effect, poll, reply_to, created_at, edited_at, deleted_at")
+        .in("chat_id", chatIds)
+        .order("created_at", { ascending: true })
+        .limit(1000);
       if (!alive) return;
-      if (messagesError) {
-        setNotice("Чаты загружены, но сообщения получить не удалось");
-      }
-      const mappedChats: Chat[] = await Promise.all((cloudChatRows ?? []).map(async (row) => {
-        const chatMembers = (profileRows ?? []).filter((member) => member.chat_id === row.id);
-        const otherId = chatMembers.find((member) => member.user_id !== accountId)?.user_id;
-        const other = (memberProfiles ?? []).find((profile) => profile.id === otherId);
-        const chatMessages: Message[] = await Promise.all((messageRows ?? []).filter((message) => message.chat_id === row.id).map(async (message) => {
-          const sender = message.sender_id === accountId ? profileName : (other?.display_name || "Пользователь");
-          const created = new Date(message.created_at);
-          const { data: reactionRows } = await client.from('message_reactions').select('emoji').eq('message_id', message.id);
-          const attachmentMeta = message.attachment as { name?: string; type?: string; size?: number; path?: string } | null;
-          let attachment: Message["attachment"];
-          if (attachmentMeta) {
-            let data = "";
-            if (attachmentMeta.path) { const { data: signed } = await client.storage.from("chat-media").createSignedUrl(attachmentMeta.path, 3600); data = signed?.signedUrl || ""; }
-            attachment = { name: attachmentMeta.name || "Вложение", type: attachmentMeta.type || "application/octet-stream", size: attachmentMeta.size || 0, data, ...(attachmentMeta.path ? { path: attachmentMeta.path } : {}) };
-          }
+      if (messagesError) setNotice("Чаты загружены, но сообщения получить не удалось");
+
+      const mappedChats: Chat[] = await Promise.all(
+        (cloudChatRows ?? []).map(async (row) => {
+          const chatMembers = (profileRows ?? []).filter((member) => member.chat_id === row.id);
+          const otherId = chatMembers.find((member) => member.user_id !== accountId)?.user_id;
+          const other = (memberProfiles ?? []).find((profile) => profile.id === otherId);
+          const chatMessages: Message[] = await Promise.all(
+            (messageRows ?? [])
+              .filter((message) => message.chat_id === row.id)
+              .map(async (message) => {
+                const sender = message.sender_id === accountId ? profileName : other?.display_name || "Пользователь";
+                const created = new Date(message.created_at);
+                const { data: reactionRows } = await client.from("message_reactions").select("emoji").eq("message_id", message.id);
+                const attachmentMeta = message.attachment as { name?: string; type?: string; size?: number; path?: string } | null;
+                let attachment: Message["attachment"];
+                if (attachmentMeta) {
+                  let data = "";
+                  if (attachmentMeta.path) {
+                    const { data: signed } = await client.storage.from("chat-media").createSignedUrl(attachmentMeta.path, 3600);
+                    data = signed?.signedUrl || "";
+                  }
+                  attachment = {
+                    name: attachmentMeta.name || "Вложение",
+                    type: attachmentMeta.type || "application/octet-stream",
+                    size: attachmentMeta.size || 0,
+                    data,
+                    ...(attachmentMeta.path ? { path: attachmentMeta.path } : {}),
+                  };
+                }
+                return {
+                  id: numericId(message.id),
+                  remoteId: message.id,
+                  author: sender,
+                  text: message.deleted_at ? "Сообщение удалено" : message.body,
+                  time: clockTime(created),
+                  mine: message.sender_id === accountId,
+                  createdAt: created.getTime(),
+                  edited: Boolean(message.edited_at),
+                  ...(message.effect ? { effect: message.effect } : {}),
+                  ...(message.poll ? { poll: message.poll as Message["poll"] } : {}),
+                  ...(attachment ? { attachment } : {}),
+                  reactions: (reactionRows ?? []).map((reaction) => reaction.emoji),
+                };
+              })
+          );
+          const last = chatMessages[chatMessages.length - 1];
           return {
-            id: numericId(message.id), remoteId: message.id, author: sender,
-            text: message.deleted_at ? "Сообщение удалено" : message.body,
-            time: new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(created),
-            mine: message.sender_id === accountId, createdAt: created.getTime(), edited: Boolean(message.edited_at),
-            ...(message.effect ? { effect: message.effect } : {}), ...(message.poll ? { poll: message.poll as Message["poll"] } : {}), ...(attachment ? { attachment } : {}), reactions: (reactionRows ?? []).map((reaction) => reaction.emoji),
+            id: numericId(row.id),
+            remoteId: row.id,
+            name: row.is_group ? row.title : other?.display_name || row.title,
+            avatar: row.is_group ? "👥" : other?.avatar || other?.display_name?.slice(0, 1) || "N",
+            color: row.is_group ? "group" : "blue",
+            preview: last?.text || "Начни общение",
+            time: last?.time || "",
+            messages: chatMessages,
+            group: row.is_group,
+            inviteCode: row.invite_code || undefined,
+            members: chatMembers.map(
+              (member) =>
+                member.user_id === accountId
+                  ? profileName
+                  : (memberProfiles ?? []).find((profile) => profile.id === member.user_id)?.display_name || "Пользователь"
+            ),
           };
-        }));
-        const last = chatMessages[chatMessages.length - 1];
-        return {
-          id: numericId(row.id), remoteId: row.id,
-          name: row.is_group ? row.title : (other?.display_name || row.title),
-          avatar: row.is_group ? "👥" : (other?.avatar || other?.display_name?.slice(0, 1) || "N"),
-          color: row.is_group ? "group" : "blue", preview: last?.text || "Начни общение",
-          time: last?.time || "", messages: chatMessages, group: row.is_group, inviteCode: row.invite_code || undefined,
-          members: chatMembers.map((member) => member.user_id === accountId ? profileName : ((memberProfiles ?? []).find((profile) => profile.id === member.user_id)?.display_name || "Пользователь")),
-        };
-      }));
+        })
+      );
       setChats(mappedChats);
       setActiveId(mappedChats[0]?.id ?? 0);
-      setCloudChatsReady(true);
     };
     void loadCloudChats();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [accountId, profileReady, profileName]);
 
   useEffect(() => {
@@ -373,45 +413,77 @@ export default function App() {
       window.location.reload();
     };
     void join();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [accountId]);
+
+  const activeRemoteId = chats.find((chat) => chat.id === activeId)?.remoteId;
 
   useEffect(() => {
     const client = supabase;
-    const active = chats.find((chat) => chat.id === activeId);
-    if (!client || !accountId || !active?.remoteId) return;
-    const channel = client.channel(`nexus-messages-${active.remoteId}`)
-      .on("postgres_changes", {
-        event: "*", schema: "public", table: "messages", filter: `chat_id=eq.${active.remoteId}`,
-      }, async (payload) => {
-        const row = payload.new as { id: string; chat_id: string; sender_id: string; body: string; poll?: Message["poll"] | null; attachment?: { name?: string; type?: string; size?: number; path?: string } | null; effect?: Message['effect']; created_at: string; edited_at?: string | null; deleted_at?: string | null };
+    if (!client || !accountId || !activeRemoteId) return;
+    const channel = client
+      .channel(`nexus-messages-${activeRemoteId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages", filter: `chat_id=eq.${activeRemoteId}` }, async (payload) => {
+        const row = payload.new as ChatMessageRow;
         if (!row?.id) return;
-        let attachment: Message['attachment'];
-        if (row.attachment) { let data = ''; if (row.attachment.path) { const signed = await client.storage.from('chat-media').createSignedUrl(row.attachment.path, 3600); data = signed.data?.signedUrl || ''; } attachment = { name: row.attachment.name || 'Вложение', type: row.attachment.type || 'application/octet-stream', size: row.attachment.size || 0, path: row.attachment.path, data }; }
-        setChats((current) => current.map((chat) => {
-          if (chat.remoteId !== row.chat_id) return chat;
+        let attachment: Message["attachment"];
+        if (row.attachment) {
+          let data = "";
+          if (row.attachment.path) {
+            const signed = await client.storage.from("chat-media").createSignedUrl(row.attachment.path, 3600);
+            data = signed.data?.signedUrl || "";
+          }
+          attachment = {
+            name: row.attachment.name || "Вложение",
+            type: row.attachment.type || "application/octet-stream",
+            size: row.attachment.size || 0,
+            path: row.attachment.path,
+            data,
+          };
+        }
+        setChats((current) => {
+          const chat = current.find((item) => item.remoteId === row.chat_id);
+          if (!chat) return current;
           const existing = chat.messages.find((message) => message.remoteId === row.id);
           if (existing) {
-            if (row.poll) return { ...chat, messages: chat.messages.map((message) => message.remoteId === row.id ? { ...message, poll: row.poll as Message["poll"] } : message) };
-            return chat;
+            if (!row.poll) return current;
+            return mapMessagesByRemoteId(current, row.id, (message) => ({ ...message, poll: row.poll as Message["poll"] }));
           }
-          if (payload.eventType !== "INSERT" || row.sender_id === accountId) return chat;
+          if (payload.eventType !== "INSERT" || row.sender_id === accountId) return current;
           const created = new Date(row.created_at);
-          const message: Message = { id: numericId(row.id), remoteId: row.id, author: chat.name, text: row.deleted_at ? 'Сообщение удалено' : row.body, time: new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(created), mine: false, createdAt: created.getTime(), edited: Boolean(row.edited_at), ...(row.effect ? { effect: row.effect } : {}), ...(row.poll ? { poll: row.poll as Message["poll"] } : {}), ...(attachment ? { attachment } : {}) };
-          return { ...chat, preview: row.poll ? '📊 ' + row.body : attachment ? '📎 ' + row.body : message.text, time: message.time, messages: [...chat.messages, message] };
-        }));
+          const message: Message = {
+            id: numericId(row.id),
+            remoteId: row.id,
+            author: chat.name,
+            text: row.deleted_at ? "Сообщение удалено" : row.body,
+            time: clockTime(created),
+            mine: false,
+            createdAt: created.getTime(),
+            edited: Boolean(row.edited_at),
+            ...(row.effect ? { effect: row.effect } : {}),
+            ...(row.poll ? { poll: row.poll as Message["poll"] } : {}),
+            ...(attachment ? { attachment } : {}),
+          };
+          const preview = row.poll ? "📊 " + row.body : attachment ? "📎 " + row.body : message.text;
+          return appendMessage(current, chat.id, message, preview, message.time);
+        });
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'message_reactions' }, async (payload) => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "message_reactions" }, async (payload) => {
         const row = (payload.new && Object.keys(payload.new).length ? payload.new : payload.old) as { message_id?: string };
         if (!row.message_id) return;
-        const { data: reactions } = await client.from('message_reactions').select('emoji').eq('message_id', row.message_id);
-        setChats((current) => current.map((chat) => chat.remoteId !== active.remoteId ? chat : ({ ...chat, messages: chat.messages.map((message) => message.remoteId !== row.message_id ? message : ({ ...message, reactions: (reactions ?? []).map((item) => item.emoji) })) })));
+        const { data: reactions } = await client.from("message_reactions").select("emoji").eq("message_id", row.message_id);
+        const emojis = (reactions ?? []).map((item) => item.emoji);
+        setChats((current) => mapMessagesByRemoteId(current, row.message_id!, (message) => ({ ...message, reactions: emojis })));
       })
       .subscribe();
-    return () => { void client.removeChannel(channel); };
-  }, [accountId, activeId, chats]);
+    return () => {
+      void client.removeChannel(channel);
+    };
+  }, [accountId, activeRemoteId]);
 
-  async function openDirectChat(user: { id: string; username: string; display_name: string; avatar: string }) {
+  async function openDirectChat(user: UserSearchResult) {
     const client = supabase;
     if (!client || !accountId) {
       action("Войди в аккаунт, чтобы начать переписку");
@@ -434,10 +506,17 @@ export default function App() {
     const remoteId = data as string;
     const localId = numericId(remoteId);
     const created: Chat = {
-      id: localId, remoteId, name: user.display_name, avatar: user.avatar || user.display_name.slice(0, 1).toUpperCase(),
-      color: "blue", preview: "Диалог создан — напиши первое сообщение", time: "", messages: [], members: [profileName, user.display_name],
+      id: localId,
+      remoteId,
+      name: user.display_name,
+      avatar: user.avatar || user.display_name.slice(0, 1).toUpperCase(),
+      color: "blue",
+      preview: "Диалог создан — напиши первое сообщение",
+      time: "",
+      messages: [],
+      members: [profileName, user.display_name],
     };
-    setChats((current) => current.some((chat) => chat.remoteId === remoteId) ? current : [created, ...current]);
+    setChats((current) => (current.some((chat) => chat.remoteId === remoteId) ? current : [created, ...current]));
     setActiveId(localId);
     setSearch("");
     setDraft("");
@@ -445,47 +524,74 @@ export default function App() {
     action(`Диалог с @${user.username} создан`);
   }
 
-  const filteredChats = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return chats;
-    return chats.filter((chat) =>
-      chat.name.toLowerCase().includes(query) ||
-      chat.preview.toLowerCase().includes(query) ||
-      chat.messages.some((message) => message.text.toLowerCase().includes(query))
-    );
-  }, [chats, search]);
-
-  function clockTime() {
-    return new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(new Date());
-  }
-
-  async function handleAttachment(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]; event.target.value = ''; if (!file) return;
-    const chat = chats.find((item) => item.id === activeId); const client = supabase;
-    if (!client || !accountId || !chat?.remoteId) { action('Открой облачный диалог, чтобы отправить файл'); return; }
-    if (file.size > 50 * 1024 * 1024) { action('Максимальный размер файла — 50 МБ'); return; }
-    if (!file.type.startsWith('image/') && !file.type.startsWith('video/') && !file.type.startsWith('audio/') && !['application/pdf','text/plain','application/zip','text/csv'].includes(file.type)) { action('Этот формат файла пока не поддерживается'); return; }
-    action('Загружаю файл…');
-    const path = chat.remoteId + '/' + accountId + '/' + crypto.randomUUID() + '-' + file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const uploaded = await client.storage.from('chat-media').upload(path, file, { contentType: file.type || 'application/octet-stream' });
-    if (uploaded.error) { action('Не удалось загрузить файл. Выполни миграцию online_media в Supabase.'); return; }
-    const signed = await client.storage.from('chat-media').createSignedUrl(path, 3600);
-    if (signed.error || !signed.data?.signedUrl) { action('Не удалось получить ссылку на файл'); return; }
-    const meta = { name: file.name, type: file.type || 'application/octet-stream', size: file.size, path: path };
-    const inserted = await client.from('messages').insert({ chat_id: chat.remoteId, sender_id: accountId, body: file.name, attachment: meta }).select('id, created_at').single();
-    if (inserted.error || !inserted.data) { await client.storage.from('chat-media').remove([path]); action('Не удалось отправить вложение'); return; }
-    const row = inserted.data; const created = new Date(row.created_at);
-    const message: Message = { id: numericId(row.id), remoteId: row.id, author: profileName, text: file.name, time: new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(created), mine: true, createdAt: created.getTime(), attachment: { ...meta, data: signed.data.signedUrl } };
-    setChats((current) => current.map((item) => item.id !== activeId ? item : ({ ...item, preview: '📎 ' + file.name, time: message.time, messages: [...item.messages, message] })));
-    action('Вложение отправлено');
+  async function handleAttachment(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const chat = chats.find((item) => item.id === activeId);
+    const client = supabase;
+    if (!client || !accountId || !chat?.remoteId) {
+      action("Открой облачный диалог, чтобы отправить файл");
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      action("Максимальный размер файла — 50 МБ");
+      return;
+    }
+    if (
+      !file.type.startsWith("image/") &&
+      !file.type.startsWith("video/") &&
+      !file.type.startsWith("audio/") &&
+      !["application/pdf", "text/plain", "application/zip", "text/csv"].includes(file.type)
+    ) {
+      action("Этот формат файла пока не поддерживается");
+      return;
+    }
+    action("Загружаю файл…");
+    const path = chat.remoteId + "/" + accountId + "/" + crypto.randomUUID() + "-" + file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const uploaded = await client.storage.from("chat-media").upload(path, file, { contentType: file.type || "application/octet-stream" });
+    if (uploaded.error) {
+      action("Не удалось загрузить файл. Выполни миграцию online_media в Supabase.");
+      return;
+    }
+    const signed = await client.storage.from("chat-media").createSignedUrl(path, 3600);
+    if (signed.error || !signed.data?.signedUrl) {
+      action("Не удалось получить ссылку на файл");
+      return;
+    }
+    const meta = { name: file.name, type: file.type || "application/octet-stream", size: file.size, path };
+    const inserted = await client.from("messages").insert({ chat_id: chat.remoteId, sender_id: accountId, body: file.name, attachment: meta }).select("id, created_at").single();
+    if (inserted.error || !inserted.data) {
+      await client.storage.from("chat-media").remove([path]);
+      action("Не удалось отправить вложение");
+      return;
+    }
+    const row = inserted.data;
+    const created = new Date(row.created_at);
+    const message: Message = {
+      id: numericId(row.id),
+      remoteId: row.id,
+      author: profileName,
+      text: file.name,
+      time: clockTime(created),
+      mine: true,
+      createdAt: created.getTime(),
+      attachment: { ...meta, data: signed.data.signedUrl },
+    };
+    setChats((current) => appendMessage(current, activeId, message, "📎 " + file.name, message.time));
+    action("Вложение отправлено");
   }
 
   async function createChat(event: FormEvent) {
     event.preventDefault();
     const name = newChatName.trim();
     if (!name) return;
-    if (newChatIsGroup) {
-      if (!supabase || !accountId) { action("Войди в аккаунт, чтобы создать облачную группу"); return; }
+    const wantsGroup = isDemoMode ? newChatIsGroup : true;
+    if (wantsGroup) {
+      if (!supabase || !accountId) {
+        action("Войди в аккаунт, чтобы создать облачную группу");
+        return;
+      }
       const { data, error } = await supabase.rpc("create_group_chat", { group_title: name });
       const createdRow = Array.isArray(data) ? data[0] : data;
       if (error || !createdRow?.chat_id) {
@@ -493,21 +599,44 @@ export default function App() {
         return;
       }
       const created: Chat = {
-        id: numericId(createdRow.chat_id), remoteId: createdRow.chat_id, name,
-        avatar: "👥", color: "group", preview: "Группа создана", time: clockTime(),
-        messages: [], group: true, members: [profileName], inviteCode: createdRow.invite_code,
+        id: numericId(createdRow.chat_id),
+        remoteId: createdRow.chat_id,
+        name,
+        avatar: "👥",
+        color: "group",
+        preview: "Группа создана",
+        time: clockTime(),
+        messages: [],
+        group: true,
+        members: [profileName],
+        inviteCode: createdRow.invite_code,
       };
       setChats((current) => [created, ...current]);
-      setActiveId(created.id); setDraft(""); setNewChatName(""); setNewChatIsGroup(false);
-      setNewChatOpen(false); setActiveNav("Чаты");
+      setActiveId(created.id);
+      setDraft("");
+      setNewChatName("");
+      setNewChatOpen(false);
+      setActiveNav("Чаты");
       action("Облачная группа создана");
       return;
     }
     const existing = chats.find((chat) => chat.name.toLocaleLowerCase("ru-RU") === name.toLocaleLowerCase("ru-RU"));
-    if (existing) { setActiveId(existing.id); setNewChatOpen(false); setNewChatName(""); action("Этот чат уже существует"); return; }
+    if (existing) {
+      setActiveId(existing.id);
+      setNewChatOpen(false);
+      setNewChatName("");
+      action("Этот чат уже существует");
+      return;
+    }
     const id = Date.now();
     const created: Chat = { id, name, avatar: name.slice(0, 1).toUpperCase(), color: "blue", preview: "Новый чат", time: clockTime(), messages: [] };
-    setChats((current) => [created, ...current]); setActiveId(id); setDraft(""); setNewChatName(""); setNewChatIsGroup(false); setNewChatOpen(false); setActiveNav("Чаты"); action(`Чат «${name}» создан локально`);
+    setChats((current) => [created, ...current]);
+    setActiveId(id);
+    setDraft("");
+    setNewChatName("");
+    setNewChatOpen(false);
+    setActiveNav("Чаты");
+    action(`Чат «${name}» создан локально`);
   }
 
   function chooseMention(name: string) {
@@ -517,27 +646,51 @@ export default function App() {
 
   async function createPoll(event: FormEvent) {
     event.preventDefault();
-    const question = pollQuestion.trim(); const options = pollOptions.map((text) => text.trim()).filter(Boolean);
-    if (!question || options.length < 2) { action("Для опроса нужны вопрос и минимум два варианта"); return; }
+    const question = pollQuestion.trim();
+    const options = pollOptions.map((text) => text.trim()).filter(Boolean);
+    if (!question || options.length < 2) {
+      action("Для опроса нужны вопрос и минимум два варианта");
+      return;
+    }
     const targetChat = chats.find((chat) => chat.id === activeId);
     const client = supabase;
     const createdAt = Date.now();
-    const poll: NonNullable<Message["poll"]> = { question, options: options.map((text, index) => ({ id: `${createdAt}-${index}`, text, votes: [] })) };
+    const poll: NonNullable<Message["poll"]> = {
+      question,
+      options: options.map((text, index) => ({ id: `${createdAt}-${index}`, text, votes: [] })),
+    };
     let remoteId: string | undefined;
     if (targetChat?.remoteId) {
-      if (!client || !accountId) { action("Войди в аккаунт, чтобы опубликовать опрос"); return; }
-      const { data, error } = await client.from("messages").insert({
-        chat_id: targetChat.remoteId, sender_id: accountId, body: question, poll,
-      }).select("id, created_at").single();
-      if (error || !data) { action("Опрос не сохранён. Проверь, что выполнил SQL-миграцию persistent_polls в Supabase."); return; }
+      if (!client || !accountId) {
+        action("Войди в аккаунт, чтобы опубликовать опрос");
+        return;
+      }
+      const { data, error } = await client.from("messages").insert({ chat_id: targetChat.remoteId, sender_id: accountId, body: question, poll }).select("id, created_at").single();
+      if (error || !data) {
+        action("Опрос не сохранён. Проверь, что выполнил SQL-миграцию persistent_polls в Supabase.");
+        return;
+      }
       remoteId = data.id;
     } else if (client && accountId) {
-      action("Этот чат локальный. Создай облачный чат, чтобы опрос синхронизировался."); return;
+      action("Этот чат локальный. Создай облачный чат, чтобы опрос синхронизировался.");
+      return;
     }
     const time = clockTime();
-    const message: Message = { id: remoteId ? numericId(remoteId) : createdAt, ...(remoteId ? { remoteId } : {}), author: profileName, text: question, time, mine: true, createdAt, poll };
-    setChats((current) => current.map((chat) => chat.id === activeId ? { ...chat, preview: `📊 ${question}`, time, messages: [...chat.messages, message] } : chat));
-    setPollOpen(false); setPollQuestion(""); setPollOptions(["", ""]); action("Опрос создан");
+    const message: Message = {
+      id: remoteId ? numericId(remoteId) : createdAt,
+      ...(remoteId ? { remoteId } : {}),
+      author: profileName,
+      text: question,
+      time,
+      mine: true,
+      createdAt,
+      poll,
+    };
+    setChats((current) => appendMessage(current, activeId, message, `📊 ${question}`, time));
+    setPollOpen(false);
+    setPollQuestion("");
+    setPollOptions(["", ""]);
+    action("Опрос создан");
   }
 
   async function votePoll(messageId: number, optionId: string) {
@@ -545,43 +698,99 @@ export default function App() {
     const message = chat?.messages.find((item) => item.id === messageId);
     if (!message?.poll) return;
     if (chat?.remoteId && message.remoteId) {
-      if (!supabase || !accountId) { action("Войди в аккаунт, чтобы голосовать"); return; }
+      if (!supabase || !accountId) {
+        action("Войди в аккаунт, чтобы голосовать");
+        return;
+      }
       const { data, error } = await supabase.rpc("vote_on_poll", { message_id_input: message.remoteId, option_id_input: optionId });
-      if (error || !data) { action("Не удалось сохранить голос. Проверь SQL-миграцию persistent_polls."); return; }
+      if (error || !data) {
+        action("Не удалось сохранить голос. Проверь SQL-миграцию persistent_polls.");
+        return;
+      }
       const poll = data as NonNullable<Message["poll"]>;
-      setChats((current) => current.map((item) => item.id !== activeId ? item : ({ ...item, messages: item.messages.map((entry) => entry.id === messageId ? { ...entry, poll } : entry) })));
+      setChats((current) => mapMessages(current, activeId, (entry) => (entry.id === messageId ? { ...entry, poll } : entry)));
       return;
     }
-    setChats((current) => current.map((item) => item.id !== activeId ? item : ({ ...item, messages: item.messages.map((entry) => {
-      if (entry.id !== messageId || !entry.poll) return entry;
-      const selected = entry.poll.options.find((option) => option.votes.includes(profileName))?.id;
-      return { ...entry, poll: { ...entry.poll, options: entry.poll.options.map((option) => ({ ...option, votes: option.id === selected ? option.votes.filter((vote) => vote !== profileName) : option.id === optionId ? [...option.votes.filter((vote) => vote !== profileName), profileName] : option.votes.filter((vote) => vote !== profileName) })) } };
-    }) })));
+    setChats((current) =>
+      mapMessages(current, activeId, (entry) =>
+        entry.id !== messageId || !entry.poll ? entry : { ...entry, poll: toggleLocalVote(entry.poll, optionId, profileName) }
+      )
+    );
   }
 
   async function startVoiceRecording() {
-    if (recording) { mediaRecorderRef.current?.stop(); return; }
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") { action("Запись аудио не поддерживается этим браузером"); return; }
+    if (recording) {
+      mediaRecorderRef.current?.stop();
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      action("Запись аудио не поддерживается этим браузером");
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream); mediaRecorderRef.current = recorder; recordingChunksRef.current = [];
-      recorder.ondataavailable = (event) => { if (event.data.size) recordingChunksRef.current.push(event.data); };
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      recordingChunksRef.current = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data.size) recordingChunksRef.current.push(event.data);
+      };
       recordingStartedRef.current = Date.now();
       recorder.onstop = () => {
-        stream.getTracks().forEach((track) => track.stop()); setRecording(false);
+        stream.getTracks().forEach((track) => track.stop());
+        setRecording(false);
         const blob = new Blob(recordingChunksRef.current, { type: recorder.mimeType || "audio/webm" });
-        if (!blob.size) { action("Запись получилась пустой"); return; }
-        if (blob.size > 1_500_000) { action("Аудио больше 1,5 МБ. Попробуй записать короче"); return; }
+        if (!blob.size) {
+          action("Запись получилась пустой");
+          return;
+        }
+        if (blob.size > 1_500_000) {
+          action("Аудио больше 1,5 МБ. Попробуй записать короче");
+          return;
+        }
         const reader = new FileReader();
-        reader.onload = () => { const data = typeof reader.result === "string" ? reader.result : ""; if (!data) return; const time = clockTime(); const createdAt = Date.now(); const duration = Math.max(1, Math.round((Date.now() - recordingStartedRef.current) / 1000)); const message: Message = { id: createdAt, author: profileName, text: `Голосовое сообщение · ${duration} сек.`, time, mine: true, createdAt, attachment: { name: `voice-${createdAt}.webm`, type: blob.type || "audio/webm", data, size: blob.size } }; setChats((current) => current.map((chat) => chat.id === activeId ? { ...chat, preview: "🎤 Голосовое сообщение", time, messages: [...chat.messages, message] } : chat)); setRecordingSeconds(0); action("Голосовое сообщение добавлено в чат"); }; reader.readAsDataURL(blob);
+        reader.onload = () => {
+          const data = typeof reader.result === "string" ? reader.result : "";
+          if (!data) return;
+          const time = clockTime();
+          const createdAt = Date.now();
+          const duration = Math.max(1, Math.round((Date.now() - recordingStartedRef.current) / 1000));
+          const message: Message = {
+            id: createdAt,
+            author: profileName,
+            text: `Голосовое сообщение · ${duration} сек.`,
+            time,
+            mine: true,
+            createdAt,
+            attachment: { name: `voice-${createdAt}.webm`, type: blob.type || "audio/webm", data, size: blob.size },
+          };
+          setChats((current) => appendMessage(current, activeId, message, "🎤 Голосовое сообщение", time));
+          setRecordingSeconds(0);
+          action("Голосовое сообщение добавлено в чат");
+        };
+        reader.readAsDataURL(blob);
       };
-      recorder.start(); setRecording(true); setRecordingSeconds(0);
-      const startedAt = Date.now(); const tick = window.setInterval(() => { if (mediaRecorderRef.current?.state !== "recording") { window.clearInterval(tick); return; } setRecordingSeconds(Math.floor((Date.now() - startedAt) / 1000)); }, 500);
-    } catch { action("Нет доступа к микрофону. Разреши запись аудио в браузере"); }
+      recorder.start();
+      setRecording(true);
+      setRecordingSeconds(0);
+      const startedAt = Date.now();
+      const tick = window.setInterval(() => {
+        if (mediaRecorderRef.current?.state !== "recording") {
+          window.clearInterval(tick);
+          return;
+        }
+        setRecordingSeconds(Math.floor((Date.now() - startedAt) / 1000));
+      }, 500);
+    } catch {
+      action("Нет доступа к микрофону. Разреши запись аудио в браузере");
+    }
   }
 
   async function createInviteLink() {
-    if (!activeChat.group) { action("Приглашения доступны для групповых чатов"); return; }
+    if (!activeChat.group) {
+      action("Приглашения доступны для групповых чатов");
+      return;
+    }
     if (!activeChat.remoteId || !activeChat.inviteCode) {
       action("Для этой группы нет облачной ссылки. Создай облачную группу заново.");
       return;
@@ -603,15 +812,27 @@ export default function App() {
       const editingChat = chats.find((chat) => chat.id === activeId);
       const editingMessage = editingChat?.messages.find((message) => message.id === editingMessageId);
       if (editingChat?.remoteId && editingMessage?.remoteId) {
-        if (!supabase) { action('Нет подключения к Supabase'); return; }
-        const { error } = await supabase.from('messages').update({ body: text, edited_at: new Date().toISOString() }).eq('id', editingMessage.remoteId).eq('sender_id', accountId);
-        if (error) { action('Не удалось изменить сообщение в облаке'); return; }
+        if (!supabase) {
+          action("Нет подключения к Supabase");
+          return;
+        }
+        const { error } = await supabase
+          .from("messages")
+          .update({ body: text, edited_at: new Date().toISOString() })
+          .eq("id", editingMessage.remoteId)
+          .eq("sender_id", accountId);
+        if (error) {
+          action("Не удалось изменить сообщение в облаке");
+          return;
+        }
       }
-      setChats((current) => current.map((chat) => chat.id !== activeId ? chat : {
-        ...chat,
-        preview: chat.messages[chat.messages.length - 1]?.id === editingMessageId ? text : chat.preview,
-        messages: chat.messages.map((message) => message.id === editingMessageId ? { ...message, text, edited: true } : message),
-      }));
+      setChats((current) =>
+        updateChat(current, activeId, (chat) => ({
+          ...chat,
+          preview: chat.messages[chat.messages.length - 1]?.id === editingMessageId ? text : chat.preview,
+          messages: chat.messages.map((message) => (message.id === editingMessageId ? { ...message, text, edited: true } : message)),
+        }))
+      );
       setEditingMessageId(null);
       setEditDraft("");
       return;
@@ -625,10 +846,11 @@ export default function App() {
     const client = supabase;
     let remoteMessageId: string | undefined;
     if (targetChat?.remoteId) {
-      if (!client || !accountId) { action("Нужно войти в аккаунт, чтобы отправить сообщение"); return; }
-      const { data, error } = await client.from("messages").insert({
-        chat_id: targetChat.remoteId, sender_id: accountId, body: text,
-      }).select("id, created_at").single();
+      if (!client || !accountId) {
+        action("Нужно войти в аккаунт, чтобы отправить сообщение");
+        return;
+      }
+      const { data, error } = await client.from("messages").insert({ chat_id: targetChat.remoteId, sender_id: accountId, body: text }).select("id, created_at").single();
       if (error || !data) {
         action("Сообщение не отправлено. Проверь подключение и права Supabase.");
         return;
@@ -638,11 +860,17 @@ export default function App() {
       action("Этот чат локальный. Начни переписку, выбрав пользователя по @username.");
       return;
     }
-    const message: Message = { id: remoteMessageId ? numericId(remoteMessageId) : createdAt, ...(remoteMessageId ? { remoteId: remoteMessageId } : {}), author: profileName, text, time, mine: true, createdAt, ...(replyTo ? { replyTo } : {}) };
-    setChats((current) => current.map((chat) => chat.id === activeId
-      ? { ...chat, preview: text, time, messages: [...chat.messages, message] }
-      : chat
-    ));
+    const message: Message = {
+      id: remoteMessageId ? numericId(remoteMessageId) : createdAt,
+      ...(remoteMessageId ? { remoteId: remoteMessageId } : {}),
+      author: profileName,
+      text,
+      time,
+      mine: true,
+      createdAt,
+      ...(replyTo ? { replyTo } : {}),
+    };
+    setChats((current) => appendMessage(current, activeId, message));
     setDraft("");
     setDrafts((current) => ({ ...current, [activeId]: "" }));
     setReplyTarget(null);
@@ -654,13 +882,26 @@ export default function App() {
     setDraft("");
   }
 
-  async function applyMessageEffect(messageId: number, effect: NonNullable<Message["effect"]>) {
-    const chat = chats.find((item) => item.id === activeId); const message = chat?.messages.find((item) => item.id === messageId);
-    if (chat?.remoteId && message?.remoteId) { if (!supabase) return; const { error } = await supabase.from('messages').update({ effect: message.effect === effect ? null : effect }).eq('id', message.remoteId).eq('sender_id', accountId); if (error) { action('Не удалось сохранить эффект в облаке'); return; } }
-    setChats((current) => current.map((chat) => chat.id !== activeId ? chat : ({
-      ...chat,
-      messages: chat.messages.map((message) => message.id !== messageId ? message : ({ ...message, effect: message.effect === effect ? undefined : effect })),
-    })));
+  async function applyMessageEffect(messageId: number, effect: MessageEffect) {
+    const chat = chats.find((item) => item.id === activeId);
+    const message = chat?.messages.find((item) => item.id === messageId);
+    if (chat?.remoteId && message?.remoteId) {
+      if (!supabase) return;
+      const { error } = await supabase
+        .from("messages")
+        .update({ effect: message.effect === effect ? null : effect })
+        .eq("id", message.remoteId)
+        .eq("sender_id", accountId);
+      if (error) {
+        action("Не удалось сохранить эффект в облаке");
+        return;
+      }
+    }
+    setChats((current) =>
+      mapMessages(current, activeId, (entry) =>
+        entry.id !== messageId ? entry : { ...entry, effect: entry.effect === effect ? undefined : effect }
+      )
+    );
     setOpenMessageActionsId(null);
     action("Эффект сообщения обновлён");
   }
@@ -669,16 +910,35 @@ export default function App() {
     const chat = chats.find((item) => item.id === activeId);
     const message = chat?.messages.find((item) => item.id === messageId);
     const client = supabase;
-    if (!chat || !message || !chat.remoteId || !message.remoteId || !client || !accountId) { action('Реакции доступны в облачных сообщениях'); return; }
-    const { data: existing, error: readError } = await client.from('message_reactions').select('emoji').eq('message_id', message.remoteId).eq('user_id', accountId).eq('emoji', emoji).maybeSingle();
-    if (readError) { action('Не удалось проверить реакцию'); return; }
+    if (!chat || !message || !chat.remoteId || !message.remoteId || !client || !accountId) {
+      action("Реакции доступны в облачных сообщениях");
+      return;
+    }
+    const { data: existing, error: readError } = await client
+      .from("message_reactions")
+      .select("emoji")
+      .eq("message_id", message.remoteId)
+      .eq("user_id", accountId)
+      .eq("emoji", emoji)
+      .maybeSingle();
+    if (readError) {
+      action("Не удалось проверить реакцию");
+      return;
+    }
     const result = existing
-      ? await client.from('message_reactions').delete().eq('message_id', message.remoteId).eq('user_id', accountId).eq('emoji', emoji)
-      : await client.from('message_reactions').insert({ message_id: message.remoteId, user_id: accountId, emoji });
-    if (result.error) { action('Не удалось сохранить реакцию в облаке'); return; }
-    const { data: rows, error } = await client.from('message_reactions').select('emoji').eq('message_id', message.remoteId);
-    if (error) { action('Реакция сохранена, но список не обновился'); return; }
-    setChats((current) => current.map((item) => item.id !== activeId ? item : ({ ...item, messages: item.messages.map((m) => m.id !== messageId ? m : ({ ...m, reactions: (rows ?? []).map((row) => row.emoji) })) })));
+      ? await client.from("message_reactions").delete().eq("message_id", message.remoteId).eq("user_id", accountId).eq("emoji", emoji)
+      : await client.from("message_reactions").insert({ message_id: message.remoteId, user_id: accountId, emoji });
+    if (result.error) {
+      action("Не удалось сохранить реакцию в облаке");
+      return;
+    }
+    const { data: rows, error } = await client.from("message_reactions").select("emoji").eq("message_id", message.remoteId);
+    if (error) {
+      action("Реакция сохранена, но список не обновился");
+      return;
+    }
+    const emojis = (rows ?? []).map((row) => row.emoji);
+    setChats((current) => mapMessages(current, activeId, (entry) => (entry.id === messageId ? { ...entry, reactions: emojis } : entry)));
     setOpenMessageActionsId(null);
   }
 
@@ -686,8 +946,15 @@ export default function App() {
     setActiveGame(name);
     setGameNotice("");
     if (name === "Шахматы") setChessSolved(false);
-    if (name === "Uno") { setUnoHand(["🔴 3", "🔵 7", "🟡 2", "🟢 5", "🔴 9"]); setUnoTop("🔵 4"); }
-    if (name === "Балда") { setBaldaInput(""); setBaldaWords([]); setBaldaScore(0); }
+    if (name === "Uno") {
+      setUnoHand(["🔴 3", "🔵 7", "🟡 2", "🟢 5", "🔴 9"]);
+      setUnoTop("🔵 4");
+    }
+    if (name === "Балда") {
+      setBaldaInput("");
+      setBaldaWords([]);
+      setBaldaScore(0);
+    }
   }
 
   function playUnoCard(card: string) {
@@ -717,16 +984,30 @@ export default function App() {
   function submitBaldaWord(event: FormEvent) {
     event.preventDefault();
     const word = baldaInput.trim().toLocaleLowerCase("ru-RU").replace(/ё/g, "е");
-    if (word.length < 3 || !/^[а-я]+$/.test(word)) { setGameNotice("Введи русское слово минимум из 3 букв."); return; }
-    if (baldaWords.includes(word)) { setGameNotice("Это слово уже использовано."); return; }
+    if (word.length < 3 || !/^[а-я]+$/.test(word)) {
+      setGameNotice("Введи русское слово минимум из 3 букв.");
+      return;
+    }
+    if (baldaWords.includes(word)) {
+      setGameNotice("Это слово уже использовано.");
+      return;
+    }
     setBaldaWords((words) => [...words, word]);
     setBaldaScore((score) => score + word.length);
     setBaldaInput("");
     setGameNotice(`Принято: +${word.length} очков!`);
   }
 
-  function togglePinned(chatId: number) {
-    setChats((current) => current.map((chat) => chat.id === chatId ? { ...chat, pinned: !chat.pinned } : chat));
+  function selectChat(chat: Chat) {
+    setActiveId(chat.id);
+    setDraft(drafts[chat.id] ?? "");
+    setMessageSearch("");
+    setChats((current) => markRead(current, chat.id));
+  }
+
+  function toggleChatPin(chat: Chat) {
+    setChats((current) => togglePinned(current, chat.id));
+    action(chat.pinned ? "Чат откреплён" : "Чат закреплён");
   }
 
   async function deleteMessage(messageId: number) {
@@ -734,15 +1015,19 @@ export default function App() {
     const index = chat?.messages.findIndex((message) => message.id === messageId) ?? -1;
     const message = index >= 0 ? chat?.messages[index] : undefined;
     if (!chat || !message) return;
-    if (chat.remoteId && message.remoteId && supabase) { const { error } = await supabase.from('messages').update({ deleted_at: new Date().toISOString() }).eq('id', message.remoteId).eq('sender_id', accountId); if (error) { action('Не удалось удалить сообщение в облаке'); return; } }
+    if (chat.remoteId && message.remoteId && supabase) {
+      const { error } = await supabase
+        .from("messages")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", message.remoteId)
+        .eq("sender_id", accountId);
+      if (error) {
+        action("Не удалось удалить сообщение в облаке");
+        return;
+      }
+    }
     setDeletedMessage({ chatId: activeId, message, index });
-    setChats((current) => current.map((item) => {
-      if (item.id !== activeId) return item;
-      const wasLast = item.messages[item.messages.length - 1]?.id === messageId;
-      const messages = item.messages.filter((entry) => entry.id !== messageId);
-      const last = messages[messages.length - 1];
-      return { ...item, messages, preview: wasLast ? (last?.text ?? "Нет сообщений") : item.preview, time: wasLast ? (last?.time ?? "") : item.time };
-    }));
+    setChats((current) => removeMessage(current, activeId, messageId).chats);
     setOpenMessageActionsId(null);
     if (editingMessageId === messageId) {
       setEditingMessageId(null);
@@ -752,25 +1037,47 @@ export default function App() {
 
   function undoDelete() {
     if (!deletedMessage) return;
-    setChats((current) => current.map((chat) => {
-      if (chat.id !== deletedMessage.chatId) return chat;
-      const messages = [...chat.messages];
-      messages.splice(Math.min(deletedMessage.index, messages.length), 0, deletedMessage.message);
-      const last = messages[messages.length - 1];
-      return { ...chat, messages, preview: last?.text ?? "Нет сообщений", time: last?.time ?? "" };
-    }));
+    setChats((current) => restoreMessage(current, deletedMessage));
     setDeletedMessage(null);
   }
 
-  function dateLabel(timestamp: number) {
-    const date = new Date(timestamp);
-    const today = new Date();
-    const yesterday = new Date();
-    yesterday.setDate(today.getDate() - 1);
-    const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-    if (sameDay(date, today)) return "Сегодня";
-    if (sameDay(date, yesterday)) return "Вчера";
-    return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: date.getFullYear() !== today.getFullYear() ? "numeric" : undefined }).format(date);
+  function clearHistory() {
+    if (!activeChat.messages.length) {
+      action("История уже пуста");
+      return;
+    }
+    if (!window.confirm(`Удалить всю историю чата «${activeChat.name}» на этом устройстве?`)) return;
+    setChats((current) => updateChat(current, activeId, (chat) => ({ ...chat, messages: [], preview: "История очищена", time: "" })));
+    setDeletedMessage(null);
+    action("История чата очищена");
+  }
+
+  function changeDraft(value: string) {
+    if (editingMessageId !== null) {
+      setEditDraft(value);
+      return;
+    }
+    setDraft(value);
+    setDrafts((current) => ({ ...current, [activeId]: value }));
+    setMentionOpen(value.includes("@"));
+  }
+
+  function addEmoji() {
+    if (editingMessageId !== null) setEditDraft((value) => value + " 🙂");
+    else setDraft((value) => value + " 🙂");
+  }
+
+  function copyMessage(message: Message) {
+    navigator.clipboard
+      ?.writeText(message.text)
+      .then(() => action("Текст скопирован"))
+      .catch(() => action("Не удалось скопировать текст"));
+    setOpenMessageActionsId(null);
+  }
+
+  function replyToMessage(message: Message) {
+    setReplyTarget(message);
+    setOpenMessageActionsId(null);
   }
 
   function action(label: string) {
@@ -780,206 +1087,219 @@ export default function App() {
 
   return (
     <main className="app-shell">
-      <aside className="rail">
-        <button className="brand" onClick={() => setActiveNav("Чаты")} aria-label="Nexus — главная">
-          <span className="brand-mark">M</span><span className="brand-name">Nexus</span>
-        </button>
+      <Rail
+        activeNav={activeNav}
+        profileName={profileName}
+        profileAvatar={profileAvatar}
+        unreadTotal={unreadTotal}
+        onNavigate={(label) => {
+          setActiveNav(label);
+          if (label === "Звонки") action("Звонки подключим на следующем этапе");
+          if (label === "Видео") action("Видеозвонки подключим на следующем этапе");
+        }}
+        onOpenSettings={() => {
+          setActiveNav("Настройки");
+          setProfileOpen(true);
+        }}
+        onOpenGames={() => {
+          setActiveNav("Мини-игры");
+          openGame("Каталог");
+        }}
+        onOpenProfile={() => setProfileOpen(true)}
+      />
 
-        <nav className="main-nav">
-          <button className={`nav-link ${activeNav === "Чаты" ? "active" : ""}`} onClick={() => setActiveNav("Чаты")}>
-            <MessageCircle size={22}/><span>Чаты</span><b className="nav-count">3</b>
-          </button>
-          <button className={`nav-link ${activeNav === "Звонки" ? "active" : ""}`} onClick={() => { setActiveNav("Звонки"); action("Звонки подключим на следующем этапе"); }}>
-            <Phone size={22}/><span>Звонки</span>
-          </button>
-          <button className={`nav-link ${activeNav === "Видео" ? "active" : ""}`} onClick={() => { setActiveNav("Видео"); action("Видеозвонки подключим на следующем этапе"); }}>
-            <Video size={22}/><span>Видео</span>
-          </button>
-          <button className={`nav-link ${activeNav === "Мини-игры" ? "active" : ""}`} onClick={() => { setActiveNav("Мини-игры"); openGame("Каталог"); }}>
-            <Gamepad2 size={22}/><span>Мини-игры</span>
-          </button>
-          <div className="nav-divider"/>
-          <button className={`nav-link ${activeNav === "Настройки" ? "active" : ""}`} onClick={() => { setActiveNav("Настройки"); setProfileOpen(true); }}>
-            <Settings size={22}/><span>Настройки</span>
-          </button>
-        </nav>
+      <ChatListPanel
+        search={search}
+        onSearchChange={setSearch}
+        onNewChat={() => setNewChatOpen(true)}
+        userSearch={{ loading: userSearchLoading, items: foundUsers, openingUserId }}
+        onOpenDirectChat={(user) => void openDirectChat(user)}
+        filter={chatFilter}
+        onFilterChange={setChatFilter}
+        chats={displayChats}
+        hasVisibleChats={displayChats.length > 0}
+        activeId={activeId}
+        onSelectChat={selectChat}
+        onTogglePin={toggleChatPin}
+      />
 
-        <button className="self-profile" onClick={() => setProfileOpen(true)}>
-          <Avatar color="self">{profileAvatar}</Avatar>
-          <span className="self-copy"><strong>{profileName}</strong><small><i/>В сети</small></span>
-          <Settings size={18} className="self-settings"/>
-        </button>
-      </aside>
+      <ConversationPanel
+        chat={activeChat}
+        isDemoMode={isDemoMode}
+        accountId={accountId}
+        profileName={profileName}
+        searchOpen={messageSearchOpen}
+        searchValue={messageSearch}
+        onToggleSearch={() => setMessageSearchOpen((open) => !open)}
+        onSearchChange={setMessageSearch}
+        onCloseSearch={() => {
+          setMessageSearchOpen(false);
+          setMessageSearch("");
+        }}
+        onCall={() => action("Голосовые звонки подключим позже")}
+        onVideo={() => action("Видеозвонки подключим позже")}
+        onTogglePin={() => toggleChatPin(activeChat)}
+        onToggleProfile={() => setShowProfile((open) => !open)}
+        visibleMessages={visibleMessages}
+        actionsOpenId={openMessageActionsId}
+        onToggleActions={(messageId) => setOpenMessageActionsId((current) => (current === messageId ? null : messageId))}
+        onVote={(messageId, optionId) => void votePoll(messageId, optionId)}
+        onToggleReaction={(messageId, emoji) => void toggleReaction(messageId, emoji)}
+        onReply={replyToMessage}
+        onCopy={copyMessage}
+        onEffect={(messageId, effect) => void applyMessageEffect(messageId, effect)}
+        onEdit={(message) => {
+          startEditing(message);
+          setOpenMessageActionsId(null);
+        }}
+        onDelete={(messageId) => void deleteMessage(messageId)}
+        onGameInvite={() => action("Приглашение в игру скоро появится")}
+        endRef={messagesEndRef}
+        composer={{
+          draft,
+          editDraft,
+          editing: editingMessageId !== null,
+          replyTarget,
+          mentionOpen,
+          mentionMatches,
+          recording,
+          recordingSeconds,
+          fileInputRef,
+          onChangeText: changeDraft,
+          onEmoji: addEmoji,
+          onToggleVoice: () => void startVoiceRecording(),
+          onSubmit: sendMessage,
+          onCancelEdit: () => {
+            setEditingMessageId(null);
+            setEditDraft("");
+          },
+          onCancelReply: () => setReplyTarget(null),
+          onChooseMention: chooseMention,
+          onAttachment: (event) => void handleAttachment(event),
+          onOpenGallery: () => setGalleryOpen(true),
+          onOpenPoll: () => setPollOpen(true),
+        }}
+      />
 
-      <section className="chat-list-panel">
-        <div className="search-row">
-          <label className="search-box"><Search size={18}/><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Поиск чатов или @username..."/></label>
-          <button className="square-action" onClick={() => setNewChatOpen(true)} aria-label="Новый чат" title="Создать чат"><PencilLine size={20}/></button>
+      {showProfile && (
+        <RightPanel
+          profileName={profileName}
+          profileAvatar={profileAvatar}
+          chat={activeChat}
+          onClose={() => setShowProfile(false)}
+          onOpenProfile={() => setProfileOpen(true)}
+          onCreateInvite={() => void createInviteLink()}
+          onClearHistory={clearHistory}
+          onOpenGames={() => {
+            setActiveNav("Мини-игры");
+            openGame("Каталог");
+          }}
+          onOpenGame={openGame}
+        />
+      )}
+
+      {activeGame && (
+        <GameModal
+          activeGame={activeGame}
+          gameNotice={gameNotice}
+          chessSolved={chessSolved}
+          unoHand={unoHand}
+          unoTop={unoTop}
+          baldaInput={baldaInput}
+          baldaWords={baldaWords}
+          baldaScore={baldaScore}
+          onClose={() => setActiveGame(null)}
+          onOpenGame={openGame}
+          onPlayUno={playUnoCard}
+          onDrawUno={drawUnoCard}
+          onChessAnswer={(answer) => {
+            if (!answer) {
+              setChessSolved(false);
+              setGameNotice("");
+              return;
+            }
+            setChessSolved(true);
+            setGameNotice(answer === "Шах" ? "Верно! ♟️ Король под атакой." : "Не совсем. Правильный ответ — «Шах».");
+          }}
+          onBaldaInput={setBaldaInput}
+          onBaldaSubmit={submitBaldaWord}
+        />
+      )}
+
+      <NewChatModal
+        open={newChatOpen}
+        groupOnly={!isDemoMode}
+        name={newChatName}
+        isGroup={newChatIsGroup}
+        onNameChange={setNewChatName}
+        onIsGroupChange={setNewChatIsGroup}
+        onClose={() => setNewChatOpen(false)}
+        onSubmit={createChat}
+      />
+
+      <PollModal
+        open={pollOpen}
+        question={pollQuestion}
+        options={pollOptions}
+        onClose={() => setPollOpen(false)}
+        onSubmit={createPoll}
+        onQuestionChange={setPollQuestion}
+        onOptionChange={(index, value) => setPollOptions((current) => current.map((item, itemIndex) => (itemIndex === index ? value : item)))}
+        onAddOption={() => setPollOptions((current) => [...current, ""])}
+      />
+
+      <GalleryModal
+        open={galleryOpen}
+        images={galleryImages}
+        onClose={() => setGalleryOpen(false)}
+        onOpenImage={(image) => {
+          setActiveId(chats.find((chat) => chat.name === image.chatName)?.id ?? activeId);
+          setGalleryOpen(false);
+        }}
+      />
+
+      <ProfileModal
+        open={profileOpen}
+        name={profileName}
+        avatar={profileAvatar}
+        username={username}
+        usernameSaving={usernameSaving}
+        theme={theme}
+        onClose={() => setProfileOpen(false)}
+        onNameChange={setProfileName}
+        onAvatarChange={setProfileAvatar}
+        onUsernameChange={setUsername}
+        onSaveUsername={() => void saveUsername()}
+        onThemeChange={setTheme}
+        onDone={() => {
+          setProfileOpen(false);
+          action("Профиль и тема сохранены");
+        }}
+      />
+
+      {deletedMessage && (
+        <div className="toast undo-toast">
+          <span>Сообщение удалено</span>
+          <button className="undo-button" onClick={undoDelete}>
+            Отменить
+          </button>
+          <button onClick={() => setDeletedMessage(null)} aria-label="Закрыть">
+            <X size={15} />
+          </button>
         </div>
-        {search.trim().replace(/^@/, "").length >= 3 && <div className="user-search-results">
-          <div className="chat-filters"><span>Пользователи</span>{userSearchLoading && <small>Поиск...</small>}</div>
-          {foundUsers.map((user) => <button key={user.id} type="button" className="chat-row" onClick={() => void openDirectChat(user)}>
-            <Avatar color="blue">{user.avatar || user.display_name.slice(0, 1).toUpperCase()}</Avatar>
-            <span className="chat-row-copy"><strong>{user.display_name}</strong><small>@{user.username}</small></span>{openingUserId === user.id && <small>Открываю…</small>}
-          </button>)}
-          {!userSearchLoading && foundUsers.length === 0 && <div className="empty-search">Пользователи с таким username не найдены</div>}
-        </div>}
-        <div className="chat-filters">{([{id:"all",label:"Все"},{id:"unread",label:"Непрочитанные"},{id:"pinned",label:"Закреплённые"},{id:"groups",label:"Группы"}] as const).map((filter) => <button key={filter.id} className={chatFilter === filter.id ? "active" : ""} onClick={() => setChatFilter(filter.id)}>{filter.label}</button>)}</div>
-        <div className="chat-list">
-          {sortedChats.filter((chat) => (chatFilter === "all" || (chatFilter === "unread" && Boolean(chat.unread)) || (chatFilter === "pinned" && Boolean(chat.pinned)) || (chatFilter === "groups" && Boolean(chat.group))) && (!search.trim() || filteredChats.some((item) => item.id === chat.id))).map((chat) => (
-            <button key={chat.id} className={`chat-row ${chat.id === activeId ? "selected" : ""}`} onContextMenu={(event) => { event.preventDefault(); togglePinned(chat.id); action(chat.pinned ? "Чат откреплён" : "Чат закреплён"); }} onClick={() => { setActiveId(chat.id); setDraft(drafts[chat.id] ?? ""); setMessageSearch(""); setChats((current) => current.map((item) => item.id === chat.id ? { ...item, unread: 0 } : item)); }}>
-              <Avatar color={chat.color}>{chat.avatar}</Avatar>
-              <span className="chat-row-copy"><strong>{chat.pinned && <span className="pinned-mark">📌 </span>}{chat.name}</strong><small>{chat.preview}</small></span>
-              <span className="chat-meta"><small>{chat.time}</small>{chat.unread ? <b>{chat.unread}</b> : chat.id !== activeId ? <CheckCheck size={15}/> : null}</span>
-            </button>
-          ))}
-          {sortedChats.filter((chat) => (chatFilter === "all" || (chatFilter === "unread" && Boolean(chat.unread)) || (chatFilter === "pinned" && Boolean(chat.pinned)) || (chatFilter === "groups" && Boolean(chat.group))) && (!search.trim() || filteredChats.some((item) => item.id === chat.id))).length === 0 && <div className="empty-search">По этим фильтрам чатов нет</div>}
+      )}
+      {notice && (
+        <div className="toast">
+          <Shield size={17} />
+          {notice}
+          <button onClick={() => setNotice("")}>
+            <X size={15} />
+          </button>
         </div>
-      </section>
-
-      <section className="conversation-panel">
-        <header className="conversation-header">
-          <Avatar color={activeChat.color}>{activeChat.avatar}</Avatar>
-          <div className="conversation-title"><strong>{activeChat.name}</strong><small>{activeChat.id === 0 ? "Создай чат, чтобы начать" : activeChat.group ? `${activeChat.members?.length ?? 1} участника(ов)` : activeChat.remoteId ? "Облачный диалог" : "Локальный чат"}</small></div>
-          <div className="conversation-tools">
-            <button onClick={() => setMessageSearchOpen((open) => !open)} aria-label="Поиск по переписке" title="Поиск по переписке"><Search/></button>
-            <button onClick={() => action("Голосовые звонки подключим позже")} aria-label="Позвонить"><Phone/></button>
-            <button onClick={() => action("Видеозвонки подключим позже")} aria-label="Видеозвонок"><Video/></button>
-            <button onClick={() => { togglePinned(activeChat.id); action(activeChat.pinned ? "Чат откреплён" : "Чат закреплён"); }} aria-label={activeChat.pinned ? "Открепить чат" : "Закрепить чат"} title={activeChat.pinned ? "Открепить чат" : "Закрепить чат"}><Pin/></button><button onClick={() => setShowProfile(!showProfile)} aria-label="Показать профиль"><MoreVertical/></button>
-          </div>
-        </header>
-
-        {messageSearchOpen && <label className="message-search"><Search size={16}/><input autoFocus value={messageSearch} onChange={(event) => setMessageSearch(event.target.value)} placeholder="Найти сообщение в этом чате..."/><span>{visibleMessages.length}</span><button type="button" onClick={() => { setMessageSearchOpen(false); setMessageSearch(""); }} aria-label="Закрыть поиск"><X size={15}/></button></label>}
-        <div className="messages-area">
-          {activeChat.messages.length > 0 && !activeChat.messages.some((message) => message.createdAt) && <div className="date-divider"><span>История переписки</span></div>}
-          {visibleMessages.length === 0 && <div className="empty-search">{messageSearch.trim() ? "Сообщения не найдены" : "Пока нет сообщений. Напиши первым!"}</div>}
-          {visibleMessages.map((message, index) => (
-            <Fragment key={message.id}>
-              {message.createdAt && (index === 0 || !activeChat.messages[index - 1]?.createdAt || dateLabel(message.createdAt) !== dateLabel(activeChat.messages[index - 1].createdAt!)) && <div className="date-divider"><span>{dateLabel(message.createdAt)}</span></div>}
-              <div className={`message-line ${message.mine ? "mine" : ""}`}>
-                {!message.mine && <Avatar color={friends.find((f) => f.name === message.author)?.color ?? "blue"} small>{message.author.slice(0, 1)}</Avatar>}
-                <div className="message-content">
-                  {!message.mine && <strong className="message-author">{message.author}</strong>}
-                  <div className={`bubble ${message.mine ? "mine-bubble" : ""} ${message.effect ? `message-effect-${message.effect}` : ""}`}>
-                    {message.replyTo && <div className="reply-quote"><strong>{message.replyTo.author}</strong><span>{message.replyTo.text}</span></div>}
-                    {message.poll ? <div className="poll-card"><div className="poll-heading"><strong>📊 {message.poll.question}</strong><span>{message.poll.options.reduce((sum, option) => sum + option.votes.length, 0)} голосов</span></div>{message.poll.options.map((option) => { const total = message.poll!.options.reduce((sum, item) => sum + item.votes.length, 0); const chosen = option.votes.includes(accountId || profileName); const percent = total ? Math.round(option.votes.length / total * 100) : 0; return <button type="button" className={`poll-option ${chosen ? "chosen" : ""}`} key={option.id} onClick={() => votePoll(message.id, option.id)} aria-label={`${option.text}: ${option.votes.length} голосов, ${percent}%${chosen ? ", ваш выбор" : ""}`}><span className="poll-option-label"><span>{chosen && <b className="poll-check">✓ </b>}{option.text}</span><b className="poll-result">{option.votes.length} · {percent}%</b></span><span className="poll-track"><i style={{ width: `${percent}%` }}/></span></button>; })}<small>{message.poll.options.some((option) => option.votes.includes(accountId || profileName)) ? "Ваш голос учтён · нажмите другой вариант, чтобы изменить выбор" : "Нажмите на вариант, чтобы проголосовать"}</small></div> : message.attachment ? <div className="attachment-card">{message.attachment.type.startsWith("image/") ? <img className="attachment-image" src={message.attachment.data} alt={message.attachment.name}/> : message.attachment.type.startsWith("video/") ? <video className="attachment-video" controls playsInline src={message.attachment.data}/> : message.attachment.type.startsWith("audio/") ? <div className="voice-attachment"><Mic size={17}/><audio controls src={message.attachment.data}/><a href={message.attachment.data} download={message.attachment.name}>Скачать</a></div> : <a className="attachment-file" href={message.attachment.data} download={message.attachment.name}><Paperclip size={18}/><span><strong>{message.attachment.name}</strong><small>{Math.max(1, Math.round(message.attachment.size / 1024))} КБ · Скачать</small></span></a>}<span className="attachment-caption">{message.attachment.name}</span></div> : message.text.split(/(@[\p{L}\p{N}_]+)/gu).map((part, partIndex) => part.startsWith("@") ? <strong className="message-mention" key={partIndex}>{part}</strong> : part)}<span className="message-time">{message.edited ? "изменено · " : ""}{message.time}</span>{message.effect && <span className={`message-effect-mark effect-mark-${message.effect}`} aria-hidden="true">{({ sparkle: "✦", hearts: "♥", fireworks: "✧", glow: "✺" })[message.effect]}</span>}
-                  </div>
-                  {message.reactions && message.reactions.length > 0 && <div className="reaction-list">{message.reactions.map((emoji, reactionIndex) => <button key={emoji + reactionIndex} type="button" onClick={() => toggleReaction(message.id, emoji)}>{emoji}</button>)}</div>}
-                  <div className="message-action-wrap">
-                    <button type="button" className="message-menu-toggle" onClick={() => setOpenMessageActionsId(openMessageActionsId === message.id ? null : message.id)} aria-label="Действия с сообщением"><MoreVertical size={15}/></button>
-                    {openMessageActionsId === message.id && <div className="message-actions">
-                      <button type="button" onClick={() => { setReplyTarget(message); setOpenMessageActionsId(null); }}><MessageCircle size={13}/> Ответить</button>
-                      <button type="button" onClick={() => { navigator.clipboard?.writeText(message.text).then(() => action("Текст скопирован")).catch(() => action("Не удалось скопировать текст")); setOpenMessageActionsId(null); }}><Paperclip size={13}/> Копировать</button>
-                      <button type="button" onClick={() => toggleReaction(message.id, "❤️")}>❤️</button>
-                      <button type="button" onClick={() => toggleReaction(message.id, "👍")}>👍</button>
-                      <button type="button" className="effect-action" onClick={() => applyMessageEffect(message.id, "sparkle")} title="Эффект: искры">✦</button>
-                      <button type="button" className="effect-action" onClick={() => applyMessageEffect(message.id, "hearts")} title="Эффект: сердечки">♥</button>
-                      <button type="button" className="effect-action" onClick={() => applyMessageEffect(message.id, "fireworks")} title="Эффект: салют">✧</button>
-                      <button type="button" className="effect-action" onClick={() => applyMessageEffect(message.id, "glow")} title="Эффект: сияние">✺</button>
-                      {message.mine && <button type="button" onClick={() => { startEditing(message); setOpenMessageActionsId(null); }} aria-label="Редактировать сообщение"><PencilLine size={13}/> Изменить</button>}
-                      {message.mine && <button type="button" onClick={() => deleteMessage(message.id)} aria-label="Удалить сообщение"><X size={13}/> Удалить</button>}
-                    </div>}
-                  </div>
-                  {activeChat.id === 1 && index === activeChat.messages.length - 1 && !message.mine && (
-                    <div className="game-preview">
-                      <div className="game-art"><span>D</span><div className="art-orb orb-one"/><div className="art-orb orb-two"/><div className="art-orb orb-three"/></div>
-                      <div className="game-info"><div><strong>Dota 2</strong><small>5 игроков · 19:42</small></div><button onClick={() => action("Приглашение в игру скоро появится")}><Send size={16}/></button></div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </Fragment>
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {editingMessageId !== null && <div className="edit-banner">Редактирование сообщения <button type="button" onClick={() => { setEditingMessageId(null); setEditDraft(""); }} aria-label="Отменить редактирование"><X size={15}/></button></div>}
-        {replyTarget && <div className="reply-banner"><span><strong>Ответ для {replyTarget.author}</strong><small>{replyTarget.text}</small></span><button type="button" onClick={() => setReplyTarget(null)} aria-label="Отменить ответ"><X size={15}/></button></div>}
-        <form className="composer" onSubmit={sendMessage}>
-          <input ref={fileInputRef} type="file" className="hidden-file-input" accept="image/*,video/*,audio/*,.pdf,.txt,.doc,.docx,.zip,.csv" onChange={handleAttachment} />
-          <button type="button" className="attach-button" onClick={() => setGalleryOpen(true)} aria-label="Галерея медиа" title="Галерея изображений"><Image size={20}/></button>
-          <button type="button" className="attach-button" onClick={() => setPollOpen(true)} aria-label="Создать опрос" title="Создать опрос"><Users size={19}/></button>
-          <input ref={fileInputRef} type="file" className="hidden-file-input" accept="image/*,.pdf,.txt,.doc,.docx,.zip,.csv" onChange={handleAttachment} />
-          <button type="button" className="attach-button" onClick={() => fileInputRef.current?.click()} aria-label="Прикрепить файл" title="Прикрепить файл"><Paperclip size={21}/></button>
-          <div className="composer-input-wrap"><input value={editingMessageId !== null ? editDraft : draft} onChange={(e) => { if (editingMessageId !== null) setEditDraft(e.target.value); else { setDraft(e.target.value); setDrafts((current) => ({ ...current, [activeId]: e.target.value })); setMentionOpen(e.target.value.includes("@")); } }} placeholder={editingMessageId !== null ? "Изменить сообщение..." : "Написать сообщение..."} aria-label="Текст сообщения"/>
-          {mentionOpen && mentionMatches.length > 0 && <div className="mention-suggestions">{mentionMatches.map((name) => <button type="button" key={name} onClick={() => chooseMention(name)}>@{name}</button>)}</div>}</div>
-          <button type="button" className="emoji-button" onClick={() => editingMessageId !== null ? setEditDraft((v) => v + " 🙂") : setDraft((v) => v + " 🙂")} aria-label="Добавить эмодзи"><Smile size={20}/></button>
-          <button type="button" className={`attach-button voice-button ${recording ? "recording" : ""}`} onClick={startVoiceRecording} aria-label={recording ? "Остановить запись" : "Записать голосовое"} title={recording ? `Остановить запись · ${recordingSeconds} сек.` : "Голосовое сообщение"}><Mic size={20}/>{recording && <span>{recordingSeconds}s</span>}</button>
-          <button type="submit" className="send-button" aria-label={editingMessageId !== null ? "Сохранить изменения" : "Отправить сообщение"} disabled={!(editingMessageId !== null ? editDraft : draft).trim()}>{editingMessageId !== null ? <CheckCheck size={20}/> : <Send size={20}/>}</button>
-        </form>
-      </section>
-
-      {showProfile && <aside className="right-panel">
-        <div className="right-heading"><span>Профиль</span><button className="mobile-close" onClick={() => setShowProfile(false)}><X size={17}/></button></div>
-        <button className="profile-card" onClick={() => setProfileOpen(true)}>
-          <Avatar color="self">{profileAvatar}</Avatar>
-          <span><strong>{profileName}</strong><small><i/>В сети</small></span>
-          <ChevronRight size={22} className="yellow-icon"/>
-        </button>
-
-        <div className="right-divider"/>
-        {activeChat.group && (activeChat.members?.length ?? 0) > 0 && <>
-          <div className="online-heading"><span>Участники чата</span><b>{activeChat.members?.length ?? 0}</b></div>
-          <div className="friends-list">
-            {activeChat.members?.map((member) => <div key={member} className="friend-row">
-              <span className="friend-avatar-wrap"><Avatar color="blue" small>{member.slice(0, 1).toUpperCase()}</Avatar></span>
-              <span>{member}</span>
-            </div>)}
-          </div>
-        </>}
-        <button className="invite-row" onClick={createInviteLink}><span><Plus size={22}/></span>{activeChat.group ? "Скопировать ссылку-приглашение" : "Приглашение доступно в группах"}</button>
-
-        <div className="right-divider games-divider"/>
-        <button className="games-heading" onClick={() => { setActiveNav("Мини-игры"); openGame("Каталог"); }}><Gamepad2 size={22}/><strong>Мини-игры</strong><ChevronRight size={20}/></button>
-        <button className="clear-history-button" onClick={() => { if (!activeChat.messages.length) { action("История уже пуста"); return; } if (window.confirm(`Удалить всю историю чата «${activeChat.name}» на этом устройстве?`)) { setChats((current) => current.map((chat) => chat.id === activeId ? { ...chat, messages: [], preview: "История очищена", time: "" } : chat)); setDeletedMessage(null); action("История чата очищена"); } }}>Очистить историю этого чата</button>
-        <div className="games-list">
-          {games.map((game) => <button key={game.name} className="game-row" onClick={() => openGame(game.name)}>
-            <span className={`game-icon ${game.cls}`}>{game.icon}</span><span><strong>{game.name}</strong><small>{game.desc}</small></span>
-          </button>)}
-        </div>
-      </aside>}
-
-
-      {activeGame && <div className="modal-backdrop game-backdrop" onClick={() => setActiveGame(null)}>
-        <section className="game-modal" onClick={(event) => event.stopPropagation()}>
-          <header className="game-modal-header"><div><span className="game-modal-eyebrow">NEXUS ARCADE</span><h2>{activeGame === "Каталог" ? "Мини-игры" : activeGame}</h2></div><button type="button" onClick={() => setActiveGame(null)} aria-label="Закрыть игры"><X size={20}/></button></header>
-          {activeGame === "Каталог" ? <div className="game-picker">
-            {games.map((game) => <button key={game.name} className="game-picker-card" onClick={() => openGame(game.name)}><span className={`game-icon ${game.cls}`}>{game.icon}</span><strong>{game.name}</strong><small>{game.desc}</small><span className="game-play-label">Играть <ChevronRight size={15}/></span></button>)}
-          </div> : null}
-          {activeGame === "Шахматы" && <div className="chess-game">
-            <p className="game-instructions">Шахматная разминка: белые ходят. Как лучше продолжить позицию?</p>
-            <div className="chess-board" aria-label="Шахматная доска">
-              {["♜","♞","♝","♛","♚","♝","♞","♜", ...Array(8).fill("♟"), ...Array(32).fill(""), ...Array(8).fill("♙"), "♖","♘","♗","♕","♔","♗","♘","♖"].map((piece,index) => <div key={index} className={`chess-square ${(Math.floor(index/8)+index%8)%2===0?"light":"dark"}`}>{piece}</div>)}
-            </div>
-            <strong className="game-question">Как называется ход, который одновременно атакует короля?</strong>
-            <div className="chess-answers">{["Рокировка","Шах","Пат"].map((answer) => <button key={answer} onClick={() => { setChessSolved(true); setGameNotice(answer === "Шах" ? "Верно! ♟️ Король под атакой." : "Не совсем. Правильный ответ — «Шах»." ); }}>{answer}</button>)}</div>
-            {chessSolved && <button className="game-secondary" onClick={() => {setChessSolved(false);setGameNotice("");}}>Попробовать ещё раз</button>}
-          </div>}
-          {activeGame === "Uno" && <div className="uno-game">
-            <p className="game-instructions">Сыграй карту того же цвета или числа, что и верхняя карта. Соперник виртуальный.</p>
-            <div className="uno-table"><span>Карта на столе</span><div className="uno-card top-card">{unoTop}</div><small>Карт у тебя: {unoHand.length}</small></div>
-            <strong className="game-question">Твои карты</strong>
-            <div className="uno-hand">{unoHand.map((card,index) => <button key={card+index} className={`uno-card card-${card.slice(0,2)==="🔴"?"red":card.slice(0,2)==="🔵"?"blue":card.slice(0,2)==="🟡"?"yellow":"green"}`} onClick={() => playUnoCard(card)}>{card}</button>)}</div>
-            <button className="game-secondary" onClick={drawUnoCard}>Взять карту +1</button>
-          </div>}
-          {activeGame === "Балда" && <div className="balda-game">
-            <p className="game-instructions">Составляй русские слова. Каждое новое слово приносит очки по числу букв. Это локальная тренировка.</p>
-            <div className="balda-board">{["Б","А","Л","Д","А"].map((letter,index)=><span key={index}>{letter}</span>)}</div>
-            <div className="balda-score"><span>Твои очки</span><strong>{baldaScore}</strong><small>слов: {baldaWords.length}</small></div>
-            <form className="balda-form" onSubmit={submitBaldaWord}><input value={baldaInput} onChange={(event)=>setBaldaInput(event.target.value)} placeholder="Введи слово..." maxLength={20}/><button type="submit">Добавить</button></form>
-            {baldaWords.length > 0 && <div className="balda-words">{baldaWords.map((word,index)=><span key={word}>{word} <b>+{word.length}</b></span>)}</div>}
-          </div>}
-          {gameNotice && <div className="game-feedback" role="status">{gameNotice}</div>}
-          {activeGame !== "Каталог" && <button className="game-back-link" onClick={() => openGame("Каталог")}>← Все мини-игры</button>}
-        </section>
-      </div>}
-\n      {newChatOpen && <div className="modal-backdrop" onClick={() => setNewChatOpen(false)}><form className="settings-modal" onSubmit={createChat} onClick={(event) => event.stopPropagation()}><header><strong>Новый чат</strong><button type="button" onClick={() => setNewChatOpen(false)} aria-label="Закрыть"><X size={18}/></button></header><p className="modal-help">Создай личный чат или облачную группу. Для группового чата участники смогут вступить по ссылке-приглашению.</p><label>Имя чата<input autoFocus value={newChatName} maxLength={48} onChange={(event) => setNewChatName(event.target.value)} placeholder="Например, Команда" required /></label><label className="group-toggle"><input type="checkbox" checked={newChatIsGroup} onChange={(event) => setNewChatIsGroup(event.target.checked)}/> Создать группу</label><button type="submit" className="save-settings">Создать</button></form></div>}
-      {pollOpen && <div className="modal-backdrop" onClick={() => setPollOpen(false)}><form className="settings-modal" onSubmit={createPoll} onClick={(event) => event.stopPropagation()}><header><strong>Новый опрос</strong><button type="button" onClick={() => setPollOpen(false)} aria-label="Закрыть"><X size={18}/></button></header><label>Вопрос<input autoFocus value={pollQuestion} maxLength={180} onChange={(event) => setPollQuestion(event.target.value)} placeholder="Что выбираем?" required/></label>{pollOptions.map((option, index) => <label key={index}>Вариант {index+1}<input value={option} maxLength={80} onChange={(event) => setPollOptions((current) => current.map((item, i) => i === index ? event.target.value : item))} placeholder={`Вариант ${index+1}`}/></label>)}{pollOptions.length < 6 && <button type="button" className="game-secondary" onClick={() => setPollOptions((current) => [...current, ""])}>+ Добавить вариант</button>}<button type="submit" className="save-settings">Опубликовать опрос</button></form></div>}
-      {galleryOpen && <div className="modal-backdrop" onClick={() => setGalleryOpen(false)}><section className="settings-modal gallery-modal" onClick={(event) => event.stopPropagation()}><header><strong>Галерея медиа</strong><button type="button" onClick={() => setGalleryOpen(false)} aria-label="Закрыть"><X size={18}/></button></header><p className="modal-help">Изображения из всех локальных чатов</p>{galleryImages.length ? <div className="media-gallery">{galleryImages.map((image) => <button type="button" key={`${image.id}-${image.chatName}`} onClick={() => { setActiveId(chats.find((chat) => chat.name === image.chatName)?.id ?? activeId); setGalleryOpen(false); }} title={`${image.chatName} · ${image.attachment?.name}`}><img src={image.attachment!.data} alt={image.attachment!.name}/><small>{image.chatName}</small></button>)}</div> : <div className="empty-search">Пока нет изображений. Прикрепи картинку к сообщению.</div>}</section></div>}
-      {profileOpen && <div className="modal-backdrop" onClick={() => setProfileOpen(false)}><section className="settings-modal" onClick={(event) => event.stopPropagation()}><header><strong>Профиль и оформление</strong><button type="button" onClick={() => setProfileOpen(false)} aria-label="Закрыть"><X size={18}/></button></header><label>Имя<input value={profileName} maxLength={32} onChange={(event) => setProfileName(event.target.value)} /></label><label>Username — уникальный<input value={username} maxLength={20} autoCapitalize="none" autoCorrect="off" spellCheck={false} onChange={(event) => setUsername(event.target.value.toLowerCase())} placeholder="например, alex_2026" /><small className="modal-help">3–20 символов: латиница, цифры и _. Username должен быть уникальным.</small></label><button type="button" className="save-settings" disabled={usernameSaving} onClick={saveUsername}>{usernameSaving ? "Сохраняю..." : "Сохранить username"}</button><label>Буква или эмодзи аватара<input value={profileAvatar} maxLength={3} onChange={(event) => setProfileAvatar(event.target.value)} /></label><label>Цветовая тема<select value={theme} onChange={(event) => setTheme(event.target.value)}><option value="yellow">Nexus — жёлтая</option><option value="blue">Синяя</option><option value="violet">Фиолетовая</option><option value="mint">Мятная</option></select></label><button type="button" className="save-settings" onClick={() => { setProfileOpen(false); action("Профиль и тема сохранены"); }}>Готово</button></section></div>}
-      {deletedMessage && <div className="toast undo-toast"><span>Сообщение удалено</span><button className="undo-button" onClick={undoDelete}>Отменить</button><button onClick={() => setDeletedMessage(null)} aria-label="Закрыть"><X size={15}/></button></div>}
-      {notice && <div className="toast"><Shield size={17}/>{notice}<button onClick={() => setNotice("")}><X size={15}/></button></div>}
-      <button className="mobile-profile-toggle" onClick={() => setShowProfile(!showProfile)} aria-label="Профиль"><CircleUserRound/></button>
+      )}
+      <button className="mobile-profile-toggle" onClick={() => setShowProfile((open) => !open)} aria-label="Профиль">
+        <CircleUserRound />
+      </button>
     </main>
   );
 }
