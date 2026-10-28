@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { isSupabaseConfigured, supabase } from "./supabase";
+import { isDemoMode } from "./constants";
 
 type AuthGateProps = { children: ReactNode };
 
@@ -12,6 +13,10 @@ export default function AuthGate({ children }: AuthGateProps) {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (isDemoMode) {
+      setLoading(false);
+      return;
+    }
     if (!supabase || !isSupabaseConfigured) {
       setLoading(false);
       return;
@@ -55,6 +60,8 @@ export default function AuthGate({ children }: AuthGateProps) {
     }
   };
 
+  // Demo mode runs entirely on local data, so there is nothing to authenticate.
+  if (isDemoMode) return <>{children}</>;
   if (!isSupabaseConfigured || !supabase) return <>{children}</>;
   if (loading) {
     return (

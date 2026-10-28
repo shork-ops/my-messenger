@@ -1,0 +1,56 @@
+name: Verify
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "verify-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci || npm install
+      - name: Typecheck
+        run: npx tsc -b
+      - name: Unit tests
+        run: npm test
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci || npm install
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      # The suite builds the demo bundle itself (VITE_DEMO_MODE), so no
+      # Supabase credentials are involved.
+      - name: Browser smoke tests
+        run: npx playwright test
+      - name: Upload failure traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7

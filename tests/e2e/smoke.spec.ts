@@ -1,0 +1,73 @@
+import { expect, test } from "@playwright/test";
+
+/**
+ * Phase 0 smoke suite: the loop that must never break.
+ * Runs against the demo build, so it needs no backend and no credentials.
+ */
+test.describe("Nexus messenger smoke", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/my-messenger/");
+    await expect(page.locator(".app-shell")).toBeVisible();
+  });
+
+  test("launches with the chat list and an open conversation", async ({ page }) => {
+    await expect(page.locator(".chat-list-panel")).toBeVisible();
+    await expect(page.locator(".rail")).toBeVisible();
+
+    const chats = page.locator(".chat-list .chat-row");
+    await expect(chats.first()).toBeVisible();
+    expect(await chats.count()).toBeGreaterThan(1);
+
+    // A conversation is selected on first paint, so the composer is ready.
+    await expect(page.getByLabel("Текст сообщения")).toBeVisible();
+  });
+
+  test("switches the active conversation when another chat is clicked", async ({ page }) => {
+    const chats = page.locator(".chat-list .chat-row");
+    const second = chats.nth(1);
+    const name = (await second.locator(".chat-row-copy strong").innerText()).trim();
+    await second.click();
+
+    await expect(second).toHaveClass(/selected/);
+    await expect(page.locator(".conversation-panel")).toContainText(name);
+  });
+
+  test("sends a message from the composer", async ({ page }) => {
+    const text = `smoke ${Date.now()}`;
+    const composer = page.getByLabel("Текст сообщения");
+    await composer.fill(text);
+    await page.getByLabel("Отправить сообщение").click();
+
+    await expect(page.locator(".messages-area")).toContainText(text);
+    // The composer is cleared once the message is accepted.
+    await expect(composer).toHaveValue("");
+  });
+
+  test("opens the message menu and offers a reaction", async ({ page }) => {
+    const text = `reaction ${Date.now()}`;
+    await page.getByLabel("Текст сообщения").fill(text);
+    await page.getByLabel("Отправить сообщение").click();
+
+    const line = page.locator(".message-line").filter({ hasText: text }).last();
+    await expect(line).toBeVisible();
+    await line.getByLabel("Действия с сообщением").click();
+
+    // Reactions are stored in Supabase and need a remote message id. The demo
+    // build has none, so clicking must explain the limitation instead of
+    // silently doing nothing — that behaviour is what this test pins down.
+    await expect(line.getByRole("button", { name: "❤️" })).toBeVisible();
+    await line.getByRole("button", { name: "❤️" }).click();
+    await expect(page.getByText("Реакции доступны в облачных сообщениях")).toBeVisible();
+  });
+
+  test("filters the chat list by the search box", async ({ page }) => {
+    const chats = page.locator(".chat-list .chat-row");
+    const before = await chats.count();
+
+    await page.getByPlaceholder(/Поиск чатов/).fill("щщщщнеттакого");
+    await expect(chats).toHaveCount(0);
+
+    await page.getByPlaceholder(/Поиск чатов/).fill("");
+    await expect.poll(() => chats.count()).toBe(before);
+  });
+});

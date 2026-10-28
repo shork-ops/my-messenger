@@ -16,6 +16,8 @@ dist-ssr
 .env
 .env.*
 !.env.example
+# Contains no secrets: only flags that build the credential-free demo bundle.
+!.env.demo
 
 # Editor directories and files
 .vscode/*
@@ -30,3 +32,9 @@ dist-ssr
 
 # Supabase CLI local state
 supabase/.temp/
+
+# Playwright artifacts
+test-results/
+playwright-report/
+blob-report/
+.playwright/

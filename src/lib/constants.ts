@@ -16,3 +16,6 @@ export const games = [
 ];
 
 export const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
+
+/** Fills the demo build with deterministic chats so browser tests can rely on them. */
+export const demoSeedEnabled = import.meta.env.VITE_DEMO_SEED === "true";

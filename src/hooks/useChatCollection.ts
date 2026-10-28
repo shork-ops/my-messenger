@@ -8,7 +8,8 @@ import {
   sortChats,
   togglePinned,
 } from "../lib/chats";
-import { isDemoMode } from "../lib/constants";
+import { isDemoMode, demoSeedEnabled } from "../lib/constants";
+import { createDemoSeedChats } from "../lib/demoSeed";
 
 type UseChatCollectionOptions = {
   search: string;
@@ -29,6 +30,8 @@ const EMPTY_CHAT: Chat = {
 
 export function useChatCollection({ search, chatFilter, messageSearch, notify }: UseChatCollectionOptions) {
   const [chats, setChats] = useState<Chat[]>(() => {
+    // Browser tests need a deterministic starting state; ship no seed to users.
+    if (demoSeedEnabled) return createDemoSeedChats();
     if (!isDemoMode) return [];
     if (!window.localStorage.getItem("nexus-demo-chats-cleared-v1")) {
       window.localStorage.removeItem("nexus-chats-v1");
