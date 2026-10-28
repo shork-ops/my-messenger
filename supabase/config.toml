@@ -25,3 +25,7 @@ file_size_limit = "50MiB"
 # The push webhook cannot send a JWT, so verification is disabled for this function only.
 [functions.push-notify]
 verify_jwt = false
+
+# Maintenance job: called with the service role key by a scheduler, never by the browser.
+[functions.cleanup-media]
+verify_jwt = false

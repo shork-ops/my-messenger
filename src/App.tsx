@@ -11,6 +11,7 @@ import { useChatMembers } from "./hooks/useChatMembers";
 import { useServerSearch } from "./hooks/useServerSearch";
 import { removeMember, rotateInvite, setMemberRole } from "./lib/groupAdmin";
 import { createFavouritesChat, favouriteMessage, formatForwardText, isFavouritesChat, nextLocalId } from "./lib/messageActions";
+import { MAX_UPLOAD_BYTES, buildStoragePath, formatBytes, isSupportedFile, prepareImage, shouldCompress } from "./lib/media";
 import { GalleryModal, NewChatModal, PollModal, ProfileModal } from "./components/Modals";
 import { friends, isDemoMode } from "./lib/constants";
 import { clockTime, numericId } from "./lib/format";
@@ -58,6 +59,7 @@ export default function App() {
   const [showProfile, setShowProfile] = useState(true);
   const [membersRefreshKey, setMembersRefreshKey] = useState(0);
   const [pinnedMessageIds, setPinnedMessageIds] = useState<Set<number>>(() => new Set());
+  const [uploadProgress, setUploadProgress] = useState<{ name: string; percent: number; stage: string } | null>(null);
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [openingUserId, setOpeningUserId] = useState<string | null>(null);
@@ -198,35 +200,63 @@ export default function App() {
       action("Открой облачный диалог, чтобы отправить файл");
       return;
     }
-    if (file.size > 50 * 1024 * 1024) {
-      action("Максимальный размер файла — 50 МБ");
+    if (file.size > MAX_UPLOAD_BYTES) {
+      action(`Максимальный размер файла — ${formatBytes(MAX_UPLOAD_BYTES)}`);
       return;
     }
-    if (
-      !file.type.startsWith("image/") &&
-      !file.type.startsWith("video/") &&
-      !file.type.startsWith("audio/") &&
-      !["application/pdf", "text/plain", "application/zip", "text/csv"].includes(file.type)
-    ) {
+    if (!isSupportedFile(file.type)) {
       action("Этот формат файла пока не поддерживается");
       return;
     }
-    action("Загружаю файл…");
-    const path = chat.remoteId + "/" + accountId + "/" + crypto.randomUUID() + "-" + file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const uploaded = await client.storage.from("chat-media").upload(path, file, { contentType: file.type || "application/octet-stream" });
+
+    // Photos are downscaled before upload: a 12 MP shot would otherwise waste
+    // the user's traffic and the bucket budget for no visible gain.
+    let payload: Blob = file;
+    let uploadName = file.name;
+    let meta: { name: string; type: string; size: number; width?: number; height?: number; thumbnail?: string } = {
+      name: file.name,
+      type: file.type || "application/octet-stream",
+      size: file.size,
+    };
+
+    if (shouldCompress(file)) {
+      setUploadProgress({ name: file.name, percent: 10, stage: "Сжимаю фото…" });
+      const prepared = await prepareImage(file);
+      payload = prepared.blob;
+      uploadName = prepared.fileName;
+      meta = {
+        name: prepared.fileName,
+        type: prepared.blob.type || file.type,
+        size: prepared.blob.size,
+        width: prepared.width || undefined,
+        height: prepared.height || undefined,
+        thumbnail: prepared.thumbnail || undefined,
+      };
+    }
+
+    setUploadProgress({ name: uploadName, percent: 45, stage: "Отправляю файл…" });
+    const path = buildStoragePath(chat.remoteId, accountId, uploadName, crypto.randomUUID());
+    // storage-js 2.118 exposes no per-chunk callback, so the bar advances by
+    // stage instead of pretending to know real byte progress.
+    const uploaded = await client.storage.from("chat-media").upload(path, payload, { contentType: meta.type });
     if (uploaded.error) {
-      action("Не удалось загрузить файл. Выполни миграцию online_media в Supabase.");
+      setUploadProgress(null);
+      action("Не удалось загрузить файл. Проверь миграцию online_media в Supabase.");
       return;
     }
+    setUploadProgress({ name: uploadName, percent: 80, stage: "Публикую сообщение…" });
     const signed = await client.storage.from("chat-media").createSignedUrl(path, 3600);
     if (signed.error || !signed.data?.signedUrl) {
+      setUploadProgress(null);
       action("Не удалось получить ссылку на файл");
       return;
     }
-    const meta = { name: file.name, type: file.type || "application/octet-stream", size: file.size, path };
-    const inserted = await client.from("messages").insert({ chat_id: chat.remoteId, sender_id: accountId, body: file.name, attachment: meta }).select("id, created_at").single();
+    const attachmentMeta = { ...meta, path };
+    const inserted = await client.from("messages").insert({ chat_id: chat.remoteId, sender_id: accountId, body: uploadName, attachment: attachmentMeta }).select("id, created_at").single();
     if (inserted.error || !inserted.data) {
+      // The row is the source of truth; a stored file without it is orphaned.
       await client.storage.from("chat-media").remove([path]);
+      setUploadProgress(null);
       action("Не удалось отправить вложение");
       return;
     }
@@ -236,13 +266,15 @@ export default function App() {
       id: numericId(row.id),
       remoteId: row.id,
       author: profileName,
-      text: file.name,
+      text: uploadName,
       time: clockTime(created),
       mine: true,
       createdAt: created.getTime(),
-      attachment: { ...meta, data: signed.data.signedUrl },
+      attachment: { ...attachmentMeta, data: signed.data.signedUrl },
     };
-    setChats((current) => appendMessage(current, activeId, message, "📎 " + file.name, message.time));
+    setChats((current) => appendMessage(current, activeId, message, "📎 " + uploadName, message.time));
+    setUploadProgress({ name: uploadName, percent: 100, stage: "Готово" });
+    window.setTimeout(() => setUploadProgress(null), 900);
     action("Вложение отправлено");
   }
 
@@ -1032,6 +1064,7 @@ export default function App() {
         onDelete={(messageId) => void deleteMessage(messageId)}
         onGameInvite={() => action("Приглашение в игру скоро появится")}
         typingNames={typingUsers.map((user) => user.name)}
+        uploadProgress={uploadProgress}
         peerOnline={peerOnline}
         peerLastSeenAt={peerLastSeenAt}
         endRef={messagesEndRef}

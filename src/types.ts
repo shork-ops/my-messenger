@@ -10,6 +10,10 @@ export type Attachment = {
   data: string;
   size: number;
   path?: string;
+  /** Inline preview data URL, so the bubble paints before the file loads. */
+  thumbnail?: string;
+  width?: number;
+  height?: number;
 };
 
 export type ReplyPreview = { author: string; text: string };

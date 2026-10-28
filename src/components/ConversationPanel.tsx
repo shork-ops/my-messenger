@@ -45,6 +45,8 @@ type ConversationPanelProps = {
   onDelete: (messageId: number) => void;
   onGameInvite: () => void;
   typingNames: string[];
+  /** Live upload state for the file being sent, if any. */
+  uploadProgress: { name: string; percent: number; stage: string } | null;
   peerOnline: boolean;
   peerLastSeenAt: number | null;
   endRef: MutableRefObject<HTMLDivElement | null>;
@@ -89,6 +91,7 @@ export default function ConversationPanel({
   onDelete,
   onGameInvite,
   typingNames,
+  uploadProgress,
   peerOnline,
   peerLastSeenAt,
   endRef,
@@ -226,6 +229,19 @@ export default function ConversationPanel({
         })}
         <div ref={endRef} />
       </div>
+
+      {uploadProgress && (
+        <div className="upload-progress" role="status">
+          <div className="upload-progress-row">
+            <span>{uploadProgress.stage}</span>
+            <b>{uploadProgress.percent}%</b>
+          </div>
+          <div className="upload-track">
+            <i style={{ width: `${uploadProgress.percent}%` }} />
+          </div>
+          <small>{uploadProgress.name}</small>
+        </div>
+      )}
 
       {typingLabel && (
         <div className="typing-indicator" role="status">

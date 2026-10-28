@@ -51,7 +51,19 @@ function AttachmentCard({ attachment }: { attachment: NonNullable<Message["attac
   return (
     <div className="attachment-card">
       {attachment.type.startsWith("image/") ? (
-        <img className="attachment-image" src={attachment.data} alt={attachment.name} />
+        // The inline thumbnail paints instantly; the signed URL replaces it
+        // once the browser has the full-size image.
+        <img
+          className="attachment-image"
+          src={attachment.thumbnail || attachment.data}
+          data-full-src={attachment.thumbnail ? attachment.data : undefined}
+          alt={attachment.name}
+          loading="lazy"
+          onError={(event) => {
+            const full = event.currentTarget.dataset.fullSrc;
+            if (full && event.currentTarget.src !== full) event.currentTarget.src = full;
+          }}
+        />
       ) : attachment.type.startsWith("video/") ? (
         <video className="attachment-video" controls playsInline src={attachment.data} />
       ) : attachment.type.startsWith("audio/") ? (
