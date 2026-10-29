@@ -2,6 +2,8 @@ import { PencilLine, Search } from "lucide-react";
 import Avatar from "./Avatar";
 import UserAvatar from "./UserAvatar";
 import type { Chat, ChatFilter, UserSearchResult } from "../types";
+import type { Folder } from "../lib/chatFolders";
+import FolderBar from "./FolderBar";
 
 const FILTERS: { id: ChatFilter; label: string }[] = [
   { id: "all", label: "Все" },
@@ -21,6 +23,12 @@ type ChatListPanelProps = {
   onOpenDirectChat: (user: UserSearchResult) => void;
   filter: ChatFilter;
   onFilterChange: (filter: ChatFilter) => void;
+  /** Folders shown above the list; the bar renders nothing when there are none. */
+  folders: Folder[];
+  activeFolderId: string | null;
+  onSelectFolder: (id: string | null) => void;
+  onCreateFolder: (name: string) => void;
+  onDeleteFolder: (id: string) => void;
   chats: Chat[];
   /** Every chat, unfiltered: the archive tab is offered based on this, not on the rows. */
   allChats: Chat[];
@@ -38,6 +46,11 @@ export default function ChatListPanel({
   onOpenDirectChat,
   filter,
   onFilterChange,
+  folders,
+  activeFolderId,
+  onSelectFolder,
+  onCreateFolder,
+  onDeleteFolder,
   chats,
   allChats,
   hasVisibleChats,
@@ -80,6 +93,15 @@ export default function ChatListPanel({
           )}
         </div>
       )}
+
+      <FolderBar
+        folders={folders}
+        chats={allChats}
+        activeFolderId={activeFolderId}
+        onSelect={onSelectFolder}
+        onCreate={onCreateFolder}
+        onDelete={onDeleteFolder}
+      />
 
       <div className="chat-filters">
         {FILTERS.map((item) => (

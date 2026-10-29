@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef } from "react";
 import type { ComponentProps, MutableRefObject } from "react";
 import { type WallpaperId, wallpaperBackground, wallpaperSize } from "../lib/wallpaper";
-import { Download } from "lucide-react";
+import { Download, FolderPlus } from "lucide-react";
 import { Archive, BellOff, BellRing, ChevronLeft, MoreVertical, Phone, Pin, Search, Trash2, UserRound, Video, X } from "lucide-react";
 import Avatar from "./Avatar";
 import Composer from "./Composer";
@@ -38,6 +38,8 @@ type ConversationPanelProps = {
   onClearHistory: () => void;
   /** Saves the conversation to a file. */
   onExport: () => void;
+  /** Opens the folder chooser. */
+  onFolders: () => void;
   /** Opens the mute duration chooser. */
   onMute: () => void;
   onUnmute: () => void;
@@ -97,6 +99,7 @@ export default function ConversationPanel({
   onToggleProfile,
   onClearHistory,
   onExport,
+  onFolders,
   onMute,
   onUnmute,
   onArchive,
@@ -230,6 +233,9 @@ export default function ConversationPanel({
                 )}
                 <button type="button" role="menuitem" onClick={onArchive}>
                   <Archive size={18} /> {chat.archived ? "Вернуть из архива" : "В архив"}
+                </button>
+                <button type="button" role="menuitem" onClick={onFolders}>
+                  <FolderPlus size={18} /> В папку
                 </button>
                 <button type="button" role="menuitem" onClick={onExport}>
                   <Download size={18} /> Выгрузить переписку

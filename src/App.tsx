@@ -66,6 +66,9 @@ import { useBackSwipe } from "./hooks/useBackSwipe";
 import ShortcutHelp from "./components/ShortcutHelp";
 import type { Shortcut } from "./lib/shortcuts";
 import { exportAsText, exportFileName, pluralMessages } from "./lib/exportChat";
+import { useChatFolders } from "./hooks/useChatFolders";
+import { chatsInFolder } from "./lib/chatFolders";
+import FolderPicker from "./components/FolderPicker";
 import { shouldAutoload } from "./lib/mediaPolicy";
 import EmojiPicker from "./components/EmojiPicker";
 import VideoNoteRecorder from "./components/VideoNoteRecorder";
@@ -185,6 +188,19 @@ export default function App() {
   const { chats, setChats, activeId, setActiveId, drafts, setDrafts, activeChat, displayChats, visibleMessages, galleryImages, unreadTotal, toggleChatPin } =
     useChatCollection({ search, chatFilter, messageSearch, notify: action });
   const { foundUsers, userSearchLoading } = useUserSearch({ search, accountId });
+
+  // A folder narrows the list rather than replacing it: search and the unread filter
+  // still apply inside the folder, because those are what the reader is looking with.
+  const { folders, createFolder, deleteFolder, toggleChat: toggleChatFolder } = useChatFolders();
+  const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
+  const [folderPickerChat, setFolderPickerChat] = useState<Chat | null>(null);
+
+  const folderChats = useMemo(() => {
+    const folder = folders.find((item) => item.id === activeFolderId);
+    if (!folder) return displayChats;
+    const inFolder = new Set(chatsInFolder(folder, chats).map((chat) => chat.id));
+    return displayChats.filter((chat) => inFolder.has(chat.id));
+  }, [activeFolderId, chats, displayChats, folders]);
 
   // Mirrors the chat list for timers and callbacks that must not be rebuilt
   // every time a message arrives.
@@ -1717,9 +1733,17 @@ export default function App() {
         onOpenDirectChat={(user) => void openDirectChat(user)}
         filter={chatFilter}
         onFilterChange={setChatFilter}
-        chats={displayChats}
+        folders={folders}
+        activeFolderId={activeFolderId}
+        onSelectFolder={setActiveFolderId}
+        onCreateFolder={createFolder}
+        onDeleteFolder={(id) => {
+          deleteFolder(id);
+          if (activeFolderId === id) setActiveFolderId(null);
+        }}
+        chats={folderChats}
         allChats={chats}
-        hasVisibleChats={displayChats.length > 0}
+        hasVisibleChats={folderChats.length > 0}
         activeId={activeId}
         onSelectChat={selectChat}
         onTogglePin={toggleChatPin}
@@ -1753,6 +1777,10 @@ export default function App() {
         onExport={() => {
           setChatMenuOpen(false);
           exportChat(activeChat);
+        }}
+        onFolders={() => {
+          setChatMenuOpen(false);
+          setFolderPickerChat(activeChat);
         }}
         onClearHistory={() => {
           setChatMenuOpen(false);
@@ -1833,6 +1861,15 @@ export default function App() {
       />
 
       {shortcutsOpen && <ShortcutHelp onClose={() => setShortcutsOpen(false)} />}
+
+      {folderPickerChat && (
+        <FolderPicker
+          chat={folderPickerChat}
+          folders={folders}
+          onToggle={toggleChatFolder}
+          onClose={() => setFolderPickerChat(null)}
+        />
+      )}
 
       {noteOpen && (
         <VideoNoteRecorder
