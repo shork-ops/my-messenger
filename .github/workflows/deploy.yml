@@ -22,6 +22,9 @@ jobs:
       VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
       # Public half of the VAPID pair; without it the build ships no Web Push support.
       VITE_VAPID_PUBLIC_KEY: ${{ secrets.VITE_VAPID_PUBLIC_KEY }}
+      # GlitchTip ingest key. Public by design: it can only send events. Empty
+      # leaves error reporting off instead of breaking the build.
+      VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

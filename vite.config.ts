@@ -7,6 +7,13 @@ export default defineConfig(({ mode }) => ({
   // files from the bundle root, where an absolute /my-messenger/ prefix would
   // 404 every asset. The mobile build therefore uses a relative base.
   base: mode === "mobile" ? "./" : "/my-messenger/",
+  // Stamp every build with the commit, so an error report names the exact
+  // deploy it came from instead of a generic "production".
+  define: {
+    "import.meta.env.VITE_APP_VERSION": JSON.stringify(
+      process.env.GITHUB_SHA?.slice(0, 7) ?? new Date().toISOString().slice(0, 16)
+    ),
+  },
   plugins: [
     react(),
     VitePWA({
