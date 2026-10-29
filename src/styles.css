@@ -107,7 +107,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .conversation-tools button:hover { background: var(--border); color: var(--yellow); }
 .conversation-tools svg { width: 21px; height: 21px; }
 .messages-area { flex: 1 1 0; min-width: 0; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 24px; padding: 28px 24px 22px; scrollbar-gutter: stable; }
-.date-divider { display: flex; align-items: center; justify-content: center; margin-bottom: 1px; color: #9a9ba1; font-size: 12px; }
+.date-divider { display: flex; align-items: center; justify-content: center; margin-bottom: 1px; color: var(--fg-muted); font-size: 12px; }
 .message-line { display: flex; align-items: flex-start; gap: 12px; max-width: 100%; -webkit-touch-callout: none; transition: background .12s ease; }
 .message-line:active { background: #ffffff0d; }
 .message-line .bubble, .message-line .message-content { -webkit-user-select: text; user-select: text; }
@@ -142,7 +142,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .composer { display: flex; flex: 0 0 auto; align-items: center; gap: 10px; margin: 0 14px 14px; padding: 10px; border: 1px solid #292a2f; border-radius: 17px; background: #101113; }
 .composer input { flex: 1; width: 0; min-width: 0; height: 44px; padding: 0 14px; border: 1px solid var(--border-strong); border-radius: 14px; outline: none; background: #0b0c0e; color: white; font-size: var(--text-body); }
 .composer input:focus { border-color: #8a7510; }
-.composer input::placeholder { color: #9a9ba1; }
+.composer input::placeholder { color: var(--fg-muted); }
 .attach-button, .emoji-button { display: grid; flex-shrink: 0; place-items: center; width: 34px; height: 38px; border: 0; background: transparent; color: var(--yellow); }
 .emoji-button { color: #a5a6ad; }
 .send-button { display: grid; flex-shrink: 0; place-items: center; width: 43px; height: 43px; border: 0; border-radius: 12px; background: var(--yellow); color: #111; transition: opacity .15s; }
@@ -338,6 +338,53 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 :root[data-theme="violet"] { --yellow: #bd91ff; --yellow-soft: #d0b4ff; }
 :root[data-theme="mint"] { --yellow: #5ce0b4; --yellow-soft: #8cf0cf; }
 :root[data-theme="blue"] .nav-link.active,
+/* Light theme: the same tokens, re-pointed. Nothing below this needs to know. */
+[data-theme="light"] {
+  --page: #eef0f3;
+  --surface-0: #f4f5f7;
+  --surface-1: #ffffff;
+  --surface-2: #eceef2;
+  --fg: #14161a;
+  --fg-secondary: #4b4f59;
+  --fg-muted: #4f5561;
+  --border: #dcdfe5;
+  --border-strong: #c3c8d1;
+  --line: #dcdfe5;
+  --panel: #ffffff;
+  --muted: #6b7280;
+  /* Text accent: 5.1:1 on the page background. */
+  --yellow: #7a5606;
+  --yellow-soft: #8f6708;
+  --yellow-dim: #5e4204;
+  /* Fill accent: bright enough for dark labels to sit on it. */
+  --accent-fill: #ffd400;
+  --accent-fill-soft: #ffe34a;
+  --danger: #c0392b;
+  --success: #1f9254;
+  color-scheme: light;
+}
+[data-theme="light"] .bubble { border-color: var(--border); background: #ffffff; color: var(--fg); }
+[data-theme="light"] .bubble.mine-bubble { border-color: transparent; background: var(--yellow); color: #1a1400; }
+[data-theme="light"] .chat-row.active, [data-theme="light"] .chat-row:hover { background: var(--surface-2); }
+[data-theme="light"] .rail { border-right-color: var(--border); }
+[data-theme="light"] .conversation-panel { background: var(--surface-0); }
+[data-theme="light"] .message-line.from-me .bubble { color: #1a1400; }
+[data-theme="light"] .nav-link.active { color: #1a1400; }
+[data-theme="light"] .modal-backdrop { background: #0a0b0d66; }
+[data-theme="light"] .settings-nav { background: var(--surface-2); }
+[data-theme="light"] .composer, [data-theme="light"] .conversation-header { background: var(--surface-1); }
+/* Buttons keep the bright fill so their dark labels stay readable. */
+[data-theme="light"] .send-button,
+[data-theme="light"] .save-settings,
+[data-theme="light"] .game-info button,
+[data-theme="light"] .chat-meta b { background: var(--accent-fill); color: #1a1400; }
+[data-theme="light"] .nav-link.active { background: linear-gradient(110deg, var(--accent-fill-soft), var(--accent-fill)); color: #1a1400; }
+/* The unread badge is a fill, with dark text on it. */
+[data-theme="light"] .nav-count { background: var(--accent-fill); color: #1a1400; }
+[data-theme="light"] .tabs button.active,
+[data-theme="light"] .chat-tabs button.active,
+[data-theme="light"] .tab.active { background: var(--accent-fill); color: #1a1400; }
+[data-theme="light"] .chat-filters button.active { border-color: var(--accent-fill); background: var(--accent-fill); color: #1a1400; }
 :root[data-theme="blue"] .send-button,
 :root[data-theme="blue"] .game-info button,
 :root[data-theme="blue"] .chat-meta b { background: linear-gradient(110deg, #8bcaff, #51a8f5); }

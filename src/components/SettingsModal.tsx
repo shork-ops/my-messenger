@@ -238,6 +238,7 @@ function AppearanceSection({ theme, onThemeChange }: { theme: string; onThemeCha
         <option value="blue">Синяя</option>
         <option value="violet">Фиолетовая</option>
         <option value="mint">Мятная</option>
+        <option value="light">Светлая</option>
       </select>
     </label>
   );

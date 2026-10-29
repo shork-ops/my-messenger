@@ -80,6 +80,7 @@ test.describe("Phase 2 acceptance: two tabs, group, search, attachment, block", 
     await openApp(page);
     await page.locator(".rail").getByRole("button", { name: "Настройки", exact: true }).click();
     await expect(page.locator(".settings-modal").first()).toBeVisible();
+    await page.getByRole("button", { name: /^Приватность/ }).click();
     await page.getByRole("button", { name: /Приватность и блокировки/ }).click();
 
     const modal = page.locator(".privacy-modal");
