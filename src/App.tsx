@@ -40,6 +40,7 @@ import { GalleryModal, MuteModal, NewChatModal, PollModal } from "./components/M
 import { friends, isDemoMode } from "./lib/constants";
 import { clockTime, numericId } from "./lib/format";
 import { appendMessage, applyReadStamp, mapMessages, markRead, removeMessage, restoreMessage, updateChat } from "./lib/chats";
+import { placeNewMessage } from "./lib/messageOrder";
 import { toggleLocalVote } from "./lib/polls";
 import { useNotice } from "./hooks/useNotice";
 import { useTheme } from "./hooks/useTheme";
@@ -643,7 +644,9 @@ export default function App() {
     }
     const targetChat = chats.find((chat) => chat.id === activeId);
     const client = supabase;
-    const createdAt = Date.now();
+    // Option ids only need to be unique within this poll, so this timestamp is used
+    // for naming them; where the poll sits is decided by the server below.
+    let createdAt = Date.now();
     const poll: NonNullable<Message["poll"]> = {
       question,
       options: options.map((text, index) => ({ id: `${createdAt}-${index}`, text, votes: [] })),
@@ -660,11 +663,13 @@ export default function App() {
         return;
       }
       remoteId = data.id;
+      // Same reason as a plain message: the server's clock decides where it sits.
+      createdAt = new Date(data.created_at).getTime();
     } else if (client && accountId) {
       action("Этот чат локальный. Создай облачный чат, чтобы опрос синхронизировался.");
       return;
     }
-    const time = clockTime();
+    const time = clockTime(new Date(createdAt));
     const message: Message = {
       id: remoteId ? numericId(remoteId) : createdAt,
       ...(remoteId ? { remoteId } : {}),
@@ -1054,7 +1059,9 @@ export default function App() {
     }
     const text = draft.trim();
     if (!text) return;
-    const createdAt = Date.now();
+    // The server's clock decides the order, so its timestamp is what gets stored.
+    // Falling back to this device is only for chats that live in this browser.
+    let createdAt = Date.now();
     const time = clockTime();
     const replyTo = replyTarget ? { author: replyTarget.author, text: replyTarget.text } : undefined;
     const targetChat = chats.find((chat) => chat.id === activeId);
@@ -1071,6 +1078,7 @@ export default function App() {
         return;
       }
       remoteMessageId = data.id;
+      createdAt = new Date(data.created_at).getTime();
     } else if (client && accountId) {
       action("Этот чат локальный. Начни переписку, выбрав пользователя по @username.");
       return;
@@ -1080,12 +1088,21 @@ export default function App() {
       ...(remoteMessageId ? { remoteId: remoteMessageId } : {}),
       author: profileName,
       text,
-      time,
+      time: clockTime(new Date(createdAt)),
       mine: true,
       createdAt,
       ...(replyTo ? { replyTo } : {}),
     };
-    setChats((current) => appendMessage(current, activeId, message));
+    // Placed by timestamp rather than appended: the server's clock may put this
+    // message just before the newest one already on screen.
+    setChats((current) =>
+      updateChat(current, activeId, (chat) => ({
+        ...chat,
+        preview: message.text,
+        time: message.time,
+        messages: placeNewMessage(chat.messages, message),
+      }))
+    );
     setDraft("");
     setDrafts((current) => ({ ...current, [activeId]: "" }));
     setReplyTarget(null);
