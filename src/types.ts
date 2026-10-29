@@ -81,7 +81,7 @@ export type UserSearchResult = {
   avatar_path?: string | null;
 };
 
-export type ChatFilter = "all" | "unread" | "pinned" | "groups";
+export type ChatFilter = "all" | "unread" | "pinned" | "groups" | "archive";
 
 export type Profile = { name: string; avatar: string; username: string };
 

@@ -4,6 +4,24 @@ export function sortChats(chats: Chat[]): Chat[] {
   return [...chats].sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)));
 }
 
+/**
+ * Splits the list by where a chat lives.
+ *
+ * An archived chat is not deleted and not muted: it is simply not competing for
+ * attention any more, and a new message should bring it back.
+ */
+export function splitArchived(chats: Chat[]): { active: Chat[]; archived: Chat[] } {
+  const active: Chat[] = [];
+  const archived: Chat[] = [];
+  for (const chat of chats) {
+    // A chat with something new comes back even if it was archived: silently
+    // holding a message in a folder nobody opens is worse than a small surprise.
+    if (chat.archived && !(chat.unread ?? 0)) archived.push(chat);
+    else active.push(chat);
+  }
+  return { active, archived };
+}
+
 export function filterChats(chats: Chat[], query: string): Chat[] {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return chats;

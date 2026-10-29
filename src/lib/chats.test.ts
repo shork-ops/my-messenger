@@ -11,6 +11,7 @@ import {
   removeMessage,
   restoreMessage,
   sortChats,
+  splitArchived,
   togglePinned,
   updateChat,
   upsertChat,
@@ -191,5 +192,47 @@ describe("updateChat and mapMessagesByRemoteId", () => {
     const next = mapMessagesByRemoteId(chats, "r2", (item) => ({ ...item, text: "новый текст" }));
     expect(next[0].messages[1].text).toBe("новый текст");
     expect(next[0].messages[0].text).toBe("привет");
+  });
+});
+
+describe("splitArchived", () => {
+  const at = (overrides: Partial<Chat>): Chat =>
+    ({
+      id: 1,
+      name: "Чат",
+      avatar: "A",
+      color: "blue",
+      preview: "",
+      time: "",
+      messages: [],
+      ...overrides,
+    }) as Chat;
+
+  it("puts ordinary chats in the active list", () => {
+    const { active, archived } = splitArchived([at({ id: 1 }), at({ id: 2 })]);
+    expect(active.map((c) => c.id)).toEqual([1, 2]);
+    expect(archived).toEqual([]);
+  });
+
+  it("moves archived chats out of the main list", () => {
+    const { active, archived } = splitArchived([at({ id: 1, archived: true }), at({ id: 2 })]);
+    expect(active.map((c) => c.id)).toEqual([2]);
+    expect(archived.map((c) => c.id)).toEqual([1]);
+  });
+
+  it("brings an archived chat back when something arrives in it", () => {
+    // Holding a message in a folder nobody opens is worse than a small surprise.
+    const { active, archived } = splitArchived([at({ id: 1, archived: true, unread: 1 })]);
+    expect(active.map((c) => c.id)).toEqual([1]);
+    expect(archived).toEqual([]);
+  });
+
+  it("keeps an archived chat archived while it has nothing new", () => {
+    const { archived } = splitArchived([at({ id: 1, archived: true, unread: 0 })]);
+    expect(archived.map((c) => c.id)).toEqual([1]);
+  });
+
+  it("handles an empty list", () => {
+    expect(splitArchived([])).toEqual({ active: [], archived: [] });
   });
 });

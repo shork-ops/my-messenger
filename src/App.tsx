@@ -1420,6 +1420,7 @@ export default function App() {
         filter={chatFilter}
         onFilterChange={setChatFilter}
         chats={displayChats}
+        allChats={chats}
         hasVisibleChats={displayChats.length > 0}
         activeId={activeId}
         onSelectChat={selectChat}

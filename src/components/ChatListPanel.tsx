@@ -10,6 +10,9 @@ const FILTERS: { id: ChatFilter; label: string }[] = [
   { id: "groups", label: "Группы" },
 ];
 
+/** The archive is its own place, so it is a tab of its own with its size shown. */
+const archivedCount = (chats: Chat[]) => chats.filter((chat) => chat.archived).length;
+
 type ChatListPanelProps = {
   search: string;
   onSearchChange: (value: string) => void;
@@ -19,6 +22,8 @@ type ChatListPanelProps = {
   filter: ChatFilter;
   onFilterChange: (filter: ChatFilter) => void;
   chats: Chat[];
+  /** Every chat, unfiltered: the archive tab is offered based on this, not on the rows. */
+  allChats: Chat[];
   hasVisibleChats: boolean;
   activeId: number;
   onSelectChat: (chat: Chat) => void;
@@ -34,6 +39,7 @@ export default function ChatListPanel({
   filter,
   onFilterChange,
   chats,
+  allChats,
   hasVisibleChats,
   activeId,
   onSelectChat,
@@ -81,6 +87,12 @@ export default function ChatListPanel({
             {item.label}
           </button>
         ))}
+        {/* Offered only once something is in it: an empty archive is furniture. */}
+        {archivedCount(allChats) > 0 && (
+          <button className={filter === "archive" ? "active" : ""} onClick={() => onFilterChange("archive")}>
+            Архив {archivedCount(allChats)}
+          </button>
+        )}
       </div>
 
       <div className="chat-list">

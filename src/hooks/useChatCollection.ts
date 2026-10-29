@@ -6,6 +6,7 @@ import {
   getVisibleMessages,
   matchesChatFilter,
   sortChats,
+  splitArchived,
   togglePinned,
 } from "../lib/chats";
 import { attentionTotal } from "../lib/chatSettings";
@@ -78,13 +79,17 @@ export function useChatCollection({ search, chatFilter, messageSearch, notify }:
   );
   const sortedChats = useMemo(() => sortChats(chats), [chats]);
   const filteredChats = useMemo(() => filterChats(chats, search), [chats, search]);
-  const displayChats = useMemo(
-    () =>
-      sortedChats.filter(
-        (chat) => matchesChatFilter(chat, chatFilter) && (!search.trim() || filteredChats.some((item) => item.id === chat.id))
-      ),
-    [sortedChats, chatFilter, search, filteredChats]
-  );
+  // Archived chats leave the main list on their own rather than through a filter:
+  // they are not hidden by a view, they moved.
+  const { active: liveChats, archived: archivedChats } = useMemo(() => splitArchived(sortedChats), [sortedChats]);
+  const displayChats = useMemo(() => {
+    const pool = chatFilter === "archive" ? archivedChats : liveChats;
+    return pool.filter(
+      (chat) =>
+        (chatFilter === "archive" || matchesChatFilter(chat, chatFilter)) &&
+        (!search.trim() || filteredChats.some((item) => item.id === chat.id))
+    );
+  }, [liveChats, archivedChats, chatFilter, search, filteredChats]);
   const visibleMessages = useMemo(() => getVisibleMessages(activeChat.messages, messageSearch), [activeChat, messageSearch]);
   const galleryImages = useMemo(() => getGalleryImages(chats), [chats]);
   // Muted and archived chats keep their own counts in the list but stay out of the
@@ -109,6 +114,7 @@ export function useChatCollection({ search, chatFilter, messageSearch, notify }:
     visibleMessages,
     galleryImages,
     unreadTotal,
+    archivedChats,
     toggleChatPin,
   };
 }
