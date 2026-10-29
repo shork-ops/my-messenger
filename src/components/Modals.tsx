@@ -1,5 +1,5 @@
 import type { FormEvent } from "react";
-import { X } from "lucide-react";
+import { ChevronRight, ShieldCheck, X } from "lucide-react";
 import type { Message } from "../types";
 
 type NewChatModalProps = {
@@ -145,6 +145,8 @@ type ProfileModalProps = {
   onUsernameChange: (value: string) => void;
   onSaveUsername: () => void;
   onThemeChange: (value: string) => void;
+  /** Opens the privacy settings on top of this dialog. */
+  onOpenPrivacy: () => void;
   onDone: () => void;
 };
 
@@ -161,6 +163,7 @@ export function ProfileModal({
   onUsernameChange,
   onSaveUsername,
   onThemeChange,
+  onOpenPrivacy,
   onDone,
 }: ProfileModalProps) {
   if (!open) return null;
@@ -206,6 +209,16 @@ export function ProfileModal({
             <option value="mint">Мятная</option>
           </select>
         </label>
+        <div className="settings-divider" />
+        <button type="button" className="settings-link" onClick={onOpenPrivacy}>
+          <ShieldCheck size={20} />
+          <span>
+            <strong>Приватность и блокировки</strong>
+            <small>Кто вас видит, статусы прочтения, удаление аккаунта</small>
+          </span>
+          <ChevronRight size={18} />
+        </button>
+
         <button type="button" className="save-settings" onClick={onDone}>
           Готово
         </button>

@@ -33,7 +33,7 @@ export default function PrivacyModal({
   if (!open) return null;
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop privacy-layer" onClick={onClose}>
       <section className="settings-modal privacy-modal" onClick={(event) => event.stopPropagation()}>
         <header>
           <strong>Приватность</strong>

@@ -1,4 +1,4 @@
-import { ChevronRight, LogOut, Plus, ShieldCheck, ShieldMinus, UserMinus, UserRound, X } from "lucide-react";
+import { ChevronRight, LogOut, Plus, ShieldCheck, ShieldMinus, UserMinus, X } from "lucide-react";
 import Avatar from "./Avatar";
 import type { ChatMember } from "../lib/groupAdmin";
 import type { Chat } from "../types";
@@ -17,7 +17,6 @@ type RightPanelProps = {
   myRole: string | null;
   onClose: () => void;
   onOpenProfile: () => void;
-  onOpenPrivacy: () => void;
   onCreateInvite: () => void;
   onRotateInvite: () => void;
   onChangeRole: (userId: string, role: "admin" | "member") => void;
@@ -34,7 +33,6 @@ export default function RightPanel({
   myRole,
   onClose,
   onOpenProfile,
-  onOpenPrivacy,
   onCreateInvite,
   onRotateInvite,
   onChangeRole,
@@ -63,11 +61,6 @@ export default function RightPanel({
           </small>
         </span>
         <ChevronRight size={22} className="yellow-icon" />
-      </button>
-
-      <button className="invite-row privacy-row" onClick={onOpenPrivacy}>
-        <span><UserRound size={20} /></span>
-        Приватность и блокировки
       </button>
 
       <div className="right-divider" />

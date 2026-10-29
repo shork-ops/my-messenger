@@ -34,12 +34,12 @@ export default function Rail({
       </button>
 
       <nav className="main-nav">
-        <button className={`nav-link ${activeNav === "Чаты" ? "active" : ""}`} onClick={() => onNavigate("Чаты")}>
+        <button className={`nav-link ${activeNav === "Чаты" ? "active" : ""}`} onClick={() => onNavigate("Чаты")} aria-label="Чаты">
           <MessageCircle size={22} />
           <span>Чаты</span>
           {unreadTotal > 0 && <b className="nav-count">{unreadTotal}</b>}
         </button>
-        <button className={`nav-link ${activeNav === "Мини-игры" ? "active" : ""}`} onClick={onOpenGames}>
+        <button className={`nav-link ${activeNav === "Мини-игры" ? "active" : ""}`} onClick={onOpenGames} aria-label="Мини-игры">
           <Gamepad2 size={22} />
           <span>Мини-игры</span>
         </button>
@@ -53,7 +53,7 @@ export default function Rail({
           <span>Уведомления</span>
         </button>
         <div className="nav-divider" />
-        <button className={`nav-link ${activeNav === "Настройки" ? "active" : ""}`} onClick={onOpenSettings}>
+        <button className={`nav-link ${activeNav === "Настройки" ? "active" : ""}`} onClick={onOpenSettings} aria-label="Настройки">
           <Settings size={22} />
           <span>Настройки</span>
         </button>

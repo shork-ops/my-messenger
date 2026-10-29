@@ -1393,7 +1393,6 @@ export default function App() {
           myRole={myChatRole}
           onClose={() => setShowProfile(false)}
           onOpenProfile={() => setProfileOpen(true)}
-          onOpenPrivacy={() => setPrivacyOpen(true)}
           onCreateInvite={() => void createInviteLink()}
           onRotateInvite={() => void rotateInviteLink()}
           onChangeRole={(userId, role) => void changeMemberRole(userId, role)}
@@ -1495,6 +1494,7 @@ export default function App() {
         onUsernameChange={setUsername}
         onSaveUsername={() => void saveUsername()}
         onThemeChange={setTheme}
+        onOpenPrivacy={() => setPrivacyOpen(true)}
         onDone={() => {
           setProfileOpen(false);
           action("Профиль и тема сохранены");

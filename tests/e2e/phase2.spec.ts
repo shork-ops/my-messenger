@@ -78,10 +78,9 @@ test.describe("Phase 2 acceptance: two tabs, group, search, attachment, block", 
 
   test("blocking is reachable and blocks nothing until used", async ({ page }) => {
     await openApp(page);
-    await page.getByText("Команда").first().click();
-    await page.getByRole("button", { name: "Профиль", exact: true }).click();
-    await expect(page.locator(".right-panel")).toBeVisible();
-    await page.getByText("Приватность и блокировки").click();
+    await page.locator(".rail").getByRole("button", { name: "Настройки", exact: true }).click();
+    await expect(page.locator(".settings-modal").first()).toBeVisible();
+    await page.getByRole("button", { name: /Приватность и блокировки/ }).click();
 
     const modal = page.locator(".privacy-modal");
     await expect(modal).toBeVisible();
