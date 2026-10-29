@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import type { Dispatch, SetStateAction } from "react";
+import { useEffect, useRef } from "react";
+import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import { supabase } from "../lib/supabase";
 import { numericId } from "../lib/format";
 import { countUnread } from "../lib/readState";
@@ -14,13 +14,25 @@ type UseCloudChatsOptions = {
   notify: (message: string) => void;
   setChats: Dispatch<SetStateAction<Chat[]>>;
   setActiveId: Dispatch<SetStateAction<number>>;
+  /** Filled with a function that reloads the chat list from the database. */
+  reloadRef?: MutableRefObject<(() => void) | null>;
 };
 
 /**
  * Loads cloud chats with the newest page of history for each one.
  * Older pages are fetched lazily by `useHistoryPagination`.
  */
-export function useCloudChats({ accountId, profileReady, profileName, notify, setChats, setActiveId }: UseCloudChatsOptions) {
+export function useCloudChats({
+  accountId,
+  profileReady,
+  profileName,
+  notify,
+  setChats,
+  setActiveId,
+  reloadRef,
+}: UseCloudChatsOptions) {
+  const reloadRefInternal = useRef<(() => void) | null>(null);
+  const target = reloadRef ?? reloadRefInternal;
   useEffect(() => {
     const client = supabase;
     if (!client || !accountId || !profileReady) return;
@@ -117,10 +129,16 @@ export function useCloudChats({ accountId, profileReady, profileName, notify, se
     };
 
     void loadCloudChats();
+    // A realtime event can arrive before the first fetch finishes. Reloading the
+    // list recovers that event instead of letting the message vanish.
+    target.current = () => {
+      if (alive) void loadCloudChats();
+    };
     return () => {
       alive = false;
+      target.current = null;
     };
-  }, [accountId, profileReady, profileName, notify, setChats, setActiveId]);
+  }, [accountId, profileReady, profileName, notify, setChats, setActiveId, reloadRef]);
 
   useEffect(() => {
     const client = supabase;

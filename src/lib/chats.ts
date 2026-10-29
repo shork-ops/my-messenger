@@ -56,6 +56,24 @@ export function mapMessagesByRemoteId(chats: Chat[], remoteId: string, updater: 
   );
 }
 
+/**
+ * Decides what a realtime event about a chat means for the current state.
+ *
+ * An event can arrive before the chat list has loaded, or for a chat created in
+ * another tab. Treating that as "ignore" silently loses the message: it shows up
+ * in neither the conversation nor the list. Callers must reload in that case.
+ */
+export function planRealtimeMessage(
+  chats: Chat[],
+  remoteChatId: string,
+  remoteMessageId: string
+): { action: "reload"; chatId: null } | { action: "skip" | "append"; chatId: number } {
+  const chat = chats.find((item) => item.remoteId === remoteChatId);
+  if (!chat) return { action: "reload", chatId: null };
+  if (chat.messages.some((entry) => entry.remoteId === remoteMessageId)) return { action: "skip", chatId: chat.id };
+  return { action: "append", chatId: chat.id };
+}
+
 export function appendMessage(
   chats: Chat[],
   chatId: number,

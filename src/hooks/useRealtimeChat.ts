@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { supabase } from "../lib/supabase";
-import { appendMessage, applyRemoteMemberRead, mapMessagesByRemoteId } from "../lib/chats";
+import { appendMessage, applyRemoteMemberRead, mapMessagesByRemoteId, planRealtimeMessage } from "../lib/chats";
 import { mapMessageRow } from "../lib/messageSync";
 import type { Chat, ChatMessageRow, Message } from "../types";
 
@@ -10,9 +10,11 @@ type UseRealtimeChatOptions = {
   profileName: string;
   remoteId?: string;
   setChats: Dispatch<SetStateAction<Chat[]>>;
+  /** Called when an event arrives for a chat that is not loaded yet. */
+  onMissingChat?: (chatId: string) => Promise<void> | void;
 };
 
-export function useRealtimeChat({ accountId, profileName, remoteId, setChats }: UseRealtimeChatOptions) {
+export function useRealtimeChat({ accountId, profileName, remoteId, setChats, onMissingChat }: UseRealtimeChatOptions) {
   useEffect(() => {
     const client = supabase;
     if (!client || !accountId || !remoteId) return;
@@ -25,12 +27,21 @@ export function useRealtimeChat({ accountId, profileName, remoteId, setChats }: 
         if (payload.eventType === "INSERT" && row.sender_id !== accountId) {
           const message = await mapMessageRow(row, { accountId, selfName: profileName, authorName: "Собеседник" });
           if (!message) return;
+          let chatMissing = false;
           setChats((current) => {
-            const chat = current.find((item) => item.remoteId === row.chat_id);
-            if (!chat || chat.messages.some((entry) => entry.remoteId === row.id)) return current;
+            const plan = planRealtimeMessage(current, row.chat_id, row.id);
+            // The chat list has not finished loading, or this chat appeared after
+            // the last fetch. Dropping the event loses the message silently, so
+            // the list is reloaded instead.
+            if (plan.action === "reload") {
+              chatMissing = true;
+              return current;
+            }
+            if (plan.action === "skip") return current;
             const preview = row.poll ? "📊 " + row.body : message.attachment ? "📎 " + message.text : message.text;
-            return appendMessage(current, chat.id, message, preview, message.time);
+            return appendMessage(current, plan.chatId, message, preview, message.time);
           });
+          if (chatMissing) await onMissingChat?.(row.chat_id);
           const marked = await client.rpc("mark_chat_read", { target_chat_id: row.chat_id });
           if (typeof marked.data === "string") {
             const at = Date.parse(marked.data);
@@ -60,5 +71,5 @@ export function useRealtimeChat({ accountId, profileName, remoteId, setChats }: 
     return () => {
       void client.removeChannel(channel);
     };
-  }, [accountId, profileName, remoteId, setChats]);
+  }, [accountId, profileName, remoteId, setChats, onMissingChat]);
 }

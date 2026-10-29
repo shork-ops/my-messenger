@@ -125,8 +125,17 @@ export default function App() {
     useChatCollection({ search, chatFilter, messageSearch, notify: action });
   const { foundUsers, userSearchLoading } = useUserSearch({ search, accountId });
 
-  useCloudChats({ accountId, profileReady, profileName, notify: action, setChats, setActiveId });
-  useRealtimeChat({ accountId, profileName, remoteId: activeChat.remoteId, setChats });
+  const reloadChatsRef = useRef<(() => void) | null>(null);
+  useCloudChats({ accountId, profileReady, profileName, notify: action, setChats, setActiveId, reloadRef: reloadChatsRef });
+  useRealtimeChat({
+    accountId,
+    profileName,
+    remoteId: activeChat.remoteId,
+    setChats,
+    // A message can arrive before the chat list has finished loading. Without
+    // this the event was dropped and the message never appeared.
+    onMissingChat: async () => reloadChatsRef.current?.(),
+  });
   // Signed attachment URLs last an hour; keep them alive in a long-lived tab.
   useAttachmentRefresh({ chats, enabled: Boolean(accountId), setChats });
   const {
