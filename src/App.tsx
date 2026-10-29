@@ -59,6 +59,8 @@ import { useNotificationPrefs } from "./hooks/useNotificationPrefs";
 import { useLanguage } from "./hooks/useLanguage";
 import { usePasscode } from "./hooks/usePasscode";
 import { useTwoFactor } from "./hooks/useTwoFactor";
+import { useWallpaper } from "./hooks/useWallpaper";
+import { wallpaperBackground, wallpaperOpacity } from "./lib/wallpaper";
 import PasscodeLock from "./components/PasscodeLock";
 import { type MuteOptionId, muteUntil } from "./lib/chatSettings";
 import { subscribeToPush } from "./lib/push";
@@ -229,6 +231,7 @@ export default function App() {
   const { language, setLanguage } = useLanguage();
   // A four-digit lock on this device, separate from the account password.
   const { passcode: lockCode, unlocked: lockUnlocked, setCode, unlock } = usePasscode();
+  const { wallpaper, setWallpaper } = useWallpaper();
   // TOTP two-factor, verified on the server: the app cannot declare itself verified.
   const twoFactorState = useTwoFactor(supabase, accountId);
   const twoFactor = {
@@ -1641,6 +1644,7 @@ export default function App() {
           setChatMenuOpen(false);
           void saveChatSettings(activeChat.id, { mutedUntil: null }).then((ok) => ok && action("Звук включён"));
         }}
+        wallpaper={wallpaper}
         onArchive={() => {
           setChatMenuOpen(false);
           const next = !activeChat.archived;
@@ -1852,6 +1856,8 @@ export default function App() {
         passcode={lockCode}
         onPasscodeChange={setCode}
         twoFactor={twoFactor}
+        wallpaper={wallpaper}
+        onWallpaperChange={setWallpaper}
       />
 
       {deletedMessage && (

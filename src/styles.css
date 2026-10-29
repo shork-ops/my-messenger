@@ -484,6 +484,14 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .quiet-row label { display: flex; align-items: center; gap: 8px; color: var(--fg-secondary); font-size: 13px; }
 .settings-action.danger { border-color: var(--yellow); color: var(--yellow); }
 .settings-divider { height: 1px; margin: 16px 0 4px; background: var(--border); }
+.wallpaper-row { display: flex; flex-wrap: wrap; gap: 7px; }
+.wallpaper-option { display: flex; align-items: center; gap: 7px; min-height: 42px; padding: 0 11px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-0); color: var(--fg-secondary); font: inherit; font-size: 13px; cursor: pointer; }
+.wallpaper-option.active { border-color: var(--yellow); color: var(--yellow); }
+.wallpaper-swatch { width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--border); background-color: var(--surface-2); color: var(--fg-muted); }
+.settings-hint { display: block; margin-top: 6px; color: var(--fg-muted); font-size: 12px; }
+/* The pattern sits on a pseudo-element so bubbles and text keep their own contrast. */
+.wallpaper-layer { position: absolute; inset: 0; z-index: 0; opacity: .07; pointer-events: none; }
+[data-theme="light"] .wallpaper-layer { opacity: .035; }
 .twofactor { display: flex; flex-direction: column; gap: 10px; padding: 10px 0; }
 .twofactor-secret { display: flex; align-items: center; gap: 10px; padding: 11px 13px; border: 1px dashed var(--border-strong); border-radius: 10px; background: var(--surface-0); }
 .twofactor-secret code { color: var(--fg); font-size: 14px; letter-spacing: 1px; word-break: break-all; }

@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useRef } from "react";
 import type { ComponentProps, MutableRefObject } from "react";
+import { type WallpaperId, wallpaperBackground, wallpaperSize } from "../lib/wallpaper";
 import { Archive, BellOff, BellRing, ChevronLeft, MoreVertical, Phone, Pin, Search, Trash2, UserRound, Video, X } from "lucide-react";
 import Avatar from "./Avatar";
 import Composer from "./Composer";
@@ -38,6 +39,7 @@ type ConversationPanelProps = {
   onMute: () => void;
   onUnmute: () => void;
   onArchive: () => void;
+  wallpaper: WallpaperId;
   chatMenuOpen: boolean;
   onToggleChatMenu: () => void;
   visibleMessages: Message[];
@@ -92,6 +94,7 @@ export default function ConversationPanel({
   onMute,
   onUnmute,
   onArchive,
+  wallpaper,
   chatMenuOpen,
   onToggleChatMenu,
   visibleMessages,
@@ -254,7 +257,19 @@ export default function ConversationPanel({
         />
       )}
 
+      {/* The pattern is drawn behind the messages, so bubbles keep their own
+          background and the contrast they were checked with. */}
       <div className="messages-area" ref={messagesRef}>
+        {wallpaper !== "none" && (
+          <span
+            className="wallpaper-layer"
+            aria-hidden="true"
+            style={{
+              backgroundImage: wallpaperBackground(wallpaper, "var(--fg)"),
+              backgroundSize: wallpaperSize(wallpaper),
+            }}
+          />
+        )}
         {chat.messages.length > 0 && !chat.messages.some((message) => message.createdAt) && (
           <div className="date-divider">
             <span>История переписки</span>

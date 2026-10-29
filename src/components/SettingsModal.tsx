@@ -19,6 +19,7 @@ import { LANGUAGES, type Language } from "../lib/i18n";
 import { type SessionRecord, lastSeenLabel } from "../lib/sessions";
 import { avatarFallback } from "../lib/avatar";
 import TwoFactorPanel from "./TwoFactorPanel";
+import { WALLPAPERS, type WallpaperId, wallpaperBackground, wallpaperSize } from "../lib/wallpaper";
 
 /** Sections in the order a person tends to look for them. */
 export const SETTINGS_SECTIONS = [
@@ -65,6 +66,8 @@ export type SettingsModalProps = {
   clearing: boolean;
   language: Language;
   onLanguageChange: (value: Language) => void;
+  wallpaper: WallpaperId;
+  onWallpaperChange: (value: WallpaperId) => void;
   devices: SessionRecord[];
   currentDeviceId: string;
   onSignOutOthers: () => void;
@@ -184,6 +187,8 @@ export default function SettingsModal(props: SettingsModalProps) {
                 onTextSizeChange={props.onTextSizeChange}
                 language={props.language}
                 onLanguageChange={props.onLanguageChange}
+                wallpaper={props.wallpaper}
+                onWallpaperChange={props.onWallpaperChange}
               />
             )}
             {active === "privacy" && <PrivacySection onOpenPrivacy={props.onOpenPrivacy} />}
@@ -294,6 +299,8 @@ function AppearanceSection({
   onTextSizeChange,
   language,
   onLanguageChange,
+  wallpaper,
+  onWallpaperChange,
 }: {
   theme: string;
   onThemeChange: (value: string) => void;
@@ -301,6 +308,8 @@ function AppearanceSection({
   onTextSizeChange: (value: string) => void;
   language: Language;
   onLanguageChange: (value: Language) => void;
+  wallpaper: WallpaperId;
+  onWallpaperChange: (value: WallpaperId) => void;
 }) {
   return (
     <>
@@ -331,6 +340,33 @@ function AppearanceSection({
           ))}
         </div>
       </div>
+      <div className="field-block">
+        <span className="field-label">Обои чата</span>
+        <div className="wallpaper-row" role="group" aria-label="Обои чата">
+          {WALLPAPERS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`wallpaper-option${wallpaper === item.id ? " active" : ""}`}
+              aria-pressed={wallpaper === item.id}
+              onClick={() => onWallpaperChange(item.id)}
+            >
+              {/* The swatch is the pattern itself, so the choice needs no words. */}
+              <span
+                className="wallpaper-swatch"
+                style={{
+                backgroundImage: wallpaperBackground(item.id, "currentColor"),
+                backgroundSize: wallpaperSize(item.id),
+              }}
+                aria-hidden="true"
+              />
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <small className="settings-hint">{WALLPAPERS.find((item) => item.id === wallpaper)?.hint}</small>
+      </div>
+
       <label>
         Язык интерфейса
         <select value={language} onChange={(event) => onLanguageChange(event.target.value as Language)}>
