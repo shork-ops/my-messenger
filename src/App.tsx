@@ -60,6 +60,7 @@ import { useLanguage } from "./hooks/useLanguage";
 import { usePasscode } from "./hooks/usePasscode";
 import { useTwoFactor } from "./hooks/useTwoFactor";
 import { useWallpaper } from "./hooks/useWallpaper";
+import EmojiPicker from "./components/EmojiPicker";
 import { wallpaperBackground, wallpaperOpacity } from "./lib/wallpaper";
 import PasscodeLock from "./components/PasscodeLock";
 import { type MuteOptionId, muteUntil } from "./lib/chatSettings";
@@ -232,6 +233,7 @@ export default function App() {
   // A four-digit lock on this device, separate from the account password.
   const { passcode: lockCode, unlocked: lockUnlocked, setCode, unlock } = usePasscode();
   const { wallpaper, setWallpaper } = useWallpaper();
+  const [emojiOpen, setEmojiOpen] = useState(false);
   // TOTP two-factor, verified on the server: the app cannot declare itself verified.
   const twoFactorState = useTwoFactor(supabase, accountId);
   const twoFactor = {
@@ -1376,9 +1378,10 @@ export default function App() {
     if (value) notifyTyping();
   }
 
-  function addEmoji() {
-    if (editingMessageId !== null) setEditDraft((value) => value + " 🙂");
-    else setDraft((value) => value + " 🙂");
+  function addEmoji(char = "🙂") {
+    if (editingMessageId !== null) setEditDraft((value) => value + char);
+    else setDraft((value) => value + char);
+    setEmojiOpen(false);
   }
 
   function copyMessage(message: Message) {
@@ -1693,7 +1696,7 @@ export default function App() {
           recordingSeconds,
           fileInputRef,
           onChangeText: changeDraft,
-          onEmoji: addEmoji,
+          onEmoji: () => setEmojiOpen((open) => !open),
           onToggleVoice: () => void startVoiceRecording(),
           onSubmit: sendMessage,
           onCancelEdit: () => {
@@ -1707,6 +1710,16 @@ export default function App() {
           onOpenPoll: () => setPollOpen(true),
         }}
       />
+
+      {emojiOpen && (
+        <EmojiPicker
+          onPick={(char) => {
+            addEmoji(char);
+            setEmojiOpen(false);
+          }}
+          onClose={() => setEmojiOpen(false)}
+        />
+      )}
 
       {(wideLayout || showProfile) && (
         <RightPanel

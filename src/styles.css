@@ -484,6 +484,14 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .quiet-row label { display: flex; align-items: center; gap: 8px; color: var(--fg-secondary); font-size: 13px; }
 .settings-action.danger { border-color: var(--yellow); color: var(--yellow); }
 .settings-divider { height: 1px; margin: 16px 0 4px; background: var(--border); }
+.emoji-picker { position: fixed; right: 18px; bottom: 96px; z-index: 300; display: flex; flex-direction: column; gap: 9px; width: min(316px, calc(100vw - 32px)); max-height: 320px; padding: 12px; border: 1px solid var(--border-strong); border-radius: 14px; background: var(--surface-1); box-shadow: 0 18px 44px rgba(0, 0, 0, .45); }
+.emoji-search { display: flex; align-items: center; gap: 7px; padding: 0 9px; min-height: 36px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-0); color: var(--fg-muted); }
+.emoji-search input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--fg); font: inherit; font-size: 13px; outline: none; }
+.emoji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 2px; overflow-y: auto; }
+.emoji-item { display: grid; place-items: center; width: 100%; aspect-ratio: 1; border: 0; border-radius: 8px; background: transparent; font-size: 21px; line-height: 1; cursor: pointer; }
+.emoji-item:hover, .emoji-item:focus-visible { background: var(--surface-2); }
+.emoji-empty { padding: 14px 4px; color: var(--fg-muted); font-size: 13px; text-align: center; }
+@media (max-width: 640px) { .emoji-picker { right: 10px; left: 10px; width: auto; bottom: 84px; max-height: 46vh; } }
 .wallpaper-row { display: flex; flex-wrap: wrap; gap: 7px; }
 .wallpaper-option { display: flex; align-items: center; gap: 7px; min-height: 42px; padding: 0 11px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-0); color: var(--fg-secondary); font: inherit; font-size: 13px; cursor: pointer; }
 .wallpaper-option.active { border-color: var(--yellow); color: var(--yellow); }
