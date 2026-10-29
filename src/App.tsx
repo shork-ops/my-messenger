@@ -128,6 +128,8 @@ export default function App() {
     saveUsername,
     avatarPath,
     setAvatarPath,
+    about,
+    saveAbout,
   } = useProfile({ notify: action });
 
   const { avatarUrl: selfAvatarUrl, uploading: avatarUploading, upload: uploadAvatar, remove: removeAvatar } = useAvatar({
@@ -1399,6 +1401,7 @@ export default function App() {
           profileName={profileName}
           profileAvatar={profileAvatar}
           selfAvatarUrl={selfAvatarUrl}
+          selfAbout={about}
           chat={activeChat}
           members={chatMembers}
           myRole={myChatRole}
@@ -1501,6 +1504,8 @@ export default function App() {
         onAvatarFile={(file) => void uploadAvatar(file)}
         onAvatarRemove={() => void removeAvatar()}
         username={username}
+        about={about}
+        onAboutSave={(value) => void saveAbout(value)}
         usernameSaving={usernameSaving}
         theme={theme}
         onClose={() => setProfileOpen(false)}

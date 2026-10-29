@@ -7,6 +7,7 @@ export function useProfile({ notify }: UseProfileOptions) {
   const [profileName, setProfileName] = useState(() => window.localStorage.getItem("nexus-profile-name") || "Алексей");
   const [profileAvatar, setProfileAvatar] = useState(() => window.localStorage.getItem("nexus-profile-avatar") || "N");
   const [avatarPath, setAvatarPath] = useState<string | null>(null);
+  const [about, setAbout] = useState("");
   const [username, setUsername] = useState("");
   const [usernameSaving, setUsernameSaving] = useState(false);
   const [accountId, setAccountId] = useState<string | null>(null);
@@ -40,7 +41,7 @@ export function useProfile({ notify }: UseProfileOptions) {
             : "";
       const { data: existingProfile, error: readError } = await client
         .from("profiles")
-        .select("display_name, avatar, username, avatar_path")
+        .select("display_name, avatar, username, avatar_path, about")
         .eq("id", user.id)
         .maybeSingle();
       if (!alive) return;
@@ -55,6 +56,7 @@ export function useProfile({ notify }: UseProfileOptions) {
         setProfileAvatar(existingProfile.avatar || metadataName.slice(0, 1).toUpperCase() || "N");
         setUsername(existingProfile.username || "");
         setAvatarPath(existingProfile.avatar_path || null);
+        setAbout(existingProfile.about || "");
       } else {
         const displayName = metadataName.trim() || user.email?.split("@")[0] || "Пользователь";
         const avatar = displayName.slice(0, 1).toUpperCase() || "N";
@@ -115,6 +117,23 @@ export function useProfile({ notify }: UseProfileOptions) {
     notify("Username сохранён — по нему тебя можно будет найти");
   }
 
+  async function saveAbout(next: string) {
+    const client = supabase;
+    if (!client || !accountId) {
+      notify("Вход через Google необходим для сохранения");
+      return;
+    }
+    const { normalizeAbout } = await import("../lib/about");
+    const value = normalizeAbout(next);
+    const { error } = await client.from("profiles").update({ about: value || null, updated_at: new Date().toISOString() }).eq("id", accountId);
+    if (error) {
+      notify("Не удалось сохранить «о себе»");
+      return;
+    }
+    setAbout(value);
+    notify(value ? "Сохранено" : "Строка «о себе» убрана");
+  }
+
   return {
     profileName,
     setProfileName,
@@ -122,6 +141,9 @@ export function useProfile({ notify }: UseProfileOptions) {
     setProfileAvatar,
     avatarPath,
     setAvatarPath,
+    about,
+    setAbout,
+    saveAbout,
     username,
     setUsername,
     usernameSaving,

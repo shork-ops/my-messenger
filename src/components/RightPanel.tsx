@@ -14,6 +14,8 @@ type RightPanelProps = {
   profileName: string;
   profileAvatar: string;
   selfAvatarUrl?: string | null;
+  /** The signed-in user's own "about" line, if they wrote one. */
+  selfAbout?: string | null;
   chat: Chat;
   members: ChatMember[];
   myRole: string | null;
@@ -31,6 +33,7 @@ export default function RightPanel({
   profileName,
   profileAvatar,
   selfAvatarUrl,
+  selfAbout,
   chat,
   members,
   myRole,
@@ -65,6 +68,8 @@ export default function RightPanel({
         </span>
         <ChevronRight size={22} className="yellow-icon" />
       </button>
+
+      {selfAbout && <p className="profile-about">{selfAbout}</p>}
 
       <div className="right-divider" />
       {chat.group && listed.length > 0 && (

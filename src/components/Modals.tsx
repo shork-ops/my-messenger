@@ -1,6 +1,7 @@
 import type { FormEvent } from "react";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Camera, ChevronRight, ShieldCheck, Trash2, X } from "lucide-react";
+import { ABOUT_MAX, normalizeAbout, shouldShowAboutCounter } from "../lib/about";
 import { avatarFallback } from "../lib/avatar";
 import type { Message } from "../types";
 
@@ -144,6 +145,8 @@ type ProfileModalProps = {
   onAvatarFile: (file: File) => void;
   onAvatarRemove: () => void;
   username: string;
+  about: string;
+  onAboutSave: (value: string) => void;
   usernameSaving: boolean;
   theme: string;
   onClose: () => void;
@@ -166,6 +169,8 @@ export function ProfileModal({
   onAvatarFile,
   onAvatarRemove,
   username,
+  about,
+  onAboutSave,
   usernameSaving,
   theme,
   onClose,
@@ -216,6 +221,8 @@ export function ProfileModal({
           onRemove={onAvatarRemove}
           onLetterChange={onAvatarChange}
         />
+        <AboutField value={about} onSave={onAboutSave} />
+
         <label>
           Цветовая тема
           <select value={theme} onChange={(event) => onThemeChange(event.target.value)}>
@@ -304,4 +311,40 @@ function AvatarEditor({ name, avatar, photoUrl, uploading, onFile, onRemove, onL
     </div>
   );
 }
+}
+
+/**
+ * Multi-line "about" field.
+ *
+ * Saved on blur and on the Save button rather than per keystroke: a request per
+ * character would race itself and fight anything the user types afterwards.
+ */
+function AboutField({ value: saved, onSave }: { value: string; onSave: (value: string) => void }) {
+  const [draft, setDraft] = useState(saved);
+  useEffect(() => setDraft(saved), [saved]);
+  const remaining = ABOUT_MAX - Array.from(draft).length;
+  const dirty = normalizeAbout(draft) !== normalizeAbout(saved);
+  const hint = shouldShowAboutCounter(draft) ? "Осталось " + remaining + " символов" : "До 140 символов";
+  return (
+    <label>
+      О себе
+      <textarea
+        className="about-input"
+        value={draft}
+        rows={2}
+        maxLength={ABOUT_MAX + 40}
+        placeholder="Коротко о себе — увидят в профиле"
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => (dirty ? onSave(draft) : undefined)}
+      />
+      <small className="modal-help about-help">
+        {hint}
+        {dirty && (
+          <button type="button" className="about-save" onClick={() => onSave(draft)}>
+            Сохранить
+          </button>
+        )}
+      </small>
+    </label>
+  );
 }

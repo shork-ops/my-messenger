@@ -389,6 +389,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .avatar-remove { min-height: 44px; padding: 0 14px; border: 1px solid var(--border); border-radius: 11px; background: transparent; color: var(--fg-secondary); font: inherit; font-size: 14px; cursor: pointer; }
 .avatar-remove:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
 .avatar-hint { color: var(--fg-muted); font-size: 12px; }
+.profile-about { margin: -6px 0 10px; padding: 0 2px; color: var(--fg-secondary); font-size: 13px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.about-input { width: 100%; min-height: 64px; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: 10px; outline: 0; background: var(--surface-0); color: var(--fg); font: inherit; font-size: 14px; line-height: 1.45; resize: vertical; }
+.about-input:focus { border-color: var(--yellow); }
+.about-help { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.about-save { min-height: 32px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface-2); color: var(--fg); font: inherit; font-size: 12px; cursor: pointer; }
+.about-save:hover { border-color: var(--yellow); }
 .settings-divider { height: 1px; margin: 2px 0; background: var(--border); }
 .settings-link { display: flex; align-items: center; gap: 13px; min-height: 56px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 12px; background: #0d0e11; color: var(--fg); text-align: left; }
 .settings-link:hover, .settings-link:focus-visible { border-color: var(--yellow); background: var(--surface-1); }
