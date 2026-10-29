@@ -1,6 +1,6 @@
-import { Fragment } from "react";
+import { Fragment, useEffect, useRef } from "react";
 import type { ComponentProps, MutableRefObject } from "react";
-import { ChevronLeft, MoreVertical, Phone, Pin, Search, Video, X } from "lucide-react";
+import { ChevronLeft, MoreVertical, Phone, Pin, Search, Trash2, UserRound, Video, X } from "lucide-react";
 import Avatar from "./Avatar";
 import Composer from "./Composer";
 import MessageBubble from "./MessageBubble";
@@ -31,6 +31,10 @@ type ConversationPanelProps = {
   onVideo: () => void;
   onTogglePin: () => void;
   onToggleProfile: () => void;
+  /** Deletes this conversation's history on this device. */
+  onClearHistory: () => void;
+  chatMenuOpen: boolean;
+  onToggleChatMenu: () => void;
   visibleMessages: Message[];
   actionsOpenId: number | null;
   onToggleActions: (messageId: number) => void;
@@ -78,6 +82,9 @@ export default function ConversationPanel({
   onVideo,
   onTogglePin,
   onToggleProfile,
+  onClearHistory,
+  chatMenuOpen,
+  onToggleChatMenu,
   visibleMessages,
   actionsOpenId,
   onToggleActions,
@@ -104,6 +111,24 @@ export default function ConversationPanel({
   onLoadOlder,
   composer,
 }: ConversationPanelProps) {
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  // Dismiss the chat menu like any popover: outside click or Escape.
+  useEffect(() => {
+    if (!chatMenuOpen) return;
+    function onDown(event: MouseEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) onToggleChatMenu();
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") onToggleChatMenu();
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [chatMenuOpen, onToggleChatMenu]);
   const subtitle =
     chat.id === 0
       ? "Создай чат, чтобы начать"
@@ -143,9 +168,21 @@ export default function ConversationPanel({
           <button onClick={onTogglePin} aria-label={chat.pinned ? "Открепить чат" : "Закрепить чат"} title={chat.pinned ? "Открепить чат" : "Закрепить чат"}>
             <Pin />
           </button>
-          <button onClick={onToggleProfile} aria-label="Показать профиль">
-            <MoreVertical />
-          </button>
+          <div className="chat-menu-wrap" ref={menuRef}>
+            <button onClick={onToggleChatMenu} aria-label="Меню чата" aria-expanded={chatMenuOpen}>
+              <MoreVertical />
+            </button>
+            {chatMenuOpen && (
+              <div className="chat-menu" role="menu">
+                <button type="button" role="menuitem" onClick={onToggleProfile}>
+                  <UserRound size={18} /> Профиль чата
+                </button>
+                <button type="button" role="menuitem" className="danger" onClick={onClearHistory}>
+                  <Trash2 size={18} /> Очистить историю
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 

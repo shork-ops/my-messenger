@@ -190,6 +190,13 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
    its width and every control can be 44px. */
 .attach-menu-wrap { position: relative; display: flex; flex-shrink: 0; }
 .attach-button.open { background: #1d1e22; color: var(--yellow); border-radius: 12px; }
+/* Chat actions live with the chat, not in the account profile. */
+.chat-menu-wrap { position: relative; display: flex; }
+.chat-menu { position: absolute; z-index: 20; top: calc(100% + 8px); right: 0; display: flex; flex-direction: column; min-width: 210px; padding: 6px; border: 1px solid #2b2c31; border-radius: 14px; background: #141519; box-shadow: 0 14px 40px #000a; }
+.chat-menu button { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: #ececf0; font-size: 14px; text-align: left; }
+.chat-menu button:hover, .chat-menu button:focus-visible { background: #1f2025; color: var(--yellow); }
+.chat-menu button.danger { color: #ff8c86; }
+.chat-menu button.danger:hover, .chat-menu button.danger:focus-visible { background: #2a1719; color: #ff9d97; }
 .attach-menu { position: absolute; z-index: 20; bottom: calc(100% + 10px); left: 0; display: flex; flex-direction: column; min-width: 190px; padding: 6px; border: 1px solid #2b2c31; border-radius: 14px; background: #141519; box-shadow: 0 14px 40px #000a; }
 .attach-menu button { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: #ececf0; font-size: 14px; text-align: left; }
 .attach-menu button:hover, .attach-menu button:focus-visible { background: #1f2025; color: var(--yellow); }
@@ -249,8 +256,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
   .conversation-header > .avatar { width: 38px; height: 38px; }
   .conversation-title strong { font-size: 16px; }
   .conversation-tools { gap: 0; }
-  .conversation-tools { gap: 0; }
   .conversation-tools button { width: 44px; height: 44px; }
+  .conversation-tools .chat-menu-wrap { display: flex; }
   /* Calls stay; pin and search move to the profile panel, which already has
      them. Without this the chat name had 27px of room. */
   .conversation-tools button[aria-label="Закрепить чат"],
@@ -258,7 +265,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
   .conversation-tools button[aria-label="Поиск по переписке"] { display: none; }
   .conversation-title { min-width: 90px; }
   .conversation-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .conversation-tools button:first-child { display: none; }
   .conversation-tools svg { width: 18px; }
   .messages-area { padding: 20px 11px; gap: 20px; }
   .message-line { gap: 7px; }

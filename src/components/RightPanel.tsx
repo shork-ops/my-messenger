@@ -1,6 +1,5 @@
-import { ChevronRight, Gamepad2, LogOut, Plus, ShieldCheck, ShieldMinus, UserMinus, UserRound, X } from "lucide-react";
+import { ChevronRight, LogOut, Plus, ShieldCheck, ShieldMinus, UserMinus, UserRound, X } from "lucide-react";
 import Avatar from "./Avatar";
-import { games } from "../lib/constants";
 import type { ChatMember } from "../lib/groupAdmin";
 import type { Chat } from "../types";
 
@@ -24,9 +23,7 @@ type RightPanelProps = {
   onChangeRole: (userId: string, role: "admin" | "member") => void;
   onRemoveMember: (userId: string) => void;
   onLeaveGroup: () => void;
-  onClearHistory: () => void;
-  onOpenGames: () => void;
-  onOpenGame: (name: string) => void;
+
 };
 
 export default function RightPanel({
@@ -43,9 +40,7 @@ export default function RightPanel({
   onChangeRole,
   onRemoveMember,
   onLeaveGroup,
-  onClearHistory,
-  onOpenGames,
-  onOpenGame,
+
 }: RightPanelProps) {
   const isOwner = myRole === "owner";
   const isAdmin = myRole === "owner" || myRole === "admin";
@@ -160,26 +155,6 @@ export default function RightPanel({
         </button>
       )}
 
-      <div className="right-divider games-divider" />
-      <button className="games-heading" onClick={onOpenGames}>
-        <Gamepad2 size={22} />
-        <strong>Мини-игры</strong>
-        <ChevronRight size={20} />
-      </button>
-      <button className="clear-history-button" onClick={onClearHistory}>
-        Очистить историю этого чата
-      </button>
-      <div className="games-list">
-        {games.map((game) => (
-          <button key={game.name} className="game-row" onClick={() => onOpenGame(game.name)}>
-            <span className={`game-icon ${game.cls}`}>{game.icon}</span>
-            <span>
-              <strong>{game.name}</strong>
-              <small>{game.desc}</small>
-            </span>
-          </button>
-        ))}
-      </div>
     </aside>
   );
 }

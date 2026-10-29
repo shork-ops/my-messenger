@@ -77,6 +77,7 @@ export default function App() {
   // The profile panel is a grid column on wide screens and a drawer below
   // 1440px, so it starts closed: open by default it would cover the chat.
   const [showProfile, setShowProfile] = useState(false);
+  const [chatMenuOpen, setChatMenuOpen] = useState(false);
   // At 1440px and wider the panel is the third grid column and is always
   // visible; below that it is a drawer the user opens. One flag cannot express
   // both, so the layout asks the viewport.
@@ -1320,7 +1321,16 @@ export default function App() {
         onCall={() => void startCallNow("audio")}
         onVideo={() => void startCallNow("video")}
         onTogglePin={() => toggleChatPin(activeChat)}
-        onToggleProfile={() => setShowProfile((open) => !open)}
+        onToggleProfile={() => {
+          setChatMenuOpen(false);
+          setShowProfile((open) => !open);
+        }}
+        onClearHistory={() => {
+          setChatMenuOpen(false);
+          clearHistory();
+        }}
+        chatMenuOpen={chatMenuOpen}
+        onToggleChatMenu={() => setChatMenuOpen((open) => !open)}
         visibleMessages={visibleMessages}
         actionsOpenId={openMessageActionsId}
         onToggleActions={(messageId) => setOpenMessageActionsId((current) => (current === messageId ? null : messageId))}
@@ -1389,12 +1399,6 @@ export default function App() {
           onChangeRole={(userId, role) => void changeMemberRole(userId, role)}
           onRemoveMember={(userId) => void kickMember(userId)}
           onLeaveGroup={() => void leaveGroup()}
-          onClearHistory={clearHistory}
-          onOpenGames={() => {
-            setActiveNav("Мини-игры");
-            openGame("Каталог");
-          }}
-          onOpenGame={openGame}
         />
       )}
 
