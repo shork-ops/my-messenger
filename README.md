@@ -115,6 +115,39 @@ SQL настраивается в Supabase Dashboard → SQL Editor. Выпол�
 
 Удаление аккаунта состоит из двух шагов: RPC `delete_my_account` очищает данные внутри базы (сообщения остаются обезличенными заглушками, группы передаются администраторам), затем Edge Function `delete-account` удаляет запись из `auth.users`. Service-role ключ живёт только внутри функции и никогда не попадает в браузер.
 
+## Звонки
+
+Голосовые и видеозвонки идут через внешний SFU — LiveKit Cloud. Собственный SFU не пишется: Supabase здесь только signaling.
+
+| Слой | Где живёт |
+|---|---|
+| Состояние звонка | таблица `public.calls`, RLS видит только участник чата |
+| Переходы | RPC `start_call`, `answer_call`, `end_call` — клиент не пишет `status` напрямую |
+| Токен SFU | Edge Function `call-token`, подпись LiveKit JWT |
+| Медиа | `livekit-client` в браузере |
+
+Правила зашиты в базу, а не в интерфейс: звонить может только участник чата, звонивший не может ответить сам себе, двух живых звонков в одном чате не бывает, завершённый звонок нельзя оживить. Заблокированный пользователь звонок не получит — та же проверка, что и для сообщений.
+
+### Подключение
+
+```bash
+npx supabase secrets set CALL_PROVIDER=livekit --project-ref <ref>
+npx supabase secrets set LIVEKIT_URL="wss://<проект>.livekit.cloud" --project-ref <ref>
+npx supabase secrets set LIVEKIT_API_KEY="API..." --project-ref <ref>
+npx supabase secrets set LIVEKIT_API_SECRET="..." --project-ref <ref>
+npx supabase functions deploy call-token --no-verify-jwt
+```
+
+Без `CALL_PROVIDER` функция отвечает `503 Calling is not configured`, а интерфейс показывает «Звонки пока не подключены» — остальное приложение остаётся рабочим.
+
+Проверка живого звонка на двух аккаунтах:
+
+```bash
+node scripts/qa-call.mjs   # нужен запущенный vite preview на :4173
+```
+
+Последний прогон: **13 из 13**. Обе стороны подключаются к комнате, таймер идёт у обоих, мьют переключается, завершение доходит до собеседника и закрывает его экран. LiveKit принимает выпущенный токен (`/rtc/validate` → `success`) и отвергает подделанный (`401`).
+
 ## Мобильная обёртка (Capacitor)
 
 PWA уже устанавливается на телефон, поэтому нативная обёртка нужна только для доступа к платформенным возможностям и публикации в сторах.
