@@ -16,6 +16,7 @@ import { TEXT_SIZES } from "../lib/textSize";
 import { formatMinute, parseMinute, type NotificationPrefs } from "../lib/notificationPrefs";
 import { plural, storageSummary } from "../lib/storageUsage";
 import { LANGUAGES, type Language } from "../lib/i18n";
+import { type SessionRecord, lastSeenLabel } from "../lib/sessions";
 import { avatarFallback } from "../lib/avatar";
 
 /** Sections in the order a person tends to look for them. */
@@ -63,6 +64,10 @@ export type SettingsModalProps = {
   clearing: boolean;
   language: Language;
   onLanguageChange: (value: Language) => void;
+  devices: SessionRecord[];
+  currentDeviceId: string;
+  onSignOutOthers: () => void;
+  signingOut: boolean;
 };
 
 /**
@@ -193,6 +198,10 @@ export default function SettingsModal(props: SettingsModalProps) {
           cacheKeys={props.cacheKeys}
           onClearCache={props.onClearCache}
           clearing={props.clearing}
+          devices={props.devices}
+          currentDeviceId={props.currentDeviceId}
+          onSignOutOthers={props.onSignOutOthers}
+          signingOut={props.signingOut}
         />
       )}
           </div>
@@ -461,6 +470,11 @@ type DataSectionProps = {
   cacheKeys: string[];
   onClearCache: () => void;
   clearing: boolean;
+  /** Devices this account has been used on, most recent first. */
+  devices: SessionRecord[];
+  currentDeviceId: string;
+  onSignOutOthers: () => void;
+  signingOut: boolean;
 };
 
 /**
@@ -470,7 +484,18 @@ type DataSectionProps = {
  * again, so folding them into one "1.2 ГБ" would invite people to clear the wrong
  * thing.
  */
-function DataSection({ mediaBytes, attachmentCount, cacheKeys, onClearCache, clearing }: DataSectionProps) {
+function DataSection({
+  mediaBytes,
+  attachmentCount,
+  cacheKeys,
+  onClearCache,
+  clearing,
+  devices,
+  currentDeviceId,
+  onSignOutOthers,
+  signingOut,
+}: DataSectionProps) {
+  const now = Date.now();
   return (
     <>
       <p className="settings-note">Вложения в этом аккаунте. Хранятся в облаке, не на устройстве.</p>
@@ -496,6 +521,36 @@ function DataSection({ mediaBytes, attachmentCount, cacheKeys, onClearCache, cle
       <p className="settings-note">
         Очистка сбрасывает тему, размер текста, настройки уведомлений и язык. Сообщения и вложения останутся — они в облаке.
       </p>
+
+      <div className="settings-divider" />
+      <div className="settings-row">
+        <span>
+          <strong>Устройства</strong>
+          <small>
+            {devices.length === 1
+              ? "Только это устройство"
+              : `${devices.length} ${plural(devices.length, "устройство", "устройства", "устройств")}`}
+          </small>
+        </span>
+        {devices.length > 1 && (
+          <button type="button" className="settings-action danger" disabled={signingOut} onClick={onSignOutOthers}>
+            {signingOut ? "Выхожу…" : "Выйти на других"}
+          </button>
+        )}
+      </div>
+      <ul className="device-list">
+        {devices.map((device) => (
+          <li key={device.deviceId}>
+            <span>
+              <strong>
+                {device.label} · {device.platform}
+              </strong>
+              <small>{lastSeenLabel(device.lastSeen, now)}</small>
+            </span>
+            {device.deviceId === currentDeviceId && <b className="device-current">это устройство</b>}
+          </li>
+        ))}
+      </ul>
     </>
   );
 }

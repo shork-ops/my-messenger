@@ -26,6 +26,7 @@ import {
 import type { PrivacyPreferences } from "./lib/privacy";
 import { removeMember, rotateInvite, setMemberRole } from "./lib/groupAdmin";
 import { CACHE_KEYS, mediaBytes, presentCacheKeys } from "./lib/storageUsage";
+import { SESSION_STORAGE_KEY, type SessionRecord, describeDevice, upsertSession } from "./lib/sessions";
 import {
   DEFAULT_VISIBILITY,
   type VisibilitySettings,
@@ -1202,6 +1203,65 @@ export default function App() {
     };
   }, [accountId]);
 
+  // This device's own short record. Supabase does not expose the list of signed-in
+  // devices to the client, so the app keeps a hint of its own; the only action it
+  // enables - signing out everywhere else - the server performs for real.
+  const [deviceId] = useState(() => {
+    try {
+      const existing = window.localStorage.getItem("nexus-device-id");
+      if (existing) return existing;
+      const created = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      window.localStorage.setItem("nexus-device-id", created);
+      return created;
+    } catch {
+      return "local";
+    }
+  });
+  const [devices, setDevices] = useState<SessionRecord[]>([]);
+  const [signingOutOthers, setSigningOutOthers] = useState(false);
+
+  useEffect(() => {
+    if (!accountId) return;
+    const { label, platform } = describeDevice(navigator.userAgent);
+    try {
+      const stored = JSON.parse(window.localStorage.getItem(SESSION_STORAGE_KEY) || "[]") as SessionRecord[];
+      const next = upsertSession(stored, { deviceId, label, platform, lastSeen: Date.now() }, Date.now());
+      window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(next));
+      setDevices(next);
+    } catch {
+      // Storage blocked: the list is simply unavailable.
+      setDevices([{ deviceId, label, platform, lastSeen: Date.now() }]);
+    }
+  }, [accountId, deviceId]);
+
+  async function signOutOtherDevices() {
+    const client = supabase;
+    if (!client) {
+      action("Нет подключения к Supabase");
+      return;
+    }
+    setSigningOutOthers(true);
+    try {
+      // scope "others" keeps this session and revokes the rest - the point of the
+      // button is to stay here and end everywhere else.
+      const { error } = await client.auth.signOut({ scope: "others" });
+      if (error) {
+        action("Не удалось завершить другие сессии");
+        return;
+      }
+      const kept = devices.filter((device) => device.deviceId === deviceId);
+      try {
+        window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(kept));
+      } catch {
+        // Nothing to record; the sign-out itself already happened.
+      }
+      setDevices(kept);
+      action("Другие сессии завершены");
+    } finally {
+      setSigningOutOthers(false);
+    }
+  }
+
   async function changeVisibility(next: VisibilitySettings) {
     const previous = visibility;
     setVisibilityState(next);
@@ -1762,6 +1822,10 @@ export default function App() {
         clearing={clearingCache}
         language={language}
         onLanguageChange={setLanguage}
+        devices={devices}
+        currentDeviceId={deviceId}
+        onSignOutOthers={() => void signOutOtherDevices()}
+        signingOut={signingOutOthers}
       />
 
       {deletedMessage && (
