@@ -1,4 +1,4 @@
-import { Bell, Gamepad2, MessageCircle, Phone, Settings, Video } from "lucide-react";
+import { Bell, Gamepad2, MessageCircle, Settings } from "lucide-react";
 import Avatar from "./Avatar";
 
 type RailProps = {
@@ -38,14 +38,6 @@ export default function Rail({
           <MessageCircle size={22} />
           <span>Чаты</span>
           {unreadTotal > 0 && <b className="nav-count">{unreadTotal}</b>}
-        </button>
-        <button className={`nav-link ${activeNav === "Звонки" ? "active" : ""}`} onClick={() => onNavigate("Звонки")}>
-          <Phone size={22} />
-          <span>Звонки</span>
-        </button>
-        <button className={`nav-link ${activeNav === "Видео" ? "active" : ""}`} onClick={() => onNavigate("Видео")}>
-          <Video size={22} />
-          <span>Видео</span>
         </button>
         <button className={`nav-link ${activeNav === "Мини-игры" ? "active" : ""}`} onClick={onOpenGames}>
           <Gamepad2 size={22} />

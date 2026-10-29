@@ -80,6 +80,10 @@ export default function App() {
   const [uploadProgress, setUploadProgress] = useState<{ name: string; percent: number; stage: string } | null>(null);
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  // On a phone the chat list and the conversation cannot share the screen, so
+  // one of them is always showing. On wider screens both are visible and this
+  // state is ignored.
+  const [mobileView, setMobileView] = useState<"list" | "chat">("list");
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [privacy, setPrivacy] = useState<PrivacyPreferences>(DEFAULT_PRIVACY);
   const [privacySaving, setPrivacySaving] = useState(false);
@@ -977,8 +981,19 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountId]);
 
+// The Android back gesture should leave the conversation, not the app.
+  useEffect(() => {
+    function onPopState() {
+      setMobileView("list");
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
   async function selectChat(chat: Chat) {
     setActiveId(chat.id);
+    setMobileView("chat");
+    if (window.matchMedia("(max-width: 760px)").matches) window.history.pushState({ nexusChat: chat.id }, "");
     setDraft(drafts[chat.id] ?? "");
     setMessageSearch("");
     setChats((current) => markRead(current, chat.id));
@@ -1227,7 +1242,7 @@ export default function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell ${mobileView === "chat" ? "mobile-chat" : "mobile-list"}`}>
       <Rail
         activeNav={activeNav}
         profileName={profileName}
@@ -1235,8 +1250,7 @@ export default function App() {
         unreadTotal={unreadTotal}
         onNavigate={(label) => {
           setActiveNav(label);
-          if (label === "Звонки") action("Звонки подключим на следующем этапе");
-          if (label === "Видео") action("Видеозвонки подключим на следующем этапе");
+          setMobileView("list");
         }}
         onOpenSettings={() => {
           setActiveNav("Настройки");
@@ -1268,6 +1282,10 @@ export default function App() {
 
       <ConversationPanel
         chat={activeChat}
+        onBack={() => {
+          setMobileView("list");
+          if (window.history.state?.nexusChat) window.history.back();
+        }}
         isDemoMode={isDemoMode}
         accountId={accountId}
         profileName={profileName}

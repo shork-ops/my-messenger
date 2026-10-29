@@ -1,6 +1,6 @@
 import { Fragment } from "react";
 import type { ComponentProps, MutableRefObject } from "react";
-import { MoreVertical, Phone, Pin, Search, Video, X } from "lucide-react";
+import { ChevronLeft, MoreVertical, Phone, Pin, Search, Video, X } from "lucide-react";
 import Avatar from "./Avatar";
 import Composer from "./Composer";
 import MessageBubble from "./MessageBubble";
@@ -12,6 +12,8 @@ import type { Chat, Message, MessageEffect } from "../types";
 
 type ConversationPanelProps = {
   chat: Chat;
+  /** Returns from the conversation to the chat list. Phones only. */
+  onBack: () => void;
   isDemoMode: boolean;
   accountId: string | null;
   profileName: string;
@@ -59,6 +61,7 @@ type ConversationPanelProps = {
 
 export default function ConversationPanel({
   chat,
+  onBack,
   isDemoMode,
   accountId,
   profileName,
@@ -119,6 +122,9 @@ export default function ConversationPanel({
   return (
     <section className="conversation-panel">
       <header className="conversation-header">
+        <button type="button" className="back-button" onClick={onBack} aria-label="Назад к чатам">
+          <ChevronLeft size={22} />
+        </button>
         <Avatar color={chat.color}>{chat.avatar}</Avatar>
         <div className="conversation-title">
           <strong>{chat.name}</strong>

@@ -38,7 +38,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 }
 .rail, .chat-list-panel, .conversation-panel, .right-panel { min-width: 0; }
 .rail { display: flex; flex-direction: column; padding: 22px 14px 14px; background: #08090b; border-right: 1px solid var(--line); }
-.brand { display: flex; align-items: center; gap: 12px; margin: 0 0 32px; padding: 0 8px; border: 0; background: none; text-align: left; }
+.brand { display: flex; align-items: center; gap: 12px; min-height: 44px; margin: 0 0 28px; padding: 0 8px; border: 0; background: none; text-align: left; }
 .brand-mark { color: var(--yellow); font-size: 36px; line-height: 1; font-weight: 900; transform: skew(-10deg); }
 .brand-name { font-size: 23px; font-weight: 700; letter-spacing: -.8px; }
 .main-nav { display: flex; flex-direction: column; gap: 8px; }
@@ -65,8 +65,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .avatar.small { width: 42px; height: 42px; font-size: 14px; }
 .chat-list-panel { display: flex; flex-direction: column; background: #0a0b0d; border-right: 1px solid var(--line); }
 .search-row { display: flex; gap: 10px; padding: 22px 16px 18px; }
-.search-box { display: flex; flex: 1; align-items: center; gap: 9px; min-width: 0; padding: 0 13px; height: 43px; border: 1px solid #202125; border-radius: 13px; background: #121316; color: #a7a8ae; }
-.search-box input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: #f5f5f5; font-size: 12px; }
+.search-box { display: flex; flex: 1; align-items: center; gap: 9px; min-width: 0; padding: 0 13px; height: 44px; border: 1px solid #202125; border-radius: 13px; background: #121316; color: #a7a8ae; }
+.search-box input { width: 100%; min-width: 0; height: 42px; border: 0; outline: 0; background: transparent; color: #f5f5f5; font-size: 12px; }
 .search-box input::placeholder { color: #96979e; }
 .square-action { display: grid; flex-shrink: 0; place-items: center; width: 43px; height: 43px; border: 1px solid #25262a; border-radius: 12px; background: #151619; color: var(--yellow); }
 .square-action:hover { background: #25230e; }
@@ -121,9 +121,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .game-info div { display: flex; flex-direction: column; gap: 5px; }
 .game-info strong { font-size: 13px; }
 .game-info small { color: #92939a; font-size: 11px; }
-.game-info button { display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 50%; background: var(--yellow); color: #151515; }
+.game-info button { display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--yellow); color: #151515; }
 .composer { display: flex; flex: 0 0 auto; align-items: center; gap: 10px; margin: 0 14px 14px; padding: 10px; border: 1px solid #292a2f; border-radius: 17px; background: #101113; }
-.composer input { flex: 1; width: 0; min-width: 0; height: 43px; padding: 0 14px; border: 1px solid #35363c; border-radius: 14px; outline: none; background: #0b0c0e; color: white; font-size: 12px; }
+.composer input { flex: 1; width: 0; min-width: 0; height: 44px; padding: 0 14px; border: 1px solid #35363c; border-radius: 14px; outline: none; background: #0b0c0e; color: white; font-size: 12px; }
 .composer input:focus { border-color: #8a7510; }
 .composer input::placeholder { color: #9a9ba1; }
 .attach-button, .emoji-button { display: grid; flex-shrink: 0; place-items: center; width: 34px; height: 38px; border: 0; background: transparent; color: var(--yellow); }
@@ -168,10 +168,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .friend-avatar-wrap { position: relative; }
 .friend-avatar-wrap .avatar { width: 38px; height: 38px; }
 .friend-avatar-wrap i { position: absolute; right: -1px; bottom: 0; width: 10px; height: 10px; border: 2px solid #090a0c; }
-.invite-row { display: flex; align-items: center; gap: 13px; padding: 2px 0; border: 0; background: transparent; color: #b8b9c0; text-align: left; font-size: 12px; }
+.invite-row { display: flex; align-items: center; gap: 13px; min-height: 44px; padding: 4px 0; border: 0; background: transparent; color: #b8b9c0; text-align: left; font-size: 12px; }
 .invite-row > span { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: #202125; color: white; }
 .games-divider { margin-top: 17px; }
-.games-heading { display: flex; align-items: center; gap: 10px; margin: 20px 0 14px; padding: 0; border: 0; background: transparent; color: var(--yellow); text-align: left; }
+.games-heading { display: flex; align-items: center; gap: 10px; min-height: 44px; margin: 16px 0 10px; padding: 0; border: 0; background: transparent; color: var(--yellow); text-align: left; }
 .games-heading strong { flex: 1; font-size: 14px; }
 .games-list { display: flex; flex-direction: column; gap: 13px; }
 .game-row { display: flex; align-items: center; gap: 12px; padding: 0; border: 0; background: transparent; text-align: left; }
@@ -185,6 +185,26 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .toast { position: fixed; right: 28px; bottom: 24px; z-index: 10; display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 32px); padding: 14px 16px; border: 1px solid #3c3a25; border-radius: 12px; background: #171711; box-shadow: 0 12px 45px #000b; color: #f5e7a0; font-size: 12px; }
 .toast button { display: grid; place-items: center; border: 0; background: transparent; color: #c7c7c7; }
 .mobile-profile-toggle { display: none; }
+.back-button { display: none; }
+/* Attachments collapse into one "+" button with a menu, so the text field keeps
+   its width and every control can be 44px. */
+.attach-menu-wrap { position: relative; display: flex; flex-shrink: 0; }
+.attach-button.open { background: #1d1e22; color: var(--yellow); border-radius: 12px; }
+.attach-menu { position: absolute; z-index: 20; bottom: calc(100% + 10px); left: 0; display: flex; flex-direction: column; min-width: 190px; padding: 6px; border: 1px solid #2b2c31; border-radius: 14px; background: #141519; box-shadow: 0 14px 40px #000a; }
+.attach-menu button { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: #ececf0; font-size: 14px; text-align: left; }
+.attach-menu button:hover, .attach-menu button:focus-visible { background: #1f2025; color: var(--yellow); }
+
+
+/* Touch targets. A finger needs 44px (Apple) to 48px (Material); several
+   controls were 25-38px, which turns every other tap into a miss. Icon sizes
+   stay the same - only the hit area grows. */
+.composer { --control: 44px; }
+.attach-button, .emoji-button { width: var(--control); height: var(--control); }
+.send-button { width: 46px; height: 46px; }
+.conversation-tools button { width: 44px; height: 44px; }
+.square-action { width: 44px; height: 44px; }
+.message-menu-toggle svg { width: 17px; height: 17px; }
+
 @media (max-width: 1250px) {
   .app-shell { grid-template-columns: 190px minmax(245px, 285px) minmax(340px, 1fr); }
   .right-panel { display: none; }
@@ -199,13 +219,19 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
   .nav-link svg { width: 21px; }
   .self-profile { justify-content: center; padding: 13px 0 0; }
   .self-profile .avatar { width: 38px; height: 38px; }
-  .chat-list-panel { display: none; }
+  /* One screen at a time: the list is the start screen and the conversation
+     takes over the whole width once a chat is opened. */
+  .app-shell.mobile-list .conversation-panel { display: none; }
+  .app-shell.mobile-list .chat-list-panel { display: flex; grid-column: 2; }
+  .app-shell.mobile-chat .chat-list-panel { display: none; }
   .conversation-panel { grid-column: 2; }
   .conversation-header { min-height: 70px; padding: 10px; gap: 9px; }
+  .back-button { display: grid; place-items: center; width: 44px; height: 44px; margin-left: -8px; border: 0; border-radius: 12px; background: transparent; color: #ececf0; }
+  .back-button:hover { background: #17181b; }
   .conversation-header > .avatar { width: 38px; height: 38px; }
   .conversation-title strong { font-size: 13px; }
   .conversation-tools { gap: 0; }
-  .conversation-tools button { width: 30px; height: 34px; }
+  .conversation-tools button { width: 44px; height: 44px; }
   .conversation-tools button:first-child { display: none; }
   .conversation-tools svg { width: 18px; }
   .messages-area { padding: 20px 11px; gap: 20px; }
@@ -213,12 +239,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
   .message-line > .avatar { width: 31px; height: 31px; }
   .message-content { max-width: 92%; }
   .bubble { font-size: 12px; padding: 11px 12px 24px; }
-  .composer { gap: 4px; margin: 0 7px 8px; padding: 6px; border-radius: 13px; }
-  .composer input { height: 40px; padding: 0 9px; font-size: 11px; }
-  .attach-button, .emoji-button { width: 27px; }
-  .emoji-button { display: none; }
-  .send-button { width: 39px; height: 40px; }
-  .mobile-profile-toggle { right: 14px; bottom: 74px; width: 38px; height: 38px; }
+  .composer { gap: 2px; margin: 0 7px 8px; padding: 6px; border-radius: 13px; }
+  .composer input { height: 44px; padding: 0 10px; font-size: 15px; }
+  .attach-button, .emoji-button { width: 44px; height: 44px; }
+  .emoji-button { display: grid; }
+  .send-button { width: 44px; height: 44px; }
+  .mobile-profile-toggle { right: 14px; bottom: 74px; width: 48px; height: 48px; }
   .right-panel { position: fixed; z-index: 8; top: 0; right: 0; bottom: 0; width: min(310px, calc(100vw - 66px)); border-left: 1px solid #303136; box-shadow: -20px 0 60px #0009; }
   .mobile-close { display: grid; place-items: center; }
 }
@@ -226,7 +252,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 
 /* Message actions stay tucked away until explicitly opened. */
 .message-action-wrap { position: relative; display: flex; justify-content: flex-end; margin-top: 4px; }
-.message-menu-toggle { display: grid; place-items: center; width: 26px; height: 23px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: #92939a; }
+.message-menu-toggle { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: #92939a; }
 .message-menu-toggle:hover, .message-menu-toggle:focus-visible { border-color: #38393f; background: #17181b; color: var(--yellow); }
 /* A fixed-width grid keeps the menu inside the panel no matter how many
    actions exist; a single row would overflow once real labels are added. */
@@ -244,7 +270,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .edit-banner + .composer { margin-top: 0; border-color: #51450e; border-top-left-radius: 0; border-top-right-radius: 0; }
 
 @media (max-width: 760px) {
-  .message-menu-toggle { width: 30px; height: 28px; }
+  .message-menu-toggle { width: 44px; height: 44px; }
   .message-actions { bottom: 31px; }
   .message-actions button { padding: 8px 9px; font-size: 11px; }
 }
@@ -253,11 +279,11 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 /* Keep the message overflow menu to the right of outgoing bubbles, including on phones. */
 .message-line.mine .message-content { position: relative; max-width: calc(100% - 32px); }
 .message-line.mine .message-action-wrap { position: absolute; top: 0; right: -31px; margin-top: 0; }
-.message-line.mine .message-menu-toggle { width: 27px; height: 28px; }
+.message-line.mine .message-menu-toggle { width: 44px; height: 44px; }
 @media (max-width: 760px) {
   .message-line.mine .message-content { max-width: calc(100% - 29px); }
   .message-line.mine .message-action-wrap { right: -28px; }
-  .message-line.mine .message-menu-toggle { width: 25px; height: 28px; }
+  .message-line.mine .message-menu-toggle { width: 44px; height: 44px; }
 }
 
 
@@ -288,7 +314,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .message-action-wrap { position: absolute; top: 0; right: -29px; margin-top: 0; }
 .message-line:not(.mine) .message-content { position: relative; }
 .message-line:not(.mine) .message-action-wrap { top: 0; right: -29px; }
-.message-line:not(.mine) .message-menu-toggle { width: 25px; height: 27px; }
+.message-line:not(.mine) .message-menu-toggle { width: 44px; height: 44px; }
 .message-line:not(.mine) .message-actions { left: 0; right: auto; }
 .reaction-list { display: flex; gap: 5px; margin-top: 5px; }
 .reaction-list button { padding: 3px 7px; border: 1px solid #49403a; border-radius: 12px; background: #202125; font-size: 13px; }
@@ -311,7 +337,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .save-settings { height: 43px; border: 0; border-radius: 11px; background: var(--yellow); color: #111; font-weight: 700; }
 @media (max-width: 760px) {
   .message-line:not(.mine) .message-action-wrap { right: -23px; }
-  .message-line:not(.mine) .message-menu-toggle { width: 23px; }
+  .message-line:not(.mine) .message-menu-toggle { width: 44px; }
   .message-line:not(.mine) .message-content { max-width: calc(100% - 22px); }
   .reply-banner { margin: 0 7px; }
   .settings-modal { padding: 18px; }
@@ -379,7 +405,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 
 /* Local productivity features: filters, per-chat drafts, message search, new chats. */
 .chat-filters { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 13px; }
-.chat-filters button { padding: 7px 9px; border: 1px solid #2b2c31; border-radius: 999px; background: #121316; color: #aeb0b7; font-size: 10px; white-space: nowrap; }
+.chat-filters button { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border: 1px solid #2b2c31; border-radius: 999px; background: #121316; color: #aeb0b7; font-size: 10px; white-space: nowrap; }
 .chat-filters button.active { border-color: var(--yellow); background: color-mix(in srgb, var(--yellow) 13%, #121316); color: var(--yellow); }
 .message-search { display: flex; align-items: center; gap: 9px; margin: 10px 16px 0; padding: 9px 12px; border: 1px solid #35363c; border-radius: 11px; background: #111214; color: #a7a8ae; }
 .message-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: #f5f5f5; font-size: 12px; }
@@ -457,7 +483,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .attachment-file small { font-size: 10px; opacity: .7; }
 
 
-.clear-history-button { align-self: flex-start; margin: 16px 0 12px; padding: 8px 0; border: 0; background: transparent; color: #d88c8c; font-size: 10px; text-align: left; }
+.clear-history-button { align-self: flex-start; min-height: 44px; margin: 12px 0 8px; padding: 0 4px; border: 0; background: transparent; color: #d88c8c; font-size: 10px; text-align: left; }
 .clear-history-button:hover { color: #ffb4b4; text-decoration: underline; }
 
 

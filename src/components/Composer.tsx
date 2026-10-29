@@ -1,5 +1,6 @@
+import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent, MutableRefObject } from "react";
-import { CheckCheck, Image, Mic, Paperclip, Send, Smile, Users, X } from "lucide-react";
+import { CheckCheck, Image, Mic, Paperclip, Plus, Send, Smile, Users, X } from "lucide-react";
 import type { Message } from "../types";
 
 type ComposerProps = {
@@ -46,6 +47,30 @@ export default function Composer({
   onOpenPoll,
 }: ComposerProps) {
   const value = editing ? editDraft : draft;
+  const [attachOpen, setAttachOpen] = useState(false);
+  const attachRef = useRef<HTMLDivElement | null>(null);
+
+  // Close the attachment menu on an outside click or Escape, like any popover.
+  useEffect(() => {
+    if (!attachOpen) return;
+    function onDown(event: MouseEvent) {
+      if (!attachRef.current?.contains(event.target as Node)) setAttachOpen(false);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setAttachOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [attachOpen]);
+
+  function runFromMenu(action: () => void) {
+    setAttachOpen(false);
+    action();
+  }
 
   return (
     <>
@@ -76,15 +101,31 @@ export default function Composer({
           accept="image/*,video/*,audio/*,.pdf,.txt,.doc,.docx,.zip,.csv"
           onChange={onAttachment}
         />
-        <button type="button" className="attach-button" onClick={onOpenGallery} aria-label="Галерея медиа" title="Галерея изображений">
-          <Image size={20} />
-        </button>
-        <button type="button" className="attach-button" onClick={onOpenPoll} aria-label="Создать опрос" title="Создать опрос">
-          <Users size={19} />
-        </button>
-        <button type="button" className="attach-button" onClick={() => fileInputRef.current?.click()} aria-label="Прикрепить файл" title="Прикрепить файл">
-          <Paperclip size={21} />
-        </button>
+        <div className="attach-menu-wrap" ref={attachRef}>
+          <button
+            type="button"
+            className={`attach-button ${attachOpen ? "open" : ""}`}
+            onClick={() => setAttachOpen((open) => !open)}
+            aria-label="Прикрепить"
+            aria-expanded={attachOpen}
+            title="Прикрепить"
+          >
+            <Plus size={22} />
+          </button>
+          {attachOpen && (
+            <div className="attach-menu" role="menu">
+              <button type="button" role="menuitem" onClick={() => runFromMenu(onOpenGallery)}>
+                <Image size={18} /> Галерея
+              </button>
+              <button type="button" role="menuitem" onClick={() => runFromMenu(() => fileInputRef.current?.click())}>
+                <Paperclip size={18} /> Файл
+              </button>
+              <button type="button" role="menuitem" onClick={() => runFromMenu(onOpenPoll)}>
+                <Users size={18} /> Опрос
+              </button>
+            </div>
+          )}
+        </div>
         <div className="composer-input-wrap">
           <input
             value={value}
