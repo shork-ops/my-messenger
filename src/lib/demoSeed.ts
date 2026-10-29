@@ -20,7 +20,21 @@ export function createDemoSeedChats(now: number = Date.now()): Chat[] {
       unread: 2,
       messages: [
         { id: 1, author: "Максим", text: "Привет! Как дела?", time: "12:30", createdAt: now - 660_000 },
-        { id: 2, author: "Максим", text: "Смотри, что нашёл", time: "12:41", createdAt: now - 60_000 },
+        {
+          id: 2,
+          author: "Максим",
+          text: "Смотри, что нашёл",
+          time: "12:41",
+          createdAt: now - 60_000,
+          // A one-pixel PNG as a data URL: the seed exists so browser tests can check
+          // that pictures load, or wait for a tap, without needing a network.
+          attachment: {
+            name: "находка.png",
+            type: "image/png",
+            size: 4096,
+            data: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+          },
+        },
       ],
       lastReadAt: now - 600_000,
     },

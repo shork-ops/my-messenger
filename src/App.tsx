@@ -60,6 +60,8 @@ import { useLanguage } from "./hooks/useLanguage";
 import { usePasscode } from "./hooks/usePasscode";
 import { useTwoFactor } from "./hooks/useTwoFactor";
 import { useWallpaper } from "./hooks/useWallpaper";
+import { useMediaPolicy } from "./hooks/useMediaPolicy";
+import { shouldAutoload } from "./lib/mediaPolicy";
 import EmojiPicker from "./components/EmojiPicker";
 import VideoNoteRecorder from "./components/VideoNoteRecorder";
 import { formatNoteTime } from "./lib/videoNote";
@@ -237,6 +239,8 @@ export default function App() {
   const { wallpaper, setWallpaper } = useWallpaper();
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
+  const { policy: mediaPolicy, setPolicy: setMediaPolicy, network: networkKind } = useMediaPolicy();
+  const autoloadMedia = shouldAutoload(mediaPolicy, networkKind);
   // TOTP two-factor, verified on the server: the app cannot declare itself verified.
   const twoFactorState = useTwoFactor(supabase, accountId);
   const twoFactor = {
@@ -1651,6 +1655,7 @@ export default function App() {
           void saveChatSettings(activeChat.id, { mutedUntil: null }).then((ok) => ok && action("Звук включён"));
         }}
         wallpaper={wallpaper}
+        autoloadMedia={autoloadMedia}
         onArchive={() => {
           setChatMenuOpen(false);
           const next = !activeChat.archived;
@@ -1897,6 +1902,8 @@ export default function App() {
         twoFactor={twoFactor}
         wallpaper={wallpaper}
         onWallpaperChange={setWallpaper}
+        mediaPolicy={mediaPolicy}
+        onMediaPolicyChange={setMediaPolicy}
       />
 
       {deletedMessage && (

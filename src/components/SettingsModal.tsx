@@ -20,6 +20,7 @@ import { type SessionRecord, lastSeenLabel } from "../lib/sessions";
 import { avatarFallback } from "../lib/avatar";
 import TwoFactorPanel from "./TwoFactorPanel";
 import { WALLPAPERS, type WallpaperId, wallpaperBackground, wallpaperSize } from "../lib/wallpaper";
+import { MEDIA_POLICIES, type MediaPolicy } from "../lib/mediaPolicy";
 
 /** Sections in the order a person tends to look for them. */
 export const SETTINGS_SECTIONS = [
@@ -75,6 +76,8 @@ export type SettingsModalProps = {
   passcode: string | null;
   onPasscodeChange: (code: string | null) => void;
   twoFactor: TwoFactorState;
+  mediaPolicy: MediaPolicy;
+  onMediaPolicyChange: (value: MediaPolicy) => void;
 };
 
 /**
@@ -214,6 +217,8 @@ export default function SettingsModal(props: SettingsModalProps) {
           passcode={props.passcode}
           onPasscodeChange={props.onPasscodeChange}
           twoFactor={props.twoFactor}
+          mediaPolicy={props.mediaPolicy}
+          onMediaPolicyChange={props.onMediaPolicyChange}
         />
       )}
           </div>
@@ -533,6 +538,8 @@ type DataSectionProps = {
   passcode: string | null;
   onPasscodeChange: (code: string | null) => void;
   twoFactor: TwoFactorState;
+  mediaPolicy: MediaPolicy;
+  onMediaPolicyChange: (value: MediaPolicy) => void;
 };
 
 /**
@@ -555,6 +562,8 @@ function DataSection({
   passcode,
   onPasscodeChange,
   twoFactor,
+  mediaPolicy,
+  onMediaPolicyChange,
 }: DataSectionProps) {
   const now = Date.now();
   const [codeDraft, setCodeDraft] = useState("");
@@ -583,6 +592,23 @@ function DataSection({
       <p className="settings-note">
         Очистка сбрасывает тему, размер текста, настройки уведомлений и язык. Сообщения и вложения останутся — они в облаке.
       </p>
+
+      <div className="settings-divider" />
+      <div className="field-block">
+        <span className="field-label">Загрузка фото и видео</span>
+        <select
+          value={mediaPolicy}
+          aria-label="Загрузка фото и видео"
+          onChange={(event) => onMediaPolicyChange(event.target.value as MediaPolicy)}
+        >
+          {MEDIA_POLICIES.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <small className="settings-hint">{MEDIA_POLICIES.find((option) => option.id === mediaPolicy)?.hint}</small>
+      </div>
 
       <div className="settings-divider" />
       <p className="settings-note">Двухфакторная аутентификация</p>

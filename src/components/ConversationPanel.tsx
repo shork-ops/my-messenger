@@ -40,6 +40,8 @@ type ConversationPanelProps = {
   onUnmute: () => void;
   onArchive: () => void;
   wallpaper: WallpaperId;
+  /** Whether pictures load without a tap, from the download policy. */
+  autoloadMedia: boolean;
   chatMenuOpen: boolean;
   onToggleChatMenu: () => void;
   visibleMessages: Message[];
@@ -95,6 +97,7 @@ export default function ConversationPanel({
   onUnmute,
   onArchive,
   wallpaper,
+  autoloadMedia,
   chatMenuOpen,
   onToggleChatMenu,
   visibleMessages,
@@ -315,6 +318,7 @@ export default function ConversationPanel({
               )}
               <MessageBubble
                 message={message}
+                autoloadMedia={autoloadMedia}
                 accountId={accountId}
                 profileName={profileName}
                 actionsOpen={actionsOpenId === message.id}

@@ -1,10 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Forward, MessageCircle, MoreVertical, Paperclip, PencilLine, Pin, Send, Star, Trash2, X } from "lucide-react";
 import Avatar from "./Avatar";
 import VoicePlayer from "./VoicePlayer";
 import { friends } from "../lib/constants";
 import { hasUserVoted, pollPercent, pollTotal } from "../lib/polls";
 import { splitForward } from "../lib/messageActions";
+import { formatBytes } from "../lib/media";
 import type { Message, MessageEffect, Poll } from "../types";
 
 type VoteHandler = (optionId: string) => void;
@@ -49,23 +50,47 @@ function PollCard({ poll, accountId, profileName, onVote }: { poll: Poll; accoun
   );
 }
 
-function AttachmentCard({ attachment }: { attachment: NonNullable<Message["attachment"]> }) {
+function AttachmentCard({
+  attachment,
+  autoload,
+}: {
+  attachment: NonNullable<Message["attachment"]>;
+  /** False when the download policy says this picture waits for a tap. */
+  autoload: boolean;
+}) {
+  const [revealed, setRevealed] = useState(false);
+  const show = autoload || revealed;
+
   return (
     <div className="attachment-card">
       {attachment.type.startsWith("image/") ? (
-        // The inline thumbnail paints instantly; the signed URL replaces it
-        // once the browser has the full-size image.
-        <img
-          className="attachment-image"
-          src={attachment.thumbnail || attachment.data}
-          data-full-src={attachment.thumbnail ? attachment.data : undefined}
-          alt={attachment.name}
-          loading="lazy"
-          onError={(event) => {
-            const full = event.currentTarget.dataset.fullSrc;
-            if (full && event.currentTarget.src !== full) event.currentTarget.src = full;
-          }}
-        />
+        show ? (
+          // The inline thumbnail paints instantly; the signed URL replaces it
+          // once the browser has the full-size image.
+          <img
+            className="attachment-image"
+            src={attachment.thumbnail || attachment.data}
+            data-full-src={attachment.thumbnail ? attachment.data : undefined}
+            alt={attachment.name}
+            loading="lazy"
+            onError={(event) => {
+              const full = event.currentTarget.dataset.fullSrc;
+              if (full && event.currentTarget.src !== full) event.currentTarget.src = full;
+            }}
+          />
+        ) : (
+          // The shape and the size are shown before the bytes are fetched, so the
+          // tap is an informed one rather than a guess at what is behind it.
+          <button
+            type="button"
+            className="attachment-hold"
+            onClick={() => setRevealed(true)}
+            aria-label={`Загрузить изображение ${attachment.name}`}
+          >
+            <span className="attachment-hold-label">{attachment.name}</span>
+            <span className="attachment-hold-hint">{formatBytes(attachment.size)} · нажмите, чтобы загрузить</span>
+          </button>
+        )
       ) : attachment.type.startsWith("video/") ? (
         <video className="attachment-video" controls playsInline src={attachment.data} />
       ) : attachment.type.startsWith("audio/") ? (
@@ -95,6 +120,8 @@ const EFFECT_MARKS: Record<MessageEffect, string> = {
 
 type MessageBubbleProps = {
   message: Message;
+  /** Whether pictures in this conversation load without a tap. */
+  autoloadMedia: boolean;
   accountId: string | null;
   profileName: string;
   actionsOpen: boolean;
@@ -120,6 +147,7 @@ type MessageBubbleProps = {
 
 export default function MessageBubble({
   message,
+  autoloadMedia,
   accountId,
   profileName,
   actionsOpen,
@@ -207,7 +235,7 @@ export default function MessageBubble({
           {message.poll ? (
             <PollCard poll={message.poll} accountId={accountId} profileName={profileName} onVote={onVote} />
           ) : message.attachment ? (
-            <AttachmentCard attachment={message.attachment} />
+            <AttachmentCard attachment={message.attachment} autoload={autoloadMedia} />
           ) : (
             <>{(forwardRelease.label ? forwardRelease.body : message.text).split(/(@[\p{L}\p{N}_]+)/gu).map((part, partIndex) =>
               part.startsWith("@") ? (
