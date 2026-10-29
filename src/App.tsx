@@ -57,6 +57,8 @@ import { useHistoryPagination, useInfiniteHistory } from "./hooks/useHistoryPagi
 import { useUnreadBadge, useMessageNotifications, usePushSubscriptionSync, useNotificationsPrompt, requestNotificationPermission } from "./hooks/useNotifications";
 import { useNotificationPrefs } from "./hooks/useNotificationPrefs";
 import { useLanguage } from "./hooks/useLanguage";
+import { usePasscode } from "./hooks/usePasscode";
+import PasscodeLock from "./components/PasscodeLock";
 import { type MuteOptionId, muteUntil } from "./lib/chatSettings";
 import { subscribeToPush } from "./lib/push";
 import { useAutoScroll } from "./hooks/useAutoScroll";
@@ -224,6 +226,8 @@ export default function App() {
   // The language is a device preference, like the theme: a phone in English should
   // not change the laptop.
   const { language, setLanguage } = useLanguage();
+  // A four-digit lock on this device, separate from the account password.
+  const { passcode: lockCode, unlocked: lockUnlocked, setCode, unlock } = usePasscode();
   // Which chat the mute chooser is open for; null when it is closed.
   const [muteChatId, setMuteChatId] = useState<number | null>(null);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">(() =>
@@ -1537,6 +1541,12 @@ export default function App() {
     else action("Локальные уведомления включены");
   }
 
+  // A lock screen with the app still rendered underneath is one CSS mistake away
+  // from showing a message, so the shell is replaced rather than covered.
+  if (lockCode && !lockUnlocked) {
+    return <PasscodeLock passcode={lockCode} onUnlock={unlock} />;
+  }
+
   return (
     <main className={`app-shell ${mobileView === "chat" ? "mobile-chat" : "mobile-list"}`}>
       <Rail
@@ -1826,6 +1836,8 @@ export default function App() {
         currentDeviceId={deviceId}
         onSignOutOthers={() => void signOutOtherDevices()}
         signingOut={signingOutOthers}
+        passcode={lockCode}
+        onPasscodeChange={setCode}
       />
 
       {deletedMessage && (

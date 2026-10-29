@@ -68,6 +68,8 @@ export type SettingsModalProps = {
   currentDeviceId: string;
   onSignOutOthers: () => void;
   signingOut: boolean;
+  passcode: string | null;
+  onPasscodeChange: (code: string | null) => void;
 };
 
 /**
@@ -202,6 +204,8 @@ export default function SettingsModal(props: SettingsModalProps) {
           currentDeviceId={props.currentDeviceId}
           onSignOutOthers={props.onSignOutOthers}
           signingOut={props.signingOut}
+          passcode={props.passcode}
+          onPasscodeChange={props.onPasscodeChange}
         />
       )}
           </div>
@@ -475,6 +479,8 @@ type DataSectionProps = {
   currentDeviceId: string;
   onSignOutOthers: () => void;
   signingOut: boolean;
+  passcode: string | null;
+  onPasscodeChange: (code: string | null) => void;
 };
 
 /**
@@ -494,8 +500,11 @@ function DataSection({
   currentDeviceId,
   onSignOutOthers,
   signingOut,
+  passcode,
+  onPasscodeChange,
 }: DataSectionProps) {
   const now = Date.now();
+  const [codeDraft, setCodeDraft] = useState("");
   return (
     <>
       <p className="settings-note">Вложения в этом аккаунте. Хранятся в облаке, не на устройстве.</p>
@@ -538,6 +547,46 @@ function DataSection({
           </button>
         )}
       </div>
+      <div className="settings-row">
+        <span>
+          <strong>Код доступа</strong>
+          <small>
+            {passcode
+              ? "Приложение спрашивает код при запуске"
+              : "Замок на приложение. Защищает от чужого взгляда, но не заменяет пароль аккаунта."}
+          </small>
+        </span>
+        {passcode ? (
+          <button type="button" className="settings-action" onClick={() => onPasscodeChange(null)}>
+            Убрать код
+          </button>
+        ) : (
+          <div className="passcode-setter">
+            <input
+              type="password"
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={4}
+              placeholder="4 цифры"
+              aria-label="Новый код доступа"
+              value={codeDraft}
+              onChange={(event) => setCodeDraft(event.target.value.replace(/\D/g, "").slice(0, 4))}
+            />
+            <button
+              type="button"
+              className="settings-action"
+              disabled={!/^\d{4}$/.test(codeDraft)}
+              onClick={() => {
+                onPasscodeChange(codeDraft);
+                setCodeDraft("");
+              }}
+            >
+              Включить
+            </button>
+          </div>
+        )}
+      </div>
+
       <ul className="device-list">
         {devices.map((device) => (
           <li key={device.deviceId}>
