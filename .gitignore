@@ -44,6 +44,10 @@ test-results/
 playwright-report/
 blob-report/
 .playwright/
+
+# Build scratch directory: the demo build points TEMP here because esbuild cannot
+# delete its files from the system temp directory on some Windows machines.
+.tmp/
 # Ignore the preview and dev server logs.
 prev.log
 prev.err

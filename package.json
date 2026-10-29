@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "build:demo": "tsc -b && vite build --mode demo",
+    "build:demo": "tsc -b && node scripts/build-demo.mjs",
     "build:mobile": "tsc -b && vite build --mode mobile",
     "cap:sync": "npm run build:mobile && cap sync",
     "cap:android": "npm run cap:sync && cap open android",
