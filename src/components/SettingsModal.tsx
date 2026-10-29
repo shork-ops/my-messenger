@@ -15,6 +15,7 @@ import { ABOUT_MAX, normalizeAbout, shouldShowAboutCounter } from "../lib/about"
 import { TEXT_SIZES } from "../lib/textSize";
 import { formatMinute, parseMinute, type NotificationPrefs } from "../lib/notificationPrefs";
 import { plural, storageSummary } from "../lib/storageUsage";
+import { LANGUAGES, type Language } from "../lib/i18n";
 import { avatarFallback } from "../lib/avatar";
 
 /** Sections in the order a person tends to look for them. */
@@ -60,6 +61,8 @@ export type SettingsModalProps = {
   cacheKeys: string[];
   onClearCache: () => void;
   clearing: boolean;
+  language: Language;
+  onLanguageChange: (value: Language) => void;
 };
 
 /**
@@ -170,6 +173,8 @@ export default function SettingsModal(props: SettingsModalProps) {
                 onThemeChange={props.onThemeChange}
                 textSize={props.textSize}
                 onTextSizeChange={props.onTextSizeChange}
+                language={props.language}
+                onLanguageChange={props.onLanguageChange}
               />
             )}
             {active === "privacy" && <PrivacySection onOpenPrivacy={props.onOpenPrivacy} />}
@@ -271,11 +276,15 @@ function AppearanceSection({
   onThemeChange,
   textSize,
   onTextSizeChange,
+  language,
+  onLanguageChange,
 }: {
   theme: string;
   onThemeChange: (value: string) => void;
   textSize: string;
   onTextSizeChange: (value: string) => void;
+  language: Language;
+  onLanguageChange: (value: Language) => void;
 }) {
   return (
     <>
@@ -306,6 +315,16 @@ function AppearanceSection({
           ))}
         </div>
       </div>
+      <label>
+        Язык интерфейса
+        <select value={language} onChange={(event) => onLanguageChange(event.target.value as Language)}>
+          {LANGUAGES.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+      </label>
     </>
   );
 }

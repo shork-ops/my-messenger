@@ -49,6 +49,7 @@ import { loadMessagePage } from "./lib/messageLoader";
 import { useHistoryPagination, useInfiniteHistory } from "./hooks/useHistoryPagination";
 import { useUnreadBadge, useMessageNotifications, usePushSubscriptionSync, useNotificationsPrompt, requestNotificationPermission } from "./hooks/useNotifications";
 import { useNotificationPrefs } from "./hooks/useNotificationPrefs";
+import { useLanguage } from "./hooks/useLanguage";
 import { type MuteOptionId, muteUntil } from "./lib/chatSettings";
 import { subscribeToPush } from "./lib/push";
 import { useAutoScroll } from "./hooks/useAutoScroll";
@@ -213,6 +214,9 @@ export default function App() {
   // Notification preferences live per device, and the permission state is read
   // once so the settings screen can say plainly whether the browser allows them.
   const { prefs: notificationPrefs, setPrefs: setNotificationPrefs } = useNotificationPrefs();
+  // The language is a device preference, like the theme: a phone in English should
+  // not change the laptop.
+  const { language, setLanguage } = useLanguage();
   // Which chat the mute chooser is open for; null when it is closed.
   const [muteChatId, setMuteChatId] = useState<number | null>(null);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">(() =>
@@ -1705,6 +1709,8 @@ export default function App() {
         cacheKeys={cacheKeys}
         onClearCache={() => void clearCache()}
         clearing={clearingCache}
+        language={language}
+        onLanguageChange={setLanguage}
       />
 
       {deletedMessage && (
