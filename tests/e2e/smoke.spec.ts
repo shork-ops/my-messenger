@@ -112,4 +112,13 @@ test.describe("Nexus messenger smoke", () => {
     await page.getByPlaceholder(/Поиск чатов/).fill("");
     await expect.poll(() => chats.count()).toBe(before);
   });
+
+  test("explains that calls need a cloud chat", async ({ page }) => {
+    // Demo chats have no remoteId, so there is nothing to signal. The button
+    // must say so instead of doing nothing or opening a stuck overlay.
+    await page.getByLabel("Позвонить").click();
+
+    await expect(page.getByText("Звонки доступны в облачных чатах")).toBeVisible();
+    await expect(page.locator(".call-overlay")).toHaveCount(0);
+  });
 });

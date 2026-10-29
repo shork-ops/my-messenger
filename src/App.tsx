@@ -10,6 +10,9 @@ import GameModal from "./components/GameModal";
 import { useChatMembers } from "./hooks/useChatMembers";
 import { useServerSearch } from "./hooks/useServerSearch";
 import PrivacyModal from "./components/PrivacyModal";
+import { CallOverlay } from "./components/CallOverlay";
+import { useCalls } from "./hooks/useCalls";
+import { describeCallError } from "./lib/calls";
 import {
   DEFAULT_PRIVACY,
   blockUser,
@@ -126,6 +129,27 @@ export default function App() {
   useRealtimeChat({ accountId, profileName, remoteId: activeChat.remoteId, setChats });
   // Signed attachment URLs last an hour; keep them alive in a long-lived tab.
   useAttachmentRefresh({ chats, enabled: Boolean(accountId), setChats });
+  const {
+    call,
+    startCall,
+    answer: answerCall,
+    hangUp,
+    media: callMedia,
+    attachRemoteVideo,
+    toggleMute,
+    toggleCamera,
+  } = useCalls({ accountId: accountId ?? null, enabled: Boolean(accountId), notify: action });
+  const [callError, setCallError] = useState<string | null>(null);
+  // Calls are cloud-only: a demo chat has no remoteId, so there is nothing to signal.
+  const startCallNow = async (kind: "audio" | "video") => {
+    setCallError(null);
+    if (!activeChat.remoteId) {
+      action("Звонки доступны в облачных чатах");
+      return;
+    }
+    const result = await startCall(activeChat.remoteId, kind);
+    if (result.error) setCallError(describeCallError(result.error));
+  };
   useAutoScroll(messagesEndRef, [activeId, activeChat.messages.length]);
 
   const { loadOlder, loadingChatIds } = useHistoryPagination({ accountId, profileName, notify: action, setChats });
@@ -1194,8 +1218,8 @@ export default function App() {
         searchAuthor={searchAuthor}
         searchTime={searchTime}
         onOpenSearchHit={(createdAt) => void openSearchHit(createdAt)}
-        onCall={() => action("Голосовые звонки подключим позже")}
-        onVideo={() => action("Видеозвонки подключим позже")}
+        onCall={() => void startCallNow("audio")}
+        onVideo={() => void startCallNow("video")}
         onTogglePin={() => toggleChatPin(activeChat)}
         onToggleProfile={() => setShowProfile((open) => !open)}
         visibleMessages={visibleMessages}
@@ -1325,6 +1349,22 @@ export default function App() {
           setActiveId(chats.find((chat) => chat.name === image.chatName)?.id ?? activeId);
           setGalleryOpen(false);
         }}
+      />
+
+      <CallOverlay
+        call={call}
+        chatName={activeChat.name}
+        chatColor={activeChat.color ?? "yellow"}
+        error={callError ?? callMedia.error}
+        connected={callMedia.connected}
+        onAnswer={() => void answerCall()}
+        onDecline={() => void hangUp("declined")}
+        onHangUp={() => void hangUp("ended")}
+        onToggleMute={() => void toggleMute()}
+        onToggleCamera={() => void toggleCamera()}
+        muted={callMedia.micEnabled === false}
+        cameraOff={callMedia.cameraEnabled === false}
+        onRemoteVideo={attachRemoteVideo}
       />
 
       <PrivacyModal

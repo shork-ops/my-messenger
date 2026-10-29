@@ -524,3 +524,79 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 @media (prefers-reduced-motion: reduce) {
   .message-effect-sparkle, .message-effect-hearts, .message-effect-fireworks, .effect-mark-sparkle, .effect-mark-hearts, .effect-mark-fireworks { animation: none !important; }
 }
+
+/* ---------------------------------------------------------------------------
+   Call overlay
+   Full-screen call surface for ringing, incoming and in-call states. It sits
+   above the modal backdrop (z-index 20) because a call must not be covered by a
+   settings dialog the user forgot to close.
+--------------------------------------------------------------------------- */
+.call-overlay {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: #000c;
+  backdrop-filter: blur(8px);
+}
+.call-card {
+  width: min(340px, 100%);
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 28px 22px 22px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--panel);
+  text-align: center;
+}
+.call-avatar {
+  width: 84px;
+  height: 84px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 32px;
+  font-weight: 700;
+  color: #09090b;
+  background: var(--yellow);
+  /* A slow pulse signals "ringing" without motion-sickness at full speed. */
+  animation: call-pulse 1.8s ease-in-out infinite;
+}
+@keyframes call-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 #ffd40066; }
+  50% { box-shadow: 0 0 0 12px #ffd40000; }
+}
+/* Respect users who asked the system to reduce motion. */
+@media (prefers-reduced-motion: reduce) {
+  .call-avatar { animation: none; }
+}
+.call-title { font-size: 18px; font-weight: 700; }
+.call-subtitle { color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.call-error { color: #ff7676; font-size: 13px; }
+.call-actions { display: flex; gap: 16px; margin-top: 8px; }
+.call-button {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: #17181b;
+  color: #f4f4f5;
+  cursor: pointer;
+  transition: transform .12s ease, background .12s ease;
+}
+.call-button:hover { transform: translateY(-1px); }
+.call-button.active { background: #2a2b30; }
+.call-button.accept { background: #1f9d55; border-color: #1f9d55; color: #fff; }
+.call-button.decline { background: #c93a3a; border-color: #c93a3a; color: #fff; }
+.call-video {
+  width: 100%;
+  max-height: 240px;
+  border-radius: 14px;
+  background: #000;
+  object-fit: cover;
+}
