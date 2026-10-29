@@ -18,6 +18,11 @@ export type Attachment = {
   duration?: number;
   /** Quantised peaks (0..255) used to draw the waveform. */
   waveform?: number[];
+  /**
+   * When the signed `data` URL stops working (epoch ms). Absent for inline
+   * data URLs and for local chats, which never expire.
+   */
+  expiresAt?: number;
 };
 
 export type ReplyPreview = { author: string; text: string };

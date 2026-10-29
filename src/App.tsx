@@ -37,6 +37,8 @@ import { useChatCollection } from "./hooks/useChatCollection";
 import { useUserSearch } from "./hooks/useUserSearch";
 import { useCloudChats } from "./hooks/useCloudChats";
 import { useRealtimeChat } from "./hooks/useRealtimeChat";
+import { useAttachmentRefresh } from "./hooks/useAttachmentRefresh";
+import { SIGNED_URL_TTL_SECONDS } from "./lib/messageSync";
 import { useHistoryPagination, useInfiniteHistory } from "./hooks/useHistoryPagination";
 import { useUnreadBadge, useMessageNotifications, usePushSubscriptionSync, useNotificationsPrompt, requestNotificationPermission } from "./hooks/useNotifications";
 import { subscribeToPush } from "./lib/push";
@@ -122,6 +124,8 @@ export default function App() {
 
   useCloudChats({ accountId, profileReady, profileName, notify: action, setChats, setActiveId });
   useRealtimeChat({ accountId, profileName, remoteId: activeChat.remoteId, setChats });
+  // Signed attachment URLs last an hour; keep them alive in a long-lived tab.
+  useAttachmentRefresh({ chats, enabled: Boolean(accountId), setChats });
   useAutoScroll(messagesEndRef, [activeId, activeChat.messages.length]);
 
   const { loadOlder, loadingChatIds } = useHistoryPagination({ accountId, profileName, notify: action, setChats });
@@ -287,7 +291,11 @@ export default function App() {
       time: clockTime(created),
       mine: true,
       createdAt: created.getTime(),
-      attachment: { ...attachmentMeta, data: signed.data.signedUrl },
+      attachment: {
+        ...attachmentMeta,
+        data: signed.data.signedUrl,
+        expiresAt: Date.now() + SIGNED_URL_TTL_SECONDS * 1000,
+      },
     };
     setChats((current) => appendMessage(current, activeId, message, "📎 " + uploadName, message.time));
     setUploadProgress({ name: uploadName, percent: 100, stage: "Готово" });
@@ -552,7 +560,11 @@ export default function App() {
       time: clockTime(created),
       mine: true,
       createdAt: created.getTime(),
-      attachment: { ...meta, data: signed.data?.signedUrl ?? "" },
+      attachment: {
+        ...meta,
+        data: signed.data?.signedUrl ?? "",
+        expiresAt: Date.now() + SIGNED_URL_TTL_SECONDS * 1000,
+      },
     };
     setChats((current) => appendMessage(current, activeId, message, "🎤 Голосовое сообщение", message.time));
     setUploadProgress(null);
