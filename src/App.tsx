@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { Shield, X } from "lucide-react";
 import { supabase } from "./lib/supabase";
@@ -61,6 +61,9 @@ import { usePasscode } from "./hooks/usePasscode";
 import { useTwoFactor } from "./hooks/useTwoFactor";
 import { useWallpaper } from "./hooks/useWallpaper";
 import { useMediaPolicy } from "./hooks/useMediaPolicy";
+import { useShortcuts } from "./hooks/useShortcuts";
+import ShortcutHelp from "./components/ShortcutHelp";
+import type { Shortcut } from "./lib/shortcuts";
 import { shouldAutoload } from "./lib/mediaPolicy";
 import EmojiPicker from "./components/EmojiPicker";
 import VideoNoteRecorder from "./components/VideoNoteRecorder";
@@ -241,6 +244,72 @@ export default function App() {
   const [noteOpen, setNoteOpen] = useState(false);
   const { policy: mediaPolicy, setPolicy: setMediaPolicy, network: networkKind } = useMediaPolicy();
   const autoloadMedia = shouldAutoload(mediaPolicy, networkKind);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  // Focusing the existing field rather than opening a second search: two search
+  // boxes would mean two places to look for what you typed.
+  const focusSearch = useCallback((kind: "chat" | "message") => {
+    const selector = kind === "chat" ? ".chat-list-panel input" : ".messages-search input, .conversation-search input";
+    const field = document.querySelector<HTMLInputElement>(selector);
+    if (field) {
+      field.focus();
+      field.select();
+    } else if (kind === "message") {
+      setMessageSearchOpen(true);
+    }
+  }, []);
+
+  // Each shortcut calls the same function the button calls, so the two can never
+  // drift into doing different things.
+  const onShortcut = useCallback(
+    (shortcut: Shortcut) => {
+      const chat = chats.find((item) => item.id === activeId);
+      const last = chat?.messages[chat.messages.length - 1];
+      switch (shortcut.key) {
+        case "escape":
+          setShortcutsOpen(false);
+          setEmojiOpen(false);
+          if (editingMessageId !== null) {
+            setEditingMessageId(null);
+            setEditDraft("");
+          } else if (chatMenuOpen) {
+            setChatMenuOpen(false);
+          } else if (newChatOpen) {
+            setNewChatOpen(false);
+          } else if (messageSearchOpen) {
+            setMessageSearchOpen(false);
+          }
+          return;
+        case "k":
+          focusSearch("chat");
+          return;
+        case "f":
+          setMessageSearchOpen(true);
+          return;
+        case "n":
+          setNewChatOpen(true);
+          return;
+        case "arrowup":
+          // The composer is empty here, so the arrow is free to mean "edit the last".
+          // An optimistic message has no id yet, so there is nothing to edit.
+          if (last && last.id > 0) startEditing(last);
+          return;
+        case "arrowdown":
+          if (editingMessageId !== null) {
+            setEditingMessageId(null);
+            setEditDraft("");
+          }
+          return;
+        case "?":
+          setShortcutsOpen((open) => !open);
+          return;
+        default:
+          return;
+      }
+    },
+    [activeId, chatMenuOpen, chats, editingMessageId, messageSearchOpen, newChatOpen]
+  );
+
+  useShortcuts({ onShortcut, enabled: !lockCode || lockUnlocked });
   // TOTP two-factor, verified on the server: the app cannot declare itself verified.
   const twoFactorState = useTwoFactor(supabase, accountId);
   const twoFactor = {
@@ -1719,6 +1788,8 @@ export default function App() {
           onOpenPoll: () => setPollOpen(true),
         }}
       />
+
+      {shortcutsOpen && <ShortcutHelp onClose={() => setShortcutsOpen(false)} />}
 
       {noteOpen && (
         <VideoNoteRecorder
