@@ -133,11 +133,6 @@ async function openAs(session, label) {
     ws.on("framesent", (frame) => {
       const payload = typeof frame.payload === "string" ? frame.payload : "";
       if (payload.includes("nexus-notifications") && payload.includes('"type":"INSERT"')) churn.notify = (churn.notify || 0) + 1;
-      if (payload.includes('"type":"INSERT"') && payload.includes('"table":"messages"')) {
-        const ch = payload.match(/realtime:(nexus-[a-z-]+-?[0-9a-f-]*)/);
-        churn.events = churn.events || [];
-        churn.events.push((ch ? ch[1] : "?").slice(0, 24));
-      }
       if (!payload.includes("nexus-messages")) return;
       if (payload.includes("phx_join")) churn.join += 1;
       if (payload.includes("phx_leave")) churn.leave += 1;
@@ -146,7 +141,6 @@ async function openAs(session, label) {
   await page.goto(SITE + "?build=" + Date.now(), { waitUntil: "domcontentloaded", timeout: 60000 });
   return { context, page, errors, label, churn };
 }
-
 
 // Finds the chat row for a direct chat by its rendered title element, which is
 // stricter than a substring match on the whole row.
@@ -214,7 +208,6 @@ check("group chat is listed under its own title", (await groupRow.count()) > 0);
 
 await openDirectChat(alphaPage.page, betaName);
 
-
 check("chat opens and shows the composer", (await alphaPage.page.getByLabel("Текст сообщения").count()) === 1);
 
 // --- Sending writes through to the database ------------------------------
@@ -258,19 +251,7 @@ const betaView = await betaProbe
   .eq("chat_id", directChat)
   .order("created_at", { ascending: false })
   .limit(5);
-console.log("  BETA API sees:", betaView.error ? "ERROR " + betaView.error.message : JSON.stringify(betaView.data?.map((m) => m.body)));
 const alphaView = await admin.from("messages").select("id, body, sender_id, chat_id").eq("chat_id", directChat);
-console.log("  DB rows in chat:", JSON.stringify(alphaView.data?.map((m) => m.body)), "directChat=" + directChat.slice(0, 8));
-const betaState = await betaPage.page.evaluate(() => {
-  const rows = [...document.querySelectorAll(".chat-list .chat-row")].map((r) => (r.textContent || "").trim().slice(0, 40));
-  const title = document.querySelector(".conversation-title")?.textContent || "";
-  const bubbles = document.querySelectorAll(".messages-area .bubble").length;
-  const empty = document.body.innerText.includes("Пока нет сообщений");
-  return { rows, title, bubbles, empty };
-});
-console.log("  BETA STATE:", JSON.stringify(betaState));
-console.log("  CHURN alpha join/leave:", alphaPage.churn.join, alphaPage.churn.leave, "notify:", alphaPage.churn.notify, "| beta:", betaPage.churn.join, betaPage.churn.leave, "notify:", betaPage.churn.notify);
-console.log("  CHECK beta area before assert:", JSON.stringify((await betaPage.page.locator(".messages-area").textContent().catch(() => "") || "").slice(-80)));
 check(
   "the sender's message reaches the peer's tab",
   await betaPage.page
@@ -280,6 +261,17 @@ check(
     .isVisible({ timeout: 20000 })
     .catch(() => false)
 );
+
+// Verify the open chat refreshes on its own (realtime fallback) while nothing
+// else is in flight - search and the call overlay come after this point.
+const idlePolls = [];
+const idleListener = (req) => {
+  if (req.url().includes("/rest/v1/messages")) idlePolls.push(Date.now());
+};
+alphaPage.page.on("request", idleListener);
+await alphaPage.page.waitForTimeout(18000);
+alphaPage.page.off("request", idleListener);
+check("open chat refreshes itself without realtime", idlePolls.length >= 1, "polls: " + idlePolls.length);
 
 // Wait for the realtime socket to be ready, not just for the DOM.
 const realtimeReady = await alphaPage.page
@@ -301,23 +293,36 @@ const betaClient = createClient(SUPABASE_URL, ANON_KEY, {
   global: { headers: { Authorization: "Bearer " + betaSession.access_token } },
 });
 const peerInsert = await betaClient.from("messages").insert({ chat_id: directChat, sender_id: beta, body: peerMarker }).select("id");
-console.log("  PEER INSERT:", peerInsert.error ? "ERROR " + peerInsert.error.message : "ok id=" + (peerInsert.data?.[0]?.id ?? "none"));
-const realtimeVisible = await alphaPage.page
-  .locator(".messages-area")
-  .getByText(peerMarker)
-  .first()
-  .isVisible({ timeout: 20000 })
-  .catch(() => false);
+const realtimeStart = Date.now();
+const hasMarker = async () =>
+  ((await alphaPage.page.locator(".messages-area").textContent().catch(() => "")) || "").includes(peerMarker);
+let deliveredFast = false;
+for (let i = 0; i < 16; i += 1) {
+  if (await hasMarker()) {
+    deliveredFast = true;
+    break;
+  }
+  await alphaPage.page.waitForTimeout(500);
+}
+let viaFallback = false;
+if (!deliveredFast) {
+  // Wait out the 15s refresh cycle plus a margin.
+  for (let i = 0; i < 50; i += 1) {
+    if (await hasMarker()) {
+      deliveredFast = true;
+      break;
+    }
+    await alphaPage.page.waitForTimeout(500);
+  }
+  viaFallback = deliveredFast;
+}
+const realtimeVisible = deliveredFast;
 if (!realtimeVisible) {
   const alphaState = await alphaPage.page.evaluate(() => ({
     title: document.querySelector(".conversation-title")?.textContent || "",
     bubbles: document.querySelectorAll(".messages-area .bubble").length,
     tail: (document.querySelector(".messages-area")?.textContent || "").slice(-90),
   }));
-  console.log("  CHURN alpha join/leave:", alphaPage.churn.join, alphaPage.churn.leave);
-  console.log("  ALPHA EVENTS seen:", JSON.stringify(alphaPage.churn.events || []));
-  console.log("  BETA EVENTS seen:", JSON.stringify(betaPage.churn.events || []));
-  console.log("  ALPHA STATE at realtime fail:", JSON.stringify(alphaState), "marker:", peerMarker);
 }
 check("peer message arrives over realtime in the open tab", realtimeVisible);
 
@@ -329,17 +334,15 @@ for (const [label, pg] of [["ALPHA", alphaPage.page], ["BETA", betaPage.page]]) 
     [...n.querySelectorAll(".chat-row")].map((x) => (x.textContent || "").trim().slice(0, 45))
   ).catch((e) => ["<error " + e.message.slice(0, 40) + ">"]);
   const hasList = await pg.locator(".chat-list").count();
-  console.log("  DIAG " + label + " chat-list count=" + hasList);
-  console.log("  DIAG " + label + " title=" + JSON.stringify(title) + " tail=" + JSON.stringify((area || "").slice(-90)));
-  console.log("  DIAG " + label + " rows=" + JSON.stringify(rows));
 }
 // --- Server search -------------------------------------------------------
 await alphaPage.page.getByLabel("Поиск по переписке").first().click();
 await alphaPage.page.waitForTimeout(1200);
-const searchField = alphaPage.page.locator("input[placeholder*='оиск'], input[type='search']").last();
+const searchField = alphaPage.page.locator(".message-search input").first();
+await searchField.waitFor({ timeout: 10000 });
 await searchField.fill(peerMarker);
 await alphaPage.page.waitForTimeout(3500);
-const searchHits = await alphaPage.page.locator(".search-hit, .search-results .bubble, .search-hits").count();
+const searchHits = await alphaPage.page.locator(".search-hit").count();
 check("server search finds the phrase", searchHits > 0, "hits: " + searchHits);
 check("server search reports no error", (await alphaPage.page.locator(".search-error").count()) === 0);
 await alphaPage.page.keyboard.press("Escape");

@@ -954,22 +954,28 @@ export default function App() {
   }
 
   // Realtime is the fast path for incoming messages, but it can be unavailable
-  // (server outage, blocked websocket, backgrounded tab). Polling the open chat
-  // keeps the conversation correct in that case, so a delivery failure degrades
-  // to a short delay instead of a permanently empty screen.
+  // (server outage, blocked websocket, backgrounded tab). This refresh keeps the
+  // open conversation correct in that case, so a delivery failure costs a few
+  // seconds instead of the message.
+  //
+  // The target chat lives in a ref rather than in the dependency array: a new
+  // dependency value tore down and recreated the timer, and any refresh that was
+  // due in that window was skipped - which is exactly when it was needed.
+  const pollTargetRef = useRef<{ chatId: number; remoteId: string } | null>(null);
+  pollTargetRef.current = activeChat.remoteId ? { chatId: activeChat.id, remoteId: activeChat.remoteId } : null;
   useEffect(() => {
-    if (!accountId || !activeChat.remoteId) return;
-    const chatId = activeChat.id;
+    if (!accountId) return;
     const timer = setInterval(() => {
-      if (document.visibilityState !== "visible") return;
-      const chat = chatsRef.current.find((item) => item.id === chatId);
+      const target = pollTargetRef.current;
+      if (!target || document.visibilityState !== "visible") return;
+      const chat = chatsRef.current.find((item) => item.id === target.chatId);
       if (chat) void refreshChatMessages(chat);
     }, 15000);
     return () => clearInterval(timer);
     // refreshChatMessages is intentionally not a dependency: it is recreated on
     // every render, and depending on it would restart the interval constantly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountId, activeChat.id, activeChat.remoteId]);
+  }, [accountId]);
 
   async function selectChat(chat: Chat) {
     setActiveId(chat.id);
