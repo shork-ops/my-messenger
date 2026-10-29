@@ -1813,6 +1813,7 @@ export default function App() {
         muted={callMedia.micEnabled === false}
         cameraOff={callMedia.cameraEnabled === false}
         onRemoteVideo={attachRemoteVideo}
+        participants={callMedia.participants}
       />
 
       <PrivacyModal

@@ -1,5 +1,6 @@
 import { Room, RoomEvent, Track } from "livekit-client";
 import type { CallToken } from "./calls";
+import type { RoomParticipant } from "./groupCall";
 
 /**
  * Thin wrapper over a LiveKit room.
@@ -15,6 +16,13 @@ export type MediaState = {
   cameraEnabled: boolean;
   /** Set when the browser refused a device or the connection dropped. */
   error: string | null;
+  /**
+   * Everyone currently in the room, the local participant included.
+   *
+   * Read from the room rather than counted locally: people leave by closing the tab
+   * as often as by pressing hang up, and only the SFU knows about that.
+   */
+  participants: RoomParticipant[];
 };
 
 const INITIAL_MEDIA: MediaState = {
@@ -22,7 +30,20 @@ const INITIAL_MEDIA: MediaState = {
   micEnabled: false,
   cameraEnabled: false,
   error: null,
+  participants: [],
 };
+
+/** Reads the room's people into the shape the call screen renders. */
+function readParticipants(room: Room): RoomParticipant[] {
+  const local = room.localParticipant;
+  const everyone = [local, ...room.remoteParticipants.values()];
+  return everyone.map((participant) => ({
+    identity: participant.identity,
+    name: participant.name || participant.identity,
+    // An un-muted participant is publishing audio; a camera-only one is not muted.
+    muted: participant.isMicrophoneEnabled === false,
+  }));
+}
 
 type MediaListeners = {
   onState: (state: MediaState) => void;
@@ -69,8 +90,13 @@ export class CallSession {
     });
     this.room = room;
 
+    const publishParticipants = () => this.emit({ participants: readParticipants(room) });
+
     room
-      .on(RoomEvent.ParticipantConnected, () => this.emit({}))
+      .on(RoomEvent.ParticipantConnected, publishParticipants)
+      .on(RoomEvent.ParticipantDisconnected, publishParticipants)
+      .on(RoomEvent.TrackMuted, publishParticipants)
+      .on(RoomEvent.TrackUnmuted, publishParticipants)
       .on(RoomEvent.TrackSubscribed, (track) => {
         if (track.kind === Track.Kind.Video) this.listeners.onRemoteVideo(track);
       })
@@ -87,6 +113,7 @@ export class CallSession {
         connected: true,
         micEnabled: true,
         cameraEnabled: options.video,
+        participants: readParticipants(room),
       });
     } catch (error) {
       this.emit({ error: describeMediaError(error), connected: false });
@@ -98,7 +125,7 @@ export class CallSession {
     if (!this.room) return;
     // Failures here are recoverable (device unplugged); keep the room alive.
     await this.room.localParticipant.setMicrophoneEnabled(!muted).catch(() => undefined);
-    this.emit({ micEnabled: !muted });
+    this.emit({ micEnabled: !muted, participants: readParticipants(this.room) });
   }
 
   async setCameraEnabled(enabled: boolean): Promise<void> {
@@ -121,6 +148,6 @@ export class CallSession {
         publication.track?.stop();
       });
     }
-    this.listeners.onState({ ...INITIAL_MEDIA });
+    this.listeners.onState({ ...INITIAL_MEDIA, participants: [] });
   }
 }

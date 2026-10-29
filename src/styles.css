@@ -484,6 +484,11 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .quiet-row label { display: flex; align-items: center; gap: 8px; color: var(--fg-secondary); font-size: 13px; }
 .settings-action.danger { border-color: var(--yellow); color: var(--yellow); }
 .settings-divider { height: 1px; margin: 16px 0 4px; background: var(--border); }
+.call-people { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; max-height: 42vh; overflow-y: auto; padding: 6px 4px; }
+.call-person { display: flex; flex-direction: column; align-items: center; gap: 5px; width: 84px; }
+.call-person-avatar { display: grid; place-items: center; width: 66px; height: 66px; border-radius: 50%; background: var(--surface-2); color: var(--fg); font-size: 24px; font-weight: 600; }
+.call-person-name { max-width: 84px; overflow: hidden; color: var(--fg-secondary); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.call-person-muted { color: var(--fg-muted); font-size: 11px; }
 .emoji-picker { position: fixed; right: 18px; bottom: 96px; z-index: 300; display: flex; flex-direction: column; gap: 9px; width: min(316px, calc(100vw - 32px)); max-height: 320px; padding: 12px; border: 1px solid var(--border-strong); border-radius: 14px; background: var(--surface-1); box-shadow: 0 18px 44px rgba(0, 0, 0, .45); }
 .emoji-search { display: flex; align-items: center; gap: 7px; padding: 0 9px; min-height: 36px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-0); color: var(--fg-muted); }
 .emoji-search input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--fg); font: inherit; font-size: 13px; outline: none; }

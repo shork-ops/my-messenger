@@ -45,7 +45,13 @@ type UseCallsResult = {
  * not enough, because the caller starts the call through an RPC and must see
  * their own outgoing state immediately.
  */
-const INITIAL_MEDIA_STATE: MediaState = { connected: false, micEnabled: false, cameraEnabled: false, error: null };
+const INITIAL_MEDIA_STATE: MediaState = {
+  connected: false,
+  micEnabled: false,
+  cameraEnabled: false,
+  error: null,
+  participants: [],
+};
 
 export function useCalls({ accountId, enabled, notify }: UseCallsOptions): UseCallsResult {
   const [call, setCall] = useState<ActiveCall | null>(null);

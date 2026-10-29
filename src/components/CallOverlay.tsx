@@ -1,6 +1,13 @@
 ﻿import { useEffect, useState } from "react";
 import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff } from "lucide-react";
 import { formatCallDuration, presentCall, type ActiveCall } from "../lib/calls";
+import {
+  isGroupCall,
+  participantInitial,
+  participantLabel,
+  pluralParticipants,
+  type RoomParticipant,
+} from "../lib/groupCall";
 
 type CallOverlayProps = {
   call: ActiveCall | null;
@@ -19,6 +26,8 @@ type CallOverlayProps = {
   cameraOff: boolean;
   /** Receives the element the remote camera stream is attached to. */
   onRemoteVideo: (element: HTMLVideoElement | null) => void;
+  /** Everyone on the call, the local participant included. */
+  participants: RoomParticipant[];
 };
 
 /**
@@ -42,6 +51,7 @@ export function CallOverlay({
   muted,
   cameraOff,
   onRemoteVideo,
+  participants,
 }: CallOverlayProps) {
   const [now, setNow] = useState(() => Date.now());
   const stage = presentCall(call);
@@ -68,6 +78,8 @@ export function CallOverlay({
   if (!call || stage === "hidden") return null;
 
   const isVideo = call.kind === "video";
+  // Once a third person joins, a single avatar no longer says who is there.
+  const group = isGroupCall(participants);
   const title = stage === "incoming" ? `Входящий ${isVideo ? "видеозвонок" : "звонок"}` : chatName;
   const subtitle =
     stage === "outgoing"
@@ -88,13 +100,28 @@ export function CallOverlay({
           className="call-video"
           autoPlay
           playsInline
-          hidden={!isVideo || stage !== "incall"}
+          hidden={!isVideo || stage !== "incall" || group}
         />
-        <div className={`call-avatar ${chatColor}`} aria-hidden="true" hidden={isVideo && stage === "incall"}>
+        <div className={`call-avatar ${chatColor}`} aria-hidden="true" hidden={(isVideo && stage === "incall") || group}>
           {chatName.slice(0, 1).toUpperCase()}
         </div>
+        {group && stage === "incall" ? (
+          <div className="call-people" role="list" aria-label="Участники звонка">
+            {participants.map((participant) => (
+              <div key={participant.identity} className="call-person" role="listitem">
+                <span className={`call-person-avatar ${chatColor}`} aria-hidden="true">
+                  {participantInitial(participant.name)}
+                </span>
+                <span className="call-person-name">{participantLabel(participant)}</span>
+                {participant.muted ? <span className="call-person-muted">без звука</span> : null}
+              </div>
+            ))}
+          </div>
+        ) : null}
         <div className="call-title">{title}</div>
-        <div className="call-subtitle">{subtitle}</div>
+        <div className="call-subtitle">
+          {group && stage === "incall" ? pluralParticipants(participants.length) : subtitle}
+        </div>
         {error ? <div className="call-error">{error}</div> : null}
 
         {stage === "incoming" ? (
