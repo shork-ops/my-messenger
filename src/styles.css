@@ -389,6 +389,38 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .avatar-remove { min-height: 44px; padding: 0 14px; border: 1px solid var(--border); border-radius: 11px; background: transparent; color: var(--fg-secondary); font: inherit; font-size: 14px; cursor: pointer; }
 .avatar-remove:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
 .avatar-hint { color: var(--fg-muted); font-size: 12px; }
+/* Settings: a list of sections and the section itself. */
+.settings-modal.settings-shell { width: min(760px, 100%); gap: 0; padding: 0; overflow: hidden; }
+.settings-shell > header { padding: 16px 18px; border-bottom: 1px solid var(--border); }
+.settings-shell > header strong { font-size: 16px; }
+.settings-back { display: none; margin-right: 4px; border: 0; background: transparent; color: var(--fg-secondary); cursor: pointer; padding: 4px; border-radius: 8px; }
+.settings-back:hover { color: var(--fg); }
+.settings-body { display: grid; grid-template-columns: 232px 1fr; min-height: 0; }
+.settings-nav { display: flex; flex-direction: column; gap: 3px; padding: 10px; border-right: 1px solid var(--border); background: var(--surface-0); overflow-y: auto; }
+.settings-nav-item { display: flex; align-items: center; gap: 11px; min-height: 52px; padding: 8px 11px; border: 1px solid transparent; border-radius: 11px; background: transparent; color: var(--fg); text-align: left; font: inherit; cursor: pointer; }
+.settings-nav-item > span { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.settings-nav-item strong { font-size: 14px; font-weight: 600; }
+.settings-nav-item small { color: var(--fg-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.settings-nav-item > svg:first-child { color: var(--fg-secondary); flex-shrink: 0; }
+.settings-nav-item .settings-chevron { color: var(--fg-muted); flex-shrink: 0; }
+.settings-nav-item:hover { background: var(--surface-1); }
+.settings-nav-item.active { border-color: var(--border-strong); background: var(--surface-2); }
+.settings-nav-item.active > svg:first-child { color: var(--yellow); }
+.settings-detail { display: flex; flex-direction: column; gap: 16px; padding: 18px; overflow-y: auto; max-height: min(560px, 72vh); }
+.settings-note { margin: 0; color: var(--fg-muted); font-size: 13px; line-height: 1.5; }
+.field-block { display: flex; flex-direction: column; gap: 9px; }
+.field-label { color: var(--fg-secondary); font-size: 12px; }
+@media (max-width: 640px) {
+  .settings-modal.settings-shell { width: 100%; max-height: 92vh; }
+  .settings-body { grid-template-columns: 1fr; }
+  .settings-nav { border-right: 0; }
+  .settings-back { display: inline-flex; align-items: center; justify-content: center; min-width: 40px; min-height: 40px; }
+  /* One screen at a time: the list, or the section. */
+  .settings-shell.show-detail .settings-nav { display: none; }
+  .settings-shell:not(.show-detail) .settings-detail { display: none; }
+  .settings-detail { max-height: none; padding: 16px; }
+  .settings-nav-item { min-height: 56px; }
+}
 .profile-about { margin: -6px 0 10px; padding: 0 2px; color: var(--fg-secondary); font-size: 13px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
 .about-input { width: 100%; min-height: 64px; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: 10px; outline: 0; background: var(--surface-0); color: var(--fg); font: inherit; font-size: 14px; line-height: 1.45; resize: vertical; }
 .about-input:focus { border-color: var(--yellow); }

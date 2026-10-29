@@ -10,6 +10,7 @@ import GameModal from "./components/GameModal";
 import { useChatMembers } from "./hooks/useChatMembers";
 import { useServerSearch } from "./hooks/useServerSearch";
 import PrivacyModal from "./components/PrivacyModal";
+import SettingsModal from "./components/SettingsModal";
 import { CallOverlay } from "./components/CallOverlay";
 import { useCalls } from "./hooks/useCalls";
 import { describeCallError } from "./lib/calls";
@@ -27,7 +28,7 @@ import { removeMember, rotateInvite, setMemberRole } from "./lib/groupAdmin";
 import { createFavouritesChat, favouriteMessage, formatForwardText, isFavouritesChat, nextLocalId } from "./lib/messageActions";
 import { MAX_UPLOAD_BYTES, blobToDataUrl, buildStoragePath, formatBytes, isSupportedFile, prepareImage, shouldCompress } from "./lib/media";
 import { analyseWaveform } from "./lib/voice";
-import { GalleryModal, NewChatModal, PollModal, ProfileModal } from "./components/Modals";
+import { GalleryModal, NewChatModal, PollModal } from "./components/Modals";
 import { friends, isDemoMode } from "./lib/constants";
 import { clockTime, numericId } from "./lib/format";
 import { appendMessage, applyReadStamp, mapMessages, markRead, removeMessage, restoreMessage, updateChat } from "./lib/chats";
@@ -1495,7 +1496,7 @@ export default function App() {
         onClose={() => setPrivacyOpen(false)}
       />
 
-      <ProfileModal
+      <SettingsModal
         open={profileOpen}
         name={profileName}
         avatar={profileAvatar}
@@ -1515,10 +1516,6 @@ export default function App() {
         onSaveUsername={() => void saveUsername()}
         onThemeChange={setTheme}
         onOpenPrivacy={() => setPrivacyOpen(true)}
-        onDone={() => {
-          setProfileOpen(false);
-          action("Профиль и тема сохранены");
-        }}
       />
 
       {deletedMessage && (
