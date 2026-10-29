@@ -65,6 +65,7 @@ import { useShortcuts } from "./hooks/useShortcuts";
 import { useBackSwipe } from "./hooks/useBackSwipe";
 import ShortcutHelp from "./components/ShortcutHelp";
 import type { Shortcut } from "./lib/shortcuts";
+import { exportAsText, exportFileName, pluralMessages } from "./lib/exportChat";
 import { shouldAutoload } from "./lib/mediaPolicy";
 import EmojiPicker from "./components/EmojiPicker";
 import VideoNoteRecorder from "./components/VideoNoteRecorder";
@@ -314,6 +315,37 @@ export default function App() {
 
   // The swipe goes back exactly where the back button goes, so the two cannot
   // disagree about what "back" means.
+  /**
+   * Saves the conversation as a file.
+   *
+   * The text format is the default because a backup is only worth having if it can be
+   * read years later by something other than this app.
+   */
+  function exportChat(chat: Chat) {
+    const messages = chat.messages.filter((message) => message.id > 0);
+    const text = exportAsText(
+      chat.name,
+      messages.map((message) => ({
+        author: message.author,
+        text: message.text,
+        createdAt: message.createdAt ? new Date(message.createdAt).toISOString() : undefined,
+        attachment: message.attachment
+          ? { name: message.attachment.name, type: message.attachment.type, size: message.attachment.size }
+          : null,
+      })),
+      Date.now()
+    );
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = exportFileName(chat.name, Date.now(), "txt");
+    link.click();
+    // Revoking immediately can cancel the download in some browsers.
+    window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    action(`Переписка выгружена: ${pluralMessages(messages.length)}`);
+  }
+
   const goBackToChats = useCallback(() => {
     if (mobileView !== "chat") return;
     setMobileView("list");
@@ -1717,6 +1749,10 @@ export default function App() {
         onToggleProfile={() => {
           setChatMenuOpen(false);
           setShowProfile((open) => !open);
+        }}
+        onExport={() => {
+          setChatMenuOpen(false);
+          exportChat(activeChat);
         }}
         onClearHistory={() => {
           setChatMenuOpen(false);
