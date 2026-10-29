@@ -28,7 +28,7 @@ import { removeMember, rotateInvite, setMemberRole } from "./lib/groupAdmin";
 import { createFavouritesChat, favouriteMessage, formatForwardText, isFavouritesChat, nextLocalId } from "./lib/messageActions";
 import { MAX_UPLOAD_BYTES, blobToDataUrl, buildStoragePath, formatBytes, isSupportedFile, prepareImage, shouldCompress } from "./lib/media";
 import { analyseWaveform } from "./lib/voice";
-import { GalleryModal, NewChatModal, PollModal } from "./components/Modals";
+import { GalleryModal, MuteModal, NewChatModal, PollModal } from "./components/Modals";
 import { friends, isDemoMode } from "./lib/constants";
 import { clockTime, numericId } from "./lib/format";
 import { appendMessage, applyReadStamp, mapMessages, markRead, removeMessage, restoreMessage, updateChat } from "./lib/chats";
@@ -48,6 +48,7 @@ import { loadMessagePage } from "./lib/messageLoader";
 import { useHistoryPagination, useInfiniteHistory } from "./hooks/useHistoryPagination";
 import { useUnreadBadge, useMessageNotifications, usePushSubscriptionSync, useNotificationsPrompt, requestNotificationPermission } from "./hooks/useNotifications";
 import { useNotificationPrefs } from "./hooks/useNotificationPrefs";
+import { type MuteOptionId, muteUntil } from "./lib/chatSettings";
 import { subscribeToPush } from "./lib/push";
 import { useAutoScroll } from "./hooks/useAutoScroll";
 import { unreadMessages } from "./lib/unread";
@@ -211,6 +212,8 @@ export default function App() {
   // Notification preferences live per device, and the permission state is read
   // once so the settings screen can say plainly whether the browser allows them.
   const { prefs: notificationPrefs, setPrefs: setNotificationPrefs } = useNotificationPrefs();
+  // Which chat the mute chooser is open for; null when it is closed.
+  const [muteChatId, setMuteChatId] = useState<number | null>(null);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">(() =>
     typeof Notification === "undefined" ? "unsupported" : Notification.permission
   );
@@ -1093,6 +1096,69 @@ export default function App() {
    * statement about the conversation. The row stays hidden until the next full
    * reload, which is what other messengers do too.
    */
+  /**
+   * Chat-level settings live on this account's membership row, so the change
+   * applies to this person only and follows them to another device.
+   */
+  async function saveChatSettings(chatId: number, patch: { mutedUntil?: number | null; archived?: boolean }) {
+    const chat = chats.find((item) => item.id === chatId);
+    if (!chat?.remoteId) {
+      // Demo chats have no server row; keep the change in memory.
+      setChats((current) =>
+        current.map((item) =>
+          item.id === chatId
+            ? {
+                ...item,
+                ...(patch.mutedUntil !== undefined ? { mutedUntil: patch.mutedUntil } : {}),
+                ...(patch.archived !== undefined ? { archived: patch.archived } : {}),
+              }
+            : item
+        )
+      );
+      return true;
+    }
+    const client = supabase;
+    if (!client || !accountId) {
+      action("Нет подключения к Supabase");
+      return false;
+    }
+    // Through the function rather than a direct UPDATE: a row policy cannot limit
+    // which columns an update touches, and a member able to write any column can
+    // write role.
+    const { error } = await client.rpc("set_chat_preferences", {
+      p_chat: chat.remoteId,
+      p_muted_until:
+        patch.mutedUntil === undefined || patch.mutedUntil === null
+          ? null
+          : new Date(patch.mutedUntil).toISOString(),
+      p_archived: patch.archived === undefined ? null : patch.archived,
+    });
+    if (error) {
+      action("Не удалось сохранить настройку чата");
+      return false;
+    }
+    setChats((current) =>
+      current.map((item) =>
+        item.id === chatId
+          ? {
+              ...item,
+              ...(patch.mutedUntil !== undefined ? { mutedUntil: patch.mutedUntil } : {}),
+              ...(patch.archived !== undefined ? { archived: patch.archived } : {}),
+            }
+          : item
+      )
+    );
+    return true;
+  }
+
+  async function applyMute(optionId: MuteOptionId) {
+    if (muteChatId === null) return;
+    const until = muteUntil(optionId, new Date());
+    setMuteChatId(null);
+    const ok = await saveChatSettings(muteChatId, { mutedUntil: until ? until.getTime() : null });
+    if (ok) action(until ? "Уведомления из чата отключены" : "Звук включён");
+  }
+
   async function deleteMessageLocal(messageId: number) {
     const chat = chats.find((item) => item.id === activeId);
     const index = chat?.messages.findIndex((message) => message.id === messageId) ?? -1;
@@ -1392,6 +1458,21 @@ export default function App() {
           setChatMenuOpen(false);
           clearHistory();
         }}
+        onMute={() => {
+          setChatMenuOpen(false);
+          setMuteChatId(activeChat.id);
+        }}
+        onUnmute={() => {
+          setChatMenuOpen(false);
+          void saveChatSettings(activeChat.id, { mutedUntil: null }).then((ok) => ok && action("Звук включён"));
+        }}
+        onArchive={() => {
+          setChatMenuOpen(false);
+          const next = !activeChat.archived;
+          void saveChatSettings(activeChat.id, { archived: next }).then(
+            (ok) => ok && action(next ? "Чат в архиве" : "Чат возвращён из архива")
+          );
+        }}
         chatMenuOpen={chatMenuOpen}
         onToggleChatMenu={() => setChatMenuOpen((open) => !open)}
         visibleMessages={visibleMessages}
@@ -1496,6 +1577,13 @@ export default function App() {
         onIsGroupChange={setNewChatIsGroup}
         onClose={() => setNewChatOpen(false)}
         onSubmit={createChat}
+      />
+
+      <MuteModal
+        open={muteChatId !== null}
+        chatName={chats.find((chat) => chat.id === muteChatId)?.name ?? ""}
+        onPick={(optionId) => void applyMute(optionId)}
+        onClose={() => setMuteChatId(null)}
       />
 
       <PollModal

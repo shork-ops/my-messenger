@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef } from "react";
 import type { ComponentProps, MutableRefObject } from "react";
-import { ChevronLeft, MoreVertical, Phone, Pin, Search, Trash2, UserRound, Video, X } from "lucide-react";
+import { Archive, BellOff, BellRing, ChevronLeft, MoreVertical, Phone, Pin, Search, Trash2, UserRound, Video, X } from "lucide-react";
 import Avatar from "./Avatar";
 import Composer from "./Composer";
 import MessageBubble from "./MessageBubble";
@@ -34,6 +34,10 @@ type ConversationPanelProps = {
   onToggleProfile: () => void;
   /** Deletes this conversation's history on this device. */
   onClearHistory: () => void;
+  /** Opens the mute duration chooser. */
+  onMute: () => void;
+  onUnmute: () => void;
+  onArchive: () => void;
   chatMenuOpen: boolean;
   onToggleChatMenu: () => void;
   visibleMessages: Message[];
@@ -85,6 +89,9 @@ export default function ConversationPanel({
   onTogglePin,
   onToggleProfile,
   onClearHistory,
+  onMute,
+  onUnmute,
+  onArchive,
   chatMenuOpen,
   onToggleChatMenu,
   visibleMessages,
@@ -201,6 +208,18 @@ export default function ConversationPanel({
               <div className="chat-menu" role="menu">
                 <button type="button" role="menuitem" onClick={onToggleProfile}>
                   <UserRound size={18} /> Профиль чата
+                </button>
+                {chat.mutedUntil ? (
+                  <button type="button" role="menuitem" onClick={onUnmute}>
+                    <BellRing size={18} /> Включить звук
+                  </button>
+                ) : (
+                  <button type="button" role="menuitem" onClick={onMute}>
+                    <BellOff size={18} /> Без звука
+                  </button>
+                )}
+                <button type="button" role="menuitem" onClick={onArchive}>
+                  <Archive size={18} /> {chat.archived ? "Вернуть из архива" : "В архив"}
                 </button>
                 <button type="button" role="menuitem" className="danger" onClick={onClearHistory}>
                   <Trash2 size={18} /> Очистить историю

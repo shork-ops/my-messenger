@@ -1,5 +1,6 @@
 import type { FormEvent } from "react";
-import { X } from "lucide-react";
+import { BellOff, X } from "lucide-react";
+import { MUTE_OPTIONS, type MuteOptionId } from "../lib/chatSettings";
 import type { Message } from "../types";
 
 type NewChatModalProps = {
@@ -132,3 +133,41 @@ export function GalleryModal({ open, images, onClose, onOpenImage }: GalleryModa
   );
 }
 
+
+type MuteModalProps = {
+  open: boolean;
+  chatName: string;
+  onPick: (optionId: MuteOptionId) => void;
+  onClose: () => void;
+};
+
+/**
+ * Asks how long to silence a chat.
+ *
+ * A single "mute" switch forces people to choose between silence they cannot
+ * undo without remembering it, and no silence at all.
+ */
+export function MuteModal({ open, chatName, onPick, onClose }: MuteModalProps) {
+  if (!open) return null;
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <section className="mute-modal" onClick={(event) => event.stopPropagation()} aria-label="Отключить уведомления">
+        <header>
+          <strong>Без звука</strong>
+          <button type="button" onClick={onClose} aria-label="Закрыть">
+            <X size={18} />
+          </button>
+        </header>
+        <p className="mute-hint">Уведомления из чата «{chatName}» не будут приходить со звуком и вибрацией.</p>
+        <div className="mute-options">
+          {MUTE_OPTIONS.map((option) => (
+            <button key={option.id} type="button" onClick={() => onPick(option.id)}>
+              <BellOff size={17} />
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}

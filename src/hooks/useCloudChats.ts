@@ -39,13 +39,22 @@ export function useCloudChats({
     let alive = true;
 
     const loadCloudChats = async () => {
-      const { data: memberships, error: membershipError } = await client.from("chat_members").select("chat_id").eq("user_id", accountId);
+      // Read this account's own membership rows in full: muting and archiving are
+      // stored there, beside the read mark.
+      const { data: memberships, error: membershipError } = await client
+        .from("chat_members")
+        .select("chat_id, muted_until, archived_at")
+        .eq("user_id", accountId);
       if (!alive) return;
       if (membershipError) {
         notify("Не удалось загрузить облачные чаты");
         return;
       }
       const chatIds = [...new Set((memberships ?? []).map((item) => item.chat_id as string))];
+      // Keyed by chat so the mapping below can look up this account's settings.
+      const myMembership = new Map(
+        (memberships ?? []).map((item) => [item.chat_id as string, item as { muted_until?: string | null; archived_at?: string | null }])
+      );
       if (chatIds.length === 0) {
         setChats([]);
         return;
@@ -117,6 +126,10 @@ export function useCloudChats({
           memberLastSeenAt,
           historyExhausted: chatMessages.length < DEFAULT_MESSAGE_PAGE_SIZE,
           unread: countUnread(chatMessages, lastReadAt),
+          mutedUntil: myMembership.get(row.id as string)?.muted_until
+            ? Date.parse(myMembership.get(row.id as string)!.muted_until as string)
+            : null,
+          archived: Boolean(myMembership.get(row.id as string)?.archived_at),
           members: chatMembers.map(
             (member) =>
               member.user_id === accountId

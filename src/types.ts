@@ -66,6 +66,10 @@ export type Chat = {
   memberLastSeenAt?: Record<string, number>;
   /** True once the server returned a short page, meaning no older history exists. */
   historyExhausted?: boolean;
+  /** Notifications are suppressed until this moment; null or past means unmuted. */
+  mutedUntil?: number | null;
+  /** True when this account moved the chat out of the main list. */
+  archived?: boolean;
   messages: Message[];
 };
 
