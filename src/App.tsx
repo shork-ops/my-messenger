@@ -62,6 +62,7 @@ import { useTwoFactor } from "./hooks/useTwoFactor";
 import { useWallpaper } from "./hooks/useWallpaper";
 import { useMediaPolicy } from "./hooks/useMediaPolicy";
 import { useShortcuts } from "./hooks/useShortcuts";
+import { useBackSwipe } from "./hooks/useBackSwipe";
 import ShortcutHelp from "./components/ShortcutHelp";
 import type { Shortcut } from "./lib/shortcuts";
 import { shouldAutoload } from "./lib/mediaPolicy";
@@ -310,6 +311,15 @@ export default function App() {
   );
 
   useShortcuts({ onShortcut, enabled: !lockCode || lockUnlocked });
+
+  // The swipe goes back exactly where the back button goes, so the two cannot
+  // disagree about what "back" means.
+  const goBackToChats = useCallback(() => {
+    if (mobileView !== "chat") return;
+    setMobileView("list");
+    if (window.history.state?.nexusChat) window.history.back();
+  }, [mobileView]);
+  useBackSwipe({ enabled: mobileView === "chat", onBack: goBackToChats });
   // TOTP two-factor, verified on the server: the app cannot declare itself verified.
   const twoFactorState = useTwoFactor(supabase, accountId);
   const twoFactor = {
@@ -1685,10 +1695,7 @@ export default function App() {
 
       <ConversationPanel
         chat={activeChat}
-        onBack={() => {
-          setMobileView("list");
-          if (window.history.state?.nexusChat) window.history.back();
-        }}
+        onBack={goBackToChats}
         isDemoMode={isDemoMode}
         accountId={accountId}
         profileName={profileName}
