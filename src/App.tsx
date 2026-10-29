@@ -41,6 +41,7 @@ import { friends, isDemoMode } from "./lib/constants";
 import { clockTime, numericId } from "./lib/format";
 import { appendMessage, applyReadStamp, mapMessages, markRead, removeMessage, restoreMessage, updateChat } from "./lib/chats";
 import { placeNewMessage } from "./lib/messageOrder";
+import { isTransientError, withRetry } from "./lib/retry";
 import { toggleLocalVote } from "./lib/polls";
 import { useNotice } from "./hooks/useNotice";
 import { useTheme } from "./hooks/useTheme";
@@ -1072,7 +1073,15 @@ export default function App() {
         action("Нужно войти в аккаунт, чтобы отправить сообщение");
         return;
       }
-      const { data, error } = await client.from("messages").insert({ chat_id: targetChat.remoteId, sender_id: accountId, body: text }).select("id, created_at").single();
+      // A dropped connection is ordinary on a phone; retrying saves the user from
+      // retyping a message that would have gone through a second later. The query
+      // builder is a thenable rather than a promise, so it is awaited here.
+      const inserted = await withRetry(
+        async () =>
+          client.from("messages").insert({ chat_id: targetChat.remoteId, sender_id: accountId, body: text }).select("id, created_at").single(),
+        { shouldRetry: (error) => isTransientError(error) }
+      ).catch((error: unknown) => ({ error }));
+      const { data, error } = inserted as { data?: { id: string; created_at: string } | null; error?: unknown };
       if (error || !data) {
         action("Сообщение не отправлено. Проверь подключение и права Supabase.");
         return;
