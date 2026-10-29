@@ -11,6 +11,7 @@ import {
 } from "../lib/chats";
 import { attentionTotal } from "../lib/chatSettings";
 import { isDemoMode, demoSeedEnabled } from "../lib/constants";
+import { readItem, writeItem, removeItem } from "../lib/safeStorage";
 import { createDemoSeedChats } from "../lib/demoSeed";
 
 type UseChatCollectionOptions = {
@@ -35,15 +36,18 @@ export function useChatCollection({ search, chatFilter, messageSearch, notify }:
     // Browser tests need a deterministic starting state; ship no seed to users.
     if (demoSeedEnabled) return createDemoSeedChats();
     if (!isDemoMode) return [];
-    if (!window.localStorage.getItem("nexus-demo-chats-cleared-v1")) {
-      window.localStorage.removeItem("nexus-chats-v1");
-      window.localStorage.removeItem("nexus-drafts-v1");
-      window.localStorage.setItem("nexus-demo-chats-cleared-v1", "1");
+    if (!readItem("nexus-demo-chats-cleared-v1")) {
+      removeItem("nexus-chats-v1");
+      removeItem("nexus-drafts-v1");
+      writeItem("nexus-demo-chats-cleared-v1", "1");
       return [];
     }
     try {
-      const saved = window.localStorage.getItem("nexus-chats-v1");
-      return saved ? (JSON.parse(saved) as Chat[]) : [];
+      const saved = readItem("nexus-chats-v1");
+      const parsed: unknown = saved ? JSON.parse(saved) : null;
+      // Storage is a cache, so anything unexpected in it is dropped rather than trusted:
+      // a corrupted list must not take the app down with it.
+      return Array.isArray(parsed) ? (parsed as Chat[]) : [];
     } catch {
       return [];
     }
@@ -51,22 +55,19 @@ export function useChatCollection({ search, chatFilter, messageSearch, notify }:
   const [activeId, setActiveId] = useState(1);
   const [drafts, setDrafts] = useState<Record<number, string>>(() => {
     try {
-      return JSON.parse(window.localStorage.getItem("nexus-drafts-v1") || "{}") as Record<number, string>;
+      const parsed: unknown = JSON.parse(readItem("nexus-drafts-v1") || "{}");
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<number, string>) : {};
     } catch {
       return {};
     }
   });
 
   useEffect(() => {
-    window.localStorage.setItem("nexus-drafts-v1", JSON.stringify(drafts));
+    writeItem("nexus-drafts-v1", JSON.stringify(drafts));
   }, [drafts]);
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem("nexus-chats-v1", JSON.stringify(chats));
-    } catch {
-      // The app remains usable if browser storage is unavailable.
-    }
+    writeItem("nexus-chats-v1", JSON.stringify(chats));
   }, [chats]);
 
   useEffect(() => {

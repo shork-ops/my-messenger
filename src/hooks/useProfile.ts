@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { readItem, writeItem } from "../lib/safeStorage";
 
 type UseProfileOptions = { notify: (message: string) => void };
 
 export function useProfile({ notify }: UseProfileOptions) {
-  const [profileName, setProfileName] = useState(() => window.localStorage.getItem("nexus-profile-name") || "Алексей");
-  const [profileAvatar, setProfileAvatar] = useState(() => window.localStorage.getItem("nexus-profile-avatar") || "N");
+  const [profileName, setProfileName] = useState(() => readItem("nexus-profile-name") || "Алексей");
+  const [profileAvatar, setProfileAvatar] = useState(() => readItem("nexus-profile-avatar") || "N");
   const [avatarPath, setAvatarPath] = useState<string | null>(null);
   const [about, setAbout] = useState("");
   const [username, setUsername] = useState("");
@@ -77,8 +78,8 @@ export function useProfile({ notify }: UseProfileOptions) {
   }, [notify]);
 
   useEffect(() => {
-    window.localStorage.setItem("nexus-profile-name", profileName);
-    window.localStorage.setItem("nexus-profile-avatar", profileAvatar);
+    writeItem("nexus-profile-name", profileName);
+    writeItem("nexus-profile-avatar", profileAvatar);
     const client = supabase;
     if (!client || !accountId || !profileReady) return;
     const saveProfile = async () => {
