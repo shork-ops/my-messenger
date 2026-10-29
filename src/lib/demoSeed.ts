@@ -59,6 +59,7 @@ export function createDemoSeedChats(now: number = Date.now()): Chat[] {
       pinned: true,
       messages: [
         { id: 4, author: "Аня", text: "Спасибо!", time: "10:15", createdAt: now - 7_200_000 },
+        { id: 6, author: "Я", text: "Приятно!", time: "10:16", createdAt: now - 7_140_000, mine: true },
       ],
     },
     {

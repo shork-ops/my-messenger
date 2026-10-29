@@ -17,7 +17,8 @@
      for previews and labels, muted for timestamps and hints. */
   --fg: #f4f4f5;
   --fg-secondary: #b4b5bd;
-  --fg-muted: #8b8c95;
+  /* Keep at least 4.5:1 against --border, the lightest end of a bubble gradient. */
+  --fg-muted: #9aa0ab;
   /* Surfaces: page, raised, sunken. */
   --surface-0: #0a0b0d;
   --page: #07080a;
@@ -85,6 +86,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .avatar.orange { background: linear-gradient(145deg, #bd7d45, #39271c); }
 .avatar.self { background: linear-gradient(145deg, #6c685a, var(--surface-2)); }
 .avatar.small { width: 42px; height: 42px; font-size: 14px; }
+/* The gradient fills are dark in every theme, so their letters are pale in every theme
+   rather than inheriting --fg, which is near-black on the light page. */
+.avatar.blue, .avatar.pink, .avatar.olive, .avatar.orange { color: #f4f4f5; }
+[data-theme="light"] .avatar.self { color: #14161a; }
 .chat-list-panel { display: flex; flex-direction: column; background: var(--surface-1); border-right: 1px solid var(--line); }
 .search-row { display: flex; gap: 10px; padding: 22px 16px 18px; }
 .search-box { display: flex; flex: 1; align-items: center; gap: 9px; min-width: 0; padding: 0 13px; height: 44px; border: 1px solid var(--border); border-radius: 13px; background: var(--surface-1); color: #a7a8ae; }
@@ -129,7 +134,13 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .bubble { position: relative; padding: 13px 15px 25px; border: 1px solid var(--border); border-radius: 4px 17px 17px; background: linear-gradient(135deg, var(--border), var(--surface-2)); color: var(--fg); font-size: var(--text-body); line-height: 1.55; overflow-wrap: anywhere; }
 .bubble.mine-bubble { border-color: var(--yellow-soft); border-radius: 17px 4px 17px 17px; background: linear-gradient(120deg, var(--yellow-soft), #ffd000); color: var(--surface-1); }
 .message-time { position: absolute; right: 12px; bottom: 6px; color: var(--fg-muted); font-size: 12px; white-space: nowrap; }
-.mine-bubble .message-time { color: var(--yellow-dim); }
+.mine-bubble .message-time { color: #5a4400; }
+/* The accent themes repaint this bubble, so its time follows the bubble's own label
+   instead of naming a hue that only suits the yellow one. */
+:root[data-theme="blue"] .mine-bubble .message-time,
+:root[data-theme="violet"] .mine-bubble .message-time,
+:root[data-theme="mint"] .mine-bubble .message-time { color: #14161a; }
+[data-theme="light"] .mine-bubble .message-time { color: #6b4c00; }
 .message-receipt { margin-left: 4px; letter-spacing: -1px; }
 .message-receipt.read { color: #2f8f4e; }
 .typing-indicator { padding: 6px 24px 0; color: var(--muted); font-size: var(--text-caption); }
@@ -375,7 +386,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
   color-scheme: light;
 }
 [data-theme="light"] .bubble { border-color: var(--border); background: #ffffff; color: var(--fg); }
-[data-theme="light"] .bubble.mine-bubble { border-color: transparent; background: var(--yellow); color: #1a1400; }
+[data-theme="light"] .bubble.mine-bubble { border-color: transparent; background: #ffe27a; color: #1a1400; }
 [data-theme="light"] .chat-row.active, [data-theme="light"] .chat-row:hover { background: var(--surface-2); }
 [data-theme="light"] .rail { border-right-color: var(--border); }
 [data-theme="light"] .conversation-panel { background: var(--surface-0); }
@@ -392,6 +403,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 [data-theme="light"] .nav-link.active { background: linear-gradient(110deg, var(--accent-fill-soft), var(--accent-fill)); color: #1a1400; }
 /* The unread badge is a fill, with dark text on it. */
 [data-theme="light"] .nav-count { background: var(--accent-fill); color: #1a1400; }
+/* --yellow-dim is a dark fill in the blue theme, so the dark label on it measured
+   2.05:1; the badge takes a light label there instead. */
+:root[data-theme="blue"] .nav-link.active .nav-count { color: var(--accent-fill); }
 [data-theme="light"] .tabs button.active,
 [data-theme="light"] .chat-tabs button.active,
 [data-theme="light"] .tab.active { background: var(--accent-fill); color: #1a1400; }
@@ -509,7 +523,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .folder-add:hover { color: var(--fg); }
 .folder-new { display: inline-flex; align-items: center; gap: 4px; }
 .folder-new input { width: 130px; padding: 4px 8px; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface-0); color: var(--fg); font: inherit; font-size: 12px; }
-.folder-new button { padding: 4px 10px; border: 0; border-radius: 999px; background: var(--accent-fill); color: var(--surface-0); font: inherit; font-size: 12px; cursor: pointer; }
+.folder-new button { padding: 4px 10px; border: 0; border-radius: 999px; background: var(--accent-fill); color: #1a1400; font: inherit; font-size: 12px; cursor: pointer; }
 .folder-error { flex-basis: 100%; color: #ff9d9d; font-size: 11px; }
 .folder-picker { width: min(340px, calc(100vw - 32px)); padding: 14px 16px 16px; border: 1px solid var(--border-strong); border-radius: 16px; background: var(--surface-1); }
 .folder-picker header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
