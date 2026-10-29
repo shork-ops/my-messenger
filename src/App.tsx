@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
-import { CircleUserRound, Shield, X } from "lucide-react";
+import { Shield, X } from "lucide-react";
 import { supabase } from "./lib/supabase";
 import Rail from "./components/Rail";
 import ChatListPanel from "./components/ChatListPanel";
@@ -1521,9 +1521,6 @@ export default function App() {
           </button>
         </div>
       )}
-      <button className="mobile-profile-toggle" onClick={() => setShowProfile((open) => !open)} aria-label="Профиль">
-        <CircleUserRound />
-      </button>
     </main>
   );
 }

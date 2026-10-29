@@ -201,7 +201,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .game-row small { color: var(--fg-muted); font-size: 12px; }
 .toast { position: fixed; right: 28px; bottom: 24px; z-index: 10; display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 32px); padding: 14px 16px; border: 1px solid var(--border-strong); border-radius: 12px; background: #171711; box-shadow: 0 12px 45px #000b; color: #f5e7a0; font-size: 12px; }
 .toast button { display: grid; place-items: center; border: 0; background: transparent; color: #c7c7c7; }
-.mobile-profile-toggle { display: none; }
 .back-button { display: none; }
 /* Attachments collapse into one "+" button with a menu, so the text field keeps
    its width and every control can be 44px. */
@@ -235,7 +234,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
   .app-shell { grid-template-columns: 190px minmax(245px, 285px) minmax(340px, 1fr); }
   /* Drawer, not a column: the panel is reachable at every width it is hidden. */
   .right-panel { position: fixed; z-index: 30; top: 0; right: 0; bottom: 0; display: flex; width: min(340px, 92vw); border-left: 1px solid var(--border); background: #0d0e11; box-shadow: -18px 0 60px #000c; }
-  .mobile-profile-toggle { display: grid; place-items: center; position: fixed; right: 16px; bottom: 86px; width: 44px; height: 44px; border: 1px solid #444; border-radius: 50%; background: var(--yellow); color: #111; box-shadow: 0 5px 25px #0008; }
 }
 /* Tablet and small laptop: the rail is labels people read once, so it shrinks to
    icons and gives the width back to the conversation. */
@@ -293,7 +291,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
   .attach-button, .emoji-button { width: 44px; height: 44px; }
   .emoji-button { display: grid; }
   .send-button { width: 44px; height: 44px; }
-  .mobile-profile-toggle { right: 12px; bottom: 84px; width: 48px; height: 48px; }
   .right-panel { z-index: 30; width: min(310px, calc(100vw - 66px)); border-left: 1px solid var(--border); box-shadow: -20px 0 60px #0009; }
   .mobile-close { display: grid; place-items: center; }
 }
@@ -343,17 +340,14 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 :root[data-theme="blue"] .nav-link.active,
 :root[data-theme="blue"] .send-button,
 :root[data-theme="blue"] .game-info button,
-:root[data-theme="blue"] .mobile-profile-toggle,
 :root[data-theme="blue"] .chat-meta b { background: linear-gradient(110deg, #8bcaff, #51a8f5); }
 :root[data-theme="violet"] .nav-link.active,
 :root[data-theme="violet"] .send-button,
 :root[data-theme="violet"] .game-info button,
-:root[data-theme="violet"] .mobile-profile-toggle,
 :root[data-theme="violet"] .chat-meta b { background: linear-gradient(110deg, #d0b4ff, #a77aff); }
 :root[data-theme="mint"] .nav-link.active,
 :root[data-theme="mint"] .send-button,
 :root[data-theme="mint"] .game-info button,
-:root[data-theme="mint"] .mobile-profile-toggle,
 :root[data-theme="mint"] .chat-meta b { background: linear-gradient(110deg, #8cf0cf, #42c99d); }
 :root[data-theme="blue"] .bubble.mine-bubble { border-color: #69baff; background: linear-gradient(120deg, #8bcaff, #51a8f5); }
 :root[data-theme="violet"] .bubble.mine-bubble { border-color: #bd91ff; background: linear-gradient(120deg, #d0b4ff, #a77aff); }

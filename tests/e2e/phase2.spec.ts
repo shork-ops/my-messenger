@@ -100,7 +100,10 @@ test.describe("Phase 2 acceptance: two tabs, group, search, attachment, block", 
   test("group roles surface their cloud-only requirement", async ({ page }) => {
     await openApp(page);
     await page.getByText("Команда").first().click();
-    await page.getByRole("button", { name: "Профиль", exact: true }).click();
+    // The chat details panel opens from the chat menu now that the floating
+    // profile badge is gone.
+    await page.getByRole("button", { name: "Меню чата" }).click();
+    await page.getByRole("menuitem", { name: "Профиль чата" }).click();
     await expect(page.locator(".right-panel")).toBeVisible();
 
     // Demo groups have no remote id, so the member list stays empty; the panel
