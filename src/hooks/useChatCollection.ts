@@ -8,6 +8,7 @@ import {
   sortChats,
   togglePinned,
 } from "../lib/chats";
+import { attentionTotal } from "../lib/chatSettings";
 import { isDemoMode, demoSeedEnabled } from "../lib/constants";
 import { createDemoSeedChats } from "../lib/demoSeed";
 
@@ -86,7 +87,10 @@ export function useChatCollection({ search, chatFilter, messageSearch, notify }:
   );
   const visibleMessages = useMemo(() => getVisibleMessages(activeChat.messages, messageSearch), [activeChat, messageSearch]);
   const galleryImages = useMemo(() => getGalleryImages(chats), [chats]);
-  const unreadTotal = useMemo(() => chats.reduce((sum, chat) => sum + (chat.unread ?? 0), 0), [chats]);
+  // Muted and archived chats keep their own counts in the list but stay out of the
+  // total: a badge that counts chats you silenced on purpose trains people to
+  // ignore the badge.
+  const unreadTotal = useMemo(() => attentionTotal(chats, new Date()), [chats]);
 
   function toggleChatPin(chat: Chat) {
     setChats((current) => togglePinned(current, chat.id));

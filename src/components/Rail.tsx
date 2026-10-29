@@ -1,3 +1,4 @@
+import { badgeText } from "../lib/notifications";
 import { Bell, Gamepad2, MessageCircle, Settings } from "lucide-react";
 import Avatar from "./Avatar";
 
@@ -40,7 +41,11 @@ export default function Rail({
         <button className={`nav-link ${activeNav === "Чаты" ? "active" : ""}`} onClick={() => onNavigate("Чаты")} aria-label="Чаты">
           <MessageCircle size={22} />
           <span>Чаты</span>
-          {unreadTotal > 0 && <b className="nav-count">{unreadTotal}</b>}
+          {unreadTotal > 0 && (
+            <b className="nav-count" title={`${unreadTotal} непрочитанных`}>
+              {badgeText(unreadTotal)}
+            </b>
+          )}
         </button>
         <button className={`nav-link ${activeNav === "Мини-игры" ? "active" : ""}`} onClick={onOpenGames} aria-label="Мини-игры">
           <Gamepad2 size={22} />
