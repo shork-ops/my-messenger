@@ -89,6 +89,29 @@ test.describe("Nexus messenger smoke", () => {
     await expect(page.getByText("Сообщение закреплено")).toBeVisible();
   });
 
+  test("opens message actions on a long press", async ({ page }) => {
+    const line = page.locator(".message-line").first();
+    const box = await line.boundingBox();
+    if (!box) throw new Error("no message on screen");
+
+    // A short tap must leave the menu closed.
+    await page.mouse.move(box.x + 40, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(120);
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+    await expect(page.locator(".message-actions")).toHaveCount(0);
+
+    // Holding past the threshold opens it.
+    await page.mouse.move(box.x + 40, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(700);
+    const openedDuringHold = (await page.locator(".message-actions").count()) > 0;
+    await page.mouse.up();
+    expect(openedDuringHold).toBe(true);
+    await expect(page.locator(".message-actions")).toBeVisible();
+  });
+
   test("opens the privacy settings", async ({ page }) => {
     // Below 1440px the profile panel is a drawer, so open it first.
     const panel = page.locator(".right-panel");

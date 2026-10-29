@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Forward, MessageCircle, MoreVertical, Paperclip, PencilLine, Pin, Send, Star, X } from "lucide-react";
 import Avatar from "./Avatar";
 import VoicePlayer from "./VoicePlayer";
@@ -135,10 +136,50 @@ export default function MessageBubble({
   onDelete,
   onGameInvite,
 }: MessageBubbleProps) {
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressed = useRef(false);
+
+  function clearPress() {
+    if (pressTimer.current) {
+      clearTimeout(pressTimer.current);
+      pressTimer.current = null;
+    }
+  }
+
+  useEffect(() => clearPress, []);
+
+  function startPress() {
+    longPressed.current = false;
+    clearPress();
+    pressTimer.current = setTimeout(() => {
+      longPressed.current = true;
+      onToggleActions();
+    }, 450);
+  }
+
+  // A long press must not also fire the click underneath it.
+  function handleClickCapture(event: React.MouseEvent) {
+    if (longPressed.current) {
+      longPressed.current = false;
+      event.stopPropagation();
+      event.preventDefault();
+    }
+  }
   // Forwarded bodies carry a marker line, which renders as a label instead of text.
   const forwardRelease = splitForward(message.text);
   return (
-    <div className={`message-line ${message.mine ? "mine" : ""}`}>
+    <div
+      className={`message-line ${message.mine ? "mine" : ""}`}
+      onPointerDown={startPress}
+      onPointerUp={clearPress}
+      onPointerLeave={clearPress}
+      onPointerCancel={clearPress}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onToggleActions();
+      }}
+      onClickCapture={handleClickCapture}
+    >
       {!message.mine && (
         <Avatar color={friends.find((friend) => friend.name === message.author)?.color ?? "blue"} small>
           {message.author.slice(0, 1)}

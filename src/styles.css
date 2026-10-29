@@ -93,7 +93,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .conversation-tools svg { width: 21px; height: 21px; }
 .messages-area { flex: 1 1 0; min-width: 0; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 24px; padding: 28px 24px 22px; scrollbar-gutter: stable; }
 .date-divider { display: flex; align-items: center; justify-content: center; margin-bottom: 1px; color: #9a9ba1; font-size: 12px; }
-.message-line { display: flex; align-items: flex-start; gap: 12px; max-width: 100%; }
+.message-line { display: flex; align-items: flex-start; gap: 12px; max-width: 100%; -webkit-touch-callout: none; transition: background .12s ease; }
+.message-line:active { background: #ffffff0d; }
+.message-line .bubble, .message-line .message-content { -webkit-user-select: text; user-select: text; }
 .message-line.mine { justify-content: flex-end; }
 .message-content { min-width: 0; max-width: min(88%, 520px); }
 .message-line.mine .message-content { display: flex; flex-direction: column; align-items: flex-end; }
