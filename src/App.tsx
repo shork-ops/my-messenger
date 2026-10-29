@@ -115,7 +115,7 @@ export default function App() {
   const messagesAreaRef = useRef<HTMLDivElement | null>(null);
 
   const { notice, notify: action, clearNotice } = useNotice();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, textSize, setTextSize } = useTheme();
   const {
     profileName,
     setProfileName,
@@ -1509,6 +1509,8 @@ export default function App() {
         onAboutSave={(value) => void saveAbout(value)}
         usernameSaving={usernameSaving}
         theme={theme}
+        textSize={textSize}
+        onTextSizeChange={setTextSize}
         onClose={() => setProfileOpen(false)}
         onNameChange={setProfileName}
         onAvatarChange={setProfileAvatar}

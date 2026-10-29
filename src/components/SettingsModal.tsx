@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { ABOUT_MAX, normalizeAbout, shouldShowAboutCounter } from "../lib/about";
+import { TEXT_SIZES } from "../lib/textSize";
 import { avatarFallback } from "../lib/avatar";
 
 /** Sections in the order a person tends to look for them. */
@@ -35,6 +36,8 @@ export type SettingsModalProps = {
   about: string;
   usernameSaving: boolean;
   theme: string;
+  textSize: string;
+  onTextSizeChange: (value: string) => void;
   onClose: () => void;
   onNameChange: (value: string) => void;
   onAvatarChange: (value: string) => void;
@@ -149,7 +152,14 @@ export default function SettingsModal(props: SettingsModalProps) {
                 onNameChange={props.onNameChange}
               />
             )}
-            {active === "appearance" && <AppearanceSection theme={props.theme} onThemeChange={props.onThemeChange} />}
+            {active === "appearance" && (
+              <AppearanceSection
+                theme={props.theme}
+                onThemeChange={props.onThemeChange}
+                textSize={props.textSize}
+                onTextSizeChange={props.onTextSizeChange}
+              />
+            )}
             {active === "privacy" && <PrivacySection onOpenPrivacy={props.onOpenPrivacy} />}
             {active === "notifications" && <NotificationsSection />}
             {active === "data" && <DataSection />}
@@ -229,18 +239,47 @@ function ProfileSection({
   );
 }
 
-function AppearanceSection({ theme, onThemeChange }: { theme: string; onThemeChange: (value: string) => void }) {
+function AppearanceSection({
+  theme,
+  onThemeChange,
+  textSize,
+  onTextSizeChange,
+}: {
+  theme: string;
+  onThemeChange: (value: string) => void;
+  textSize: string;
+  onTextSizeChange: (value: string) => void;
+}) {
   return (
-    <label>
-      Цветовая тема
-      <select value={theme} onChange={(event) => onThemeChange(event.target.value)}>
-        <option value="yellow">Nexus — жёлтая</option>
-        <option value="blue">Синяя</option>
-        <option value="violet">Фиолетовая</option>
-        <option value="mint">Мятная</option>
-        <option value="light">Светлая</option>
-      </select>
-    </label>
+    <>
+      <label>
+        Цветовая тема
+        <select value={theme} onChange={(event) => onThemeChange(event.target.value)}>
+          <option value="yellow">Nexus — жёлтая</option>
+          <option value="blue">Синяя</option>
+          <option value="violet">Фиолетовая</option>
+          <option value="mint">Мятная</option>
+          <option value="light">Светлая</option>
+        </select>
+      </label>
+      <div className="field-block">
+        <span className="field-label">Размер текста</span>
+        <div className="text-size-row" role="group" aria-label="Размер текста">
+          {TEXT_SIZES.map((size) => (
+            <button
+              key={size.id}
+              type="button"
+              className={`text-size-option${textSize === size.id ? " active" : ""}`}
+              aria-pressed={textSize === size.id}
+              onClick={() => onTextSizeChange(size.id)}
+            >
+              <span style={{ fontSize: `${Math.round(15 * size.scale)}px` }}>Аа</span>
+              {size.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
   );
 }
 
