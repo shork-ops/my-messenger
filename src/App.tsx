@@ -49,6 +49,7 @@ import { useHistoryPagination, useInfiniteHistory } from "./hooks/useHistoryPagi
 import { useUnreadBadge, useMessageNotifications, usePushSubscriptionSync, useNotificationsPrompt, requestNotificationPermission } from "./hooks/useNotifications";
 import { subscribeToPush } from "./lib/push";
 import { useAutoScroll } from "./hooks/useAutoScroll";
+import { unreadMessages } from "./lib/unread";
 import { useTyping } from "./hooks/useTyping";
 import { usePresence } from "./hooks/usePresence";
 import type { Chat, ChatFilter, Message, MessageEffect, UserSearchResult } from "./types";
@@ -197,7 +198,12 @@ export default function App() {
     const result = await startCall(activeChat.remoteId, kind);
     if (result.error) setCallError(describeCallError(result.error));
   };
-  useAutoScroll(messagesEndRef, [activeId, activeChat.messages.length]);
+  // Hold the scroll while a chat is showing its unread divider. The holder is
+  // cleared as soon as the message count changes, so a new message still pulls
+  // the view down.
+  // Non-null while the opened chat has unread messages the reader has not reached.
+  const unreadHold = unreadMessages(activeChat) ? activeChat.id : null;
+  useAutoScroll(messagesEndRef, [activeId, activeChat.messages.length], unreadHold);
 
   const { loadOlder, loadingChatIds } = useHistoryPagination({ accountId, profileName, notify: action, setChats });
   useInfiniteHistory(messagesAreaRef, activeChat, loadOlder);

@@ -5,6 +5,7 @@ import Avatar from "./Avatar";
 import Composer from "./Composer";
 import MessageBubble from "./MessageBubble";
 import SearchHits from "./SearchHits";
+import { firstUnreadIndex } from "../lib/unread";
 import { dateLabel, lastSeenLabel } from "../lib/format";
 import { receiptFor } from "../lib/readState";
 import type { useServerSearch } from "../hooks/useServerSearch";
@@ -114,6 +115,28 @@ export default function ConversationPanel({
   composer,
 }: ConversationPanelProps) {
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const unreadDividerRef = useRef<HTMLDivElement | null>(null);
+
+  // Opening a chat with unread messages should land on the first of them rather
+  // than at the bottom, or the unread state is decoration instead of a place.
+  // Runs once per chat: scrolling again on every incoming message would fight the
+  // reader.
+  const scrolledForRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (scrolledForRef.current === chat.id) return;
+    if (unreadDividerRef.current && messagesRef.current) {
+      const area = messagesRef.current;
+      const divider = unreadDividerRef.current;
+      // offsetTop is measured from the nearest positioned ancestor, which is not
+      // necessarily the scroller. Work from the rectangles instead.
+      const areaTop = area.getBoundingClientRect().top;
+      const dividerTop = divider.getBoundingClientRect().top;
+      const withinContent = dividerTop - areaTop + area.scrollTop;
+      // Leave a third of the viewport above the divider so the context is visible.
+      area.scrollTop = Math.max(0, withinContent - area.clientHeight / 3);
+      scrolledForRef.current = chat.id;
+    }
+  }, [chat.id, chat.lastReadAt, messagesRef]);
 
   // Dismiss the chat menu like any popover: outside click or Escape.
   useEffect(() => {
@@ -236,6 +259,9 @@ export default function ConversationPanel({
         )}
         {visibleMessages.map((message, index) => {
           const previous = chat.messages[index - 1];
+          // The divider marks where reading left off; not shown while searching,
+          // where the visible list is a different set from the conversation.
+          const unreadStart = searchValue.trim() ? null : firstUnreadIndex(chat.messages, chat.lastReadAt ?? null);
           const showDivider =
             Boolean(message.createdAt) &&
             (index === 0 || !previous?.createdAt || dateLabel(message.createdAt!) !== dateLabel(previous.createdAt!));
@@ -246,6 +272,11 @@ export default function ConversationPanel({
               {showDivider && (
                 <div className="date-divider">
                   <span>{dateLabel(message.createdAt!)}</span>
+                </div>
+              )}
+              {unreadStart === index && (
+                <div className="unread-divider" role="separator" ref={unreadDividerRef}>
+                  <span>Непрочитанные</span>
                 </div>
               )}
               <MessageBubble

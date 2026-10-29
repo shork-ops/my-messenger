@@ -114,6 +114,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .conversation-tools button:hover { background: var(--border); color: var(--yellow); }
 .conversation-tools svg { width: 21px; height: 21px; }
 .messages-area { flex: 1 1 0; min-width: 0; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 24px; padding: 28px 24px 22px; scrollbar-gutter: stable; }
+/* Where reading left off. Distinct from a date divider: the accent, not grey. */
+.unread-divider { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 10px 0 8px; color: var(--yellow); font-size: 12px; font-weight: 600; }
+.unread-divider::before, .unread-divider::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--yellow)); }
+.unread-divider::after { background: linear-gradient(90deg, var(--yellow), transparent); }
 .date-divider { display: flex; align-items: center; justify-content: center; margin-bottom: 1px; color: var(--fg-muted); font-size: 12px; }
 .message-line { display: flex; align-items: flex-start; gap: 12px; max-width: 100%; -webkit-touch-callout: none; transition: background .12s ease; }
 .message-line:active { background: #ffffff0d; }
