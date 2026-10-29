@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { supabase } from "../lib/supabase";
 import { appendMessage, applyRemoteMemberRead, mapMessagesByRemoteId, planRealtimeMessage } from "../lib/chats";
@@ -15,6 +15,13 @@ type UseRealtimeChatOptions = {
 };
 
 export function useRealtimeChat({ accountId, profileName, remoteId, setChats, onMissingChat }: UseRealtimeChatOptions) {
+  // The callback is held in a ref so that passing an inline arrow function does
+  // not tear down and rebuild the subscription on every render. Doing that made
+  // the channel re-join constantly, and events that arrived during a re-join were
+  // lost.
+  const onMissingChatRef = useRef(onMissingChat);
+  onMissingChatRef.current = onMissingChat;
+
   useEffect(() => {
     const client = supabase;
     if (!client || !accountId || !remoteId) return;
@@ -41,7 +48,7 @@ export function useRealtimeChat({ accountId, profileName, remoteId, setChats, on
             const preview = row.poll ? "📊 " + row.body : message.attachment ? "📎 " + message.text : message.text;
             return appendMessage(current, plan.chatId, message, preview, message.time);
           });
-          if (chatMissing) await onMissingChat?.(row.chat_id);
+          if (chatMissing) await onMissingChatRef.current?.(row.chat_id);
           const marked = await client.rpc("mark_chat_read", { target_chat_id: row.chat_id });
           if (typeof marked.data === "string") {
             const at = Date.parse(marked.data);
@@ -71,5 +78,5 @@ export function useRealtimeChat({ accountId, profileName, remoteId, setChats, on
     return () => {
       void client.removeChannel(channel);
     };
-  }, [accountId, profileName, remoteId, setChats, onMissingChat]);
+  }, [accountId, profileName, remoteId, setChats]);
 }

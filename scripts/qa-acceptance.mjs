@@ -128,8 +128,23 @@ async function openAs(session, label) {
       }),
     ]
   );
+  const churn = { join: 0, leave: 0, notify: 0 };
+  page.on("websocket", (ws) => {
+    ws.on("framesent", (frame) => {
+      const payload = typeof frame.payload === "string" ? frame.payload : "";
+      if (payload.includes("nexus-notifications") && payload.includes('"type":"INSERT"')) churn.notify = (churn.notify || 0) + 1;
+      if (payload.includes('"type":"INSERT"') && payload.includes('"table":"messages"')) {
+        const ch = payload.match(/realtime:(nexus-[a-z-]+-?[0-9a-f-]*)/);
+        churn.events = churn.events || [];
+        churn.events.push((ch ? ch[1] : "?").slice(0, 24));
+      }
+      if (!payload.includes("nexus-messages")) return;
+      if (payload.includes("phx_join")) churn.join += 1;
+      if (payload.includes("phx_leave")) churn.leave += 1;
+    });
+  });
   await page.goto(SITE + "?build=" + Date.now(), { waitUntil: "domcontentloaded", timeout: 60000 });
-  return { context, page, errors, label };
+  return { context, page, errors, label, churn };
 }
 
 
@@ -204,6 +219,8 @@ check("chat opens and shows the composer", (await alphaPage.page.getByLabel("Т�
 
 // --- Sending writes through to the database ------------------------------
 const marker = "deployed-" + Date.now();
+const sendDelay = Number(process.env.SEND_DELAY_MS ?? "0");
+if (sendDelay > 0) await alphaPage.page.waitForTimeout(sendDelay);
 await alphaPage.page.getByLabel("Текст сообщения").fill(marker);
 await alphaPage.page.getByLabel("Отправить сообщение").click();
 let storedMessage = null;
@@ -231,6 +248,29 @@ await betaPage.page.waitForSelector(".chat-list", { timeout: 45000 });
 await betaPage.page.waitForTimeout(3000);
 await openDirectChat(betaPage.page, alphaName);
 
+const betaProbe = createClient(SUPABASE_URL, ANON_KEY, {
+  auth: { persistSession: false },
+  global: { headers: { Authorization: "Bearer " + betaSession.access_token } },
+});
+const betaView = await betaProbe
+  .from("messages")
+  .select("id, body, sender_id")
+  .eq("chat_id", directChat)
+  .order("created_at", { ascending: false })
+  .limit(5);
+console.log("  BETA API sees:", betaView.error ? "ERROR " + betaView.error.message : JSON.stringify(betaView.data?.map((m) => m.body)));
+const alphaView = await admin.from("messages").select("id, body, sender_id, chat_id").eq("chat_id", directChat);
+console.log("  DB rows in chat:", JSON.stringify(alphaView.data?.map((m) => m.body)), "directChat=" + directChat.slice(0, 8));
+const betaState = await betaPage.page.evaluate(() => {
+  const rows = [...document.querySelectorAll(".chat-list .chat-row")].map((r) => (r.textContent || "").trim().slice(0, 40));
+  const title = document.querySelector(".conversation-title")?.textContent || "";
+  const bubbles = document.querySelectorAll(".messages-area .bubble").length;
+  const empty = document.body.innerText.includes("Пока нет сообщений");
+  return { rows, title, bubbles, empty };
+});
+console.log("  BETA STATE:", JSON.stringify(betaState));
+console.log("  CHURN alpha join/leave:", alphaPage.churn.join, alphaPage.churn.leave, "notify:", alphaPage.churn.notify, "| beta:", betaPage.churn.join, betaPage.churn.leave, "notify:", betaPage.churn.notify);
+console.log("  CHECK beta area before assert:", JSON.stringify((await betaPage.page.locator(".messages-area").textContent().catch(() => "") || "").slice(-80)));
 check(
   "the sender's message reaches the peer's tab",
   await betaPage.page
@@ -260,16 +300,26 @@ const betaClient = createClient(SUPABASE_URL, ANON_KEY, {
   auth: { persistSession: false },
   global: { headers: { Authorization: "Bearer " + betaSession.access_token } },
 });
-await betaClient.from("messages").insert({ chat_id: directChat, sender_id: beta, body: peerMarker });
-check(
-  "peer message arrives over realtime in the open tab",
-  await alphaPage.page
-    .locator(".messages-area")
-    .getByText(peerMarker)
-    .first()
-    .isVisible({ timeout: 20000 })
-    .catch(() => false)
-);
+const peerInsert = await betaClient.from("messages").insert({ chat_id: directChat, sender_id: beta, body: peerMarker }).select("id");
+console.log("  PEER INSERT:", peerInsert.error ? "ERROR " + peerInsert.error.message : "ok id=" + (peerInsert.data?.[0]?.id ?? "none"));
+const realtimeVisible = await alphaPage.page
+  .locator(".messages-area")
+  .getByText(peerMarker)
+  .first()
+  .isVisible({ timeout: 20000 })
+  .catch(() => false);
+if (!realtimeVisible) {
+  const alphaState = await alphaPage.page.evaluate(() => ({
+    title: document.querySelector(".conversation-title")?.textContent || "",
+    bubbles: document.querySelectorAll(".messages-area .bubble").length,
+    tail: (document.querySelector(".messages-area")?.textContent || "").slice(-90),
+  }));
+  console.log("  CHURN alpha join/leave:", alphaPage.churn.join, alphaPage.churn.leave);
+  console.log("  ALPHA EVENTS seen:", JSON.stringify(alphaPage.churn.events || []));
+  console.log("  BETA EVENTS seen:", JSON.stringify(betaPage.churn.events || []));
+  console.log("  ALPHA STATE at realtime fail:", JSON.stringify(alphaState), "marker:", peerMarker);
+}
+check("peer message arrives over realtime in the open tab", realtimeVisible);
 
 // Temporary diagnostics: what is each tab showing at the moment delivery failed?
 for (const [label, pg] of [["ALPHA", alphaPage.page], ["BETA", betaPage.page]]) {

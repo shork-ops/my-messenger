@@ -42,6 +42,7 @@ import { useCloudChats } from "./hooks/useCloudChats";
 import { useRealtimeChat } from "./hooks/useRealtimeChat";
 import { useAttachmentRefresh } from "./hooks/useAttachmentRefresh";
 import { SIGNED_URL_TTL_SECONDS } from "./lib/messageSync";
+import { loadMessagePage } from "./lib/messageLoader";
 import { useHistoryPagination, useInfiniteHistory } from "./hooks/useHistoryPagination";
 import { useUnreadBadge, useMessageNotifications, usePushSubscriptionSync, useNotificationsPrompt, requestNotificationPermission } from "./hooks/useNotifications";
 import { subscribeToPush } from "./lib/push";
@@ -125,7 +126,11 @@ export default function App() {
     useChatCollection({ search, chatFilter, messageSearch, notify: action });
   const { foundUsers, userSearchLoading } = useUserSearch({ search, accountId });
 
-  const reloadChatsRef = useRef<(() => void) | null>(null);
+  // Mirrors the chat list for timers and callbacks that must not be rebuilt
+  // every time a message arrives.
+  const chatsRef = useRef(chats);
+  chatsRef.current = chats;
+    const reloadChatsRef = useRef<(() => void) | null>(null);
   useCloudChats({ accountId, profileReady, profileName, notify: action, setChats, setActiveId, reloadRef: reloadChatsRef });
   useRealtimeChat({
     accountId,
@@ -922,6 +927,50 @@ export default function App() {
     setOpenMessageActionsId(null);
   }
 
+  // History is fetched once when the app loads, but messages keep arriving while
+  // another chat is open, and the realtime channel only listens to the active
+  // chat. Without this refresh the conversation can show "no messages yet"
+  // although the database already holds them.
+  async function refreshChatMessages(chat: Chat) {
+    if (!chat.remoteId || !accountId) return;
+    const messages = await loadMessagePage({
+      chatId: chat.remoteId,
+      accountId,
+      selfName: profileName,
+      authorName: "Собеседник",
+    });
+    if (!messages || !messages.length) return;
+    setChats((current) =>
+      current.map((item) => {
+        if (item.id !== chat.id) return item;
+        // Merge by remote id so locally appended messages are not duplicated.
+        const known = new Set(item.messages.map((message) => message.remoteId).filter(Boolean));
+        const merged = [...item.messages, ...messages.filter((message) => !known.has(message.remoteId))];
+        merged.sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
+        const last = merged[merged.length - 1];
+        return { ...item, messages: merged, preview: last?.text ?? item.preview, time: last?.time ?? item.time };
+      })
+    );
+  }
+
+  // Realtime is the fast path for incoming messages, but it can be unavailable
+  // (server outage, blocked websocket, backgrounded tab). Polling the open chat
+  // keeps the conversation correct in that case, so a delivery failure degrades
+  // to a short delay instead of a permanently empty screen.
+  useEffect(() => {
+    if (!accountId || !activeChat.remoteId) return;
+    const chatId = activeChat.id;
+    const timer = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      const chat = chatsRef.current.find((item) => item.id === chatId);
+      if (chat) void refreshChatMessages(chat);
+    }, 15000);
+    return () => clearInterval(timer);
+    // refreshChatMessages is intentionally not a dependency: it is recreated on
+    // every render, and depending on it would restart the interval constantly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId, activeChat.id, activeChat.remoteId]);
+
   async function selectChat(chat: Chat) {
     setActiveId(chat.id);
     setDraft(drafts[chat.id] ?? "");
@@ -929,6 +978,7 @@ export default function App() {
     setChats((current) => markRead(current, chat.id));
     const client = supabase;
     if (!client || !accountId || !chat.remoteId) return;
+    void refreshChatMessages(chat);
     const { data, error } = await client.rpc("mark_chat_read", { target_chat_id: chat.remoteId });
     if (error || typeof data !== "string") return;
     const stamped = Date.parse(data);
