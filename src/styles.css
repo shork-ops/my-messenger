@@ -484,6 +484,19 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .quiet-row label { display: flex; align-items: center; gap: 8px; color: var(--fg-secondary); font-size: 13px; }
 .settings-action.danger { border-color: var(--yellow); color: var(--yellow); }
 .settings-divider { height: 1px; margin: 16px 0 4px; background: var(--border); }
+.note-recorder { position: fixed; right: 18px; bottom: 96px; z-index: 320; display: flex; flex-direction: column; align-items: center; gap: 9px; width: 268px; padding: 12px; border: 1px solid var(--border-strong); border-radius: 16px; background: var(--surface-1); box-shadow: 0 18px 44px rgba(0, 0, 0, .5); }
+.note-preview { width: 244px; height: 244px; border-radius: 50%; object-fit: cover; background: var(--surface-2); }
+.note-actions { display: flex; align-items: center; gap: 8px; }
+.note-button { display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid var(--border); border-radius: 50%; background: var(--surface-0); color: var(--fg); cursor: pointer; }
+.note-button.record { color: #ff5c5c; }
+.note-button.stop { color: #ff5c5c; border-color: #ff5c5c; }
+.note-button.send { background: var(--accent-fill); border-color: var(--accent-fill); color: #1a1400; }
+.note-time { min-width: 40px; color: var(--fg-secondary); font-size: 13px; font-variant-numeric: tabular-nums; }
+.note-error, .note-warn { margin: 0; font-size: 12px; text-align: center; }
+.note-error { color: #ff7b7b; }
+.note-warn { color: var(--yellow); }
+.note-ring { display: none; }
+@media (max-width: 640px) { .note-recorder { right: 10px; left: 10px; width: auto; } .note-preview { width: 200px; height: 200px; } }
 .call-people { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; max-height: 42vh; overflow-y: auto; padding: 6px 4px; }
 .call-person { display: flex; flex-direction: column; align-items: center; gap: 5px; width: 84px; }
 .call-person-avatar { display: grid; place-items: center; width: 66px; height: 66px; border-radius: 50%; background: var(--surface-2); color: var(--fg); font-size: 24px; font-weight: 600; }

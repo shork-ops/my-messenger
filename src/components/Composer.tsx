@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent, MutableRefObject } from "react";
-import { CheckCheck, Image, Mic, Paperclip, Plus, Send, Smile, Users, X } from "lucide-react";
+import { CheckCheck, Image, Mic, Paperclip, Plus, Send, Smile, Users, Video, X } from "lucide-react";
 import type { Message } from "../types";
 
 type ComposerProps = {
@@ -15,6 +15,7 @@ type ComposerProps = {
   fileInputRef: MutableRefObject<HTMLInputElement | null>;
   onChangeText: (value: string) => void;
   onEmoji: () => void;
+  onVideoNote: () => void;
   onToggleVoice: () => void;
   onSubmit: (event: FormEvent) => void;
   onCancelEdit: () => void;
@@ -37,6 +38,7 @@ export default function Composer({
   fileInputRef,
   onChangeText,
   onEmoji,
+  onVideoNote,
   onToggleVoice,
   onSubmit,
   onCancelEdit,
@@ -145,6 +147,9 @@ export default function Composer({
         </div>
         <button type="button" className="emoji-button" onClick={onEmoji} aria-label="Добавить эмодзи">
           <Smile size={20} />
+        </button>
+        <button type="button" className="attach-button note-button" onClick={onVideoNote} aria-label="Записать видеозаметку" title="Видеозаметка">
+          <Video size={20} />
         </button>
         <button
           type="button"

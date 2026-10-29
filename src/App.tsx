@@ -61,6 +61,8 @@ import { usePasscode } from "./hooks/usePasscode";
 import { useTwoFactor } from "./hooks/useTwoFactor";
 import { useWallpaper } from "./hooks/useWallpaper";
 import EmojiPicker from "./components/EmojiPicker";
+import VideoNoteRecorder from "./components/VideoNoteRecorder";
+import { formatNoteTime } from "./lib/videoNote";
 import { wallpaperBackground, wallpaperOpacity } from "./lib/wallpaper";
 import PasscodeLock from "./components/PasscodeLock";
 import { type MuteOptionId, muteUntil } from "./lib/chatSettings";
@@ -234,6 +236,7 @@ export default function App() {
   const { passcode: lockCode, unlocked: lockUnlocked, setCode, unlock } = usePasscode();
   const { wallpaper, setWallpaper } = useWallpaper();
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
   // TOTP two-factor, verified on the server: the app cannot declare itself verified.
   const twoFactorState = useTwoFactor(supabase, accountId);
   const twoFactor = {
@@ -1697,6 +1700,7 @@ export default function App() {
           fileInputRef,
           onChangeText: changeDraft,
           onEmoji: () => setEmojiOpen((open) => !open),
+          onVideoNote: () => setNoteOpen(true),
           onToggleVoice: () => void startVoiceRecording(),
           onSubmit: sendMessage,
           onCancelEdit: () => {
@@ -1710,6 +1714,27 @@ export default function App() {
           onOpenPoll: () => setPollOpen(true),
         }}
       />
+
+      {noteOpen && (
+        <VideoNoteRecorder
+          onSend={(file, durationMs) => {
+            setNoteOpen(false);
+            const input = fileInputRef.current;
+            if (!input) {
+              action("Не удалось отправить видеозаметку");
+              return;
+            }
+            // The note's length belongs in the message, so it is written into the
+            // name the attachment path reads.
+            const named = new File([file], `Видеозаметка ${formatNoteTime(durationMs)}.webm`, { type: file.type });
+            const transfer = new DataTransfer();
+            transfer.items.add(named);
+            input.files = transfer.files;
+            void handleAttachment({ target: input } as unknown as ChangeEvent<HTMLInputElement>);
+          }}
+          onClose={() => setNoteOpen(false)}
+        />
+      )}
 
       {emojiOpen && (
         <EmojiPicker
