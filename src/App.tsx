@@ -26,6 +26,12 @@ import {
 import type { PrivacyPreferences } from "./lib/privacy";
 import { removeMember, rotateInvite, setMemberRole } from "./lib/groupAdmin";
 import { CACHE_KEYS, mediaBytes, presentCacheKeys } from "./lib/storageUsage";
+import {
+  DEFAULT_VISIBILITY,
+  type VisibilitySettings,
+  describeVisibility,
+  parseVisibility,
+} from "./lib/visibility";
 import { createFavouritesChat, favouriteMessage, formatForwardText, isFavouritesChat, nextLocalId } from "./lib/messageActions";
 import { MAX_UPLOAD_BYTES, blobToDataUrl, buildStoragePath, formatBytes, isSupportedFile, prepareImage, shouldCompress } from "./lib/media";
 import { analyseWaveform } from "./lib/voice";
@@ -1174,6 +1180,49 @@ export default function App() {
     }
   }, [profileOpen]);
 
+  // Who may find and write to this account. Stored on the profile, because the
+  // rules are enforced server-side where the search and chat creation happen.
+  const [visibility, setVisibilityState] = useState<VisibilitySettings>(DEFAULT_VISIBILITY);
+
+  useEffect(() => {
+    const client = supabase;
+    if (!client || !accountId) return;
+    let alive = true;
+    void client
+      .from("profiles")
+      .select("profile_visibility, message_policy")
+      .eq("id", accountId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!alive || !data) return;
+        setVisibilityState(parseVisibility({ profile: data.profile_visibility, messages: data.message_policy }));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [accountId]);
+
+  async function changeVisibility(next: VisibilitySettings) {
+    const previous = visibility;
+    setVisibilityState(next);
+    const client = supabase;
+    if (!client || !accountId) {
+      action("Настройка сохранена");
+      return;
+    }
+    const { error } = await client
+      .from("profiles")
+      .update({ profile_visibility: next.profile, message_policy: next.messages })
+      .eq("id", accountId);
+    if (error) {
+      // Put it back rather than showing a switch that saved nothing.
+      setVisibilityState(previous);
+      action("Не удалось сохранить настройку видимости");
+      return;
+    }
+    action(describeVisibility(next));
+  }
+
   async function clearCache() {
     setClearingCache(true);
     try {
@@ -1673,6 +1722,8 @@ export default function App() {
         saving={privacySaving}
         deleting={deletingAccount}
         onChange={(next) => void changePrivacy(next)}
+        visibility={visibility}
+        onVisibilityChange={(next) => void changeVisibility(next)}
         onUnblock={(userId) => void unblockPerson(userId)}
         onDeleteAccount={() => void confirmDeleteAccount()}
         onClose={() => setPrivacyOpen(false)}

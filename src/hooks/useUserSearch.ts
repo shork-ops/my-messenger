@@ -19,14 +19,18 @@ export function useUserSearch({ search, accountId }: UseUserSearchOptions) {
     let alive = true;
     setUserSearchLoading(true);
     const timer = window.setTimeout(async () => {
-      const { data, error } = await client.from("profiles").select("id, username, display_name, avatar").ilike("username", `${query}%`).limit(8);
+      // Through the function, not the table: the table has no way to apply the
+      // owner's visibility choice, and a hidden profile would still come back.
+      const { data, error } = await client.rpc("search_profiles", { term: query });
       if (!alive) return;
       setUserSearchLoading(false);
       if (error) {
         setFoundUsers([]);
         return;
       }
-      setFoundUsers((data ?? []).filter((user) => user.id !== accountId && Boolean(user.username)) as UserSearchResult[]);
+      setFoundUsers(
+        ((data ?? []) as UserSearchResult[]).filter((user) => user.id !== accountId && Boolean(user.username))
+      );
     }, 250);
     return () => {
       alive = false;
