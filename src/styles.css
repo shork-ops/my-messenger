@@ -511,6 +511,17 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .note-warn { color: var(--yellow); }
 .note-ring { display: none; }
 @media (max-width: 640px) { .note-recorder { right: 10px; left: 10px; width: auto; } .note-preview { width: 200px; height: 200px; } }
+/* Tap targets: measured on a 390px screen, these were under 44px. The boxes grow;
+   the glyphs inside them do not. */
+.folder-add { min-height: 44px; padding-inline: 14px; }
+.attach-button.note-button { width: 44px; height: 44px; }
+.settings-back { min-width: 44px; min-height: 44px; display: grid; place-items: center; }
+.settings-modal header button,
+.settings-modal .settings-close { min-width: 44px; min-height: 44px; }
+.avatar-upload { min-height: 44px; }
+.save-settings { min-height: 44px; }
+.settings-modal input, .settings-modal select, .field-block input, .field-block select { min-height: 44px; }
+
 .folder-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px 0; }
 .folder-chip { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-1); overflow: hidden; }
 .folder-chip.active { border-color: var(--accent-fill); background: var(--accent-fill-soft); }
