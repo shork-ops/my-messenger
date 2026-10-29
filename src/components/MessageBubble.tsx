@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Forward, MessageCircle, MoreVertical, Paperclip, PencilLine, Pin, Send, Star, X } from "lucide-react";
+import { Forward, MessageCircle, MoreVertical, Paperclip, PencilLine, Pin, Send, Star, Trash2, X } from "lucide-react";
 import Avatar from "./Avatar";
 import VoicePlayer from "./VoicePlayer";
 import { friends } from "../lib/constants";
@@ -111,6 +111,9 @@ type MessageBubbleProps = {
   pinned: boolean;
   onEffect: (effect: MessageEffect) => void;
   onEdit: () => void;
+  /** Removes the message for this account only. */
+  onDeleteLocal: () => void;
+  /** Removes it for everyone; only offered to the author. */
   onDelete: () => void;
   onGameInvite: () => void;
 };
@@ -133,6 +136,7 @@ export default function MessageBubble({
   pinned,
   onEffect,
   onEdit,
+  onDeleteLocal,
   onDelete,
   onGameInvite,
 }: MessageBubbleProps) {
@@ -294,9 +298,14 @@ export default function MessageBubble({
                   <PencilLine size={13} /> Изменить
                 </button>
               )}
+              {/* Everyone can clear a message from their own view; only the
+                  author can take it away from everyone else. */}
+              <button type="button" onClick={onDeleteLocal} aria-label="Удалить у себя">
+                <X size={13} /> У себя
+              </button>
               {message.mine && (
-                <button type="button" onClick={onDelete} aria-label="Удалить сообщение">
-                  <X size={13} /> Удалить
+                <button type="button" onClick={onDelete} aria-label="Удалить у всех">
+                  <Trash2 size={13} /> У всех
                 </button>
               )}
             </div>

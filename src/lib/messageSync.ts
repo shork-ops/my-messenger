@@ -98,6 +98,20 @@ export async function mapMessageRow(row: ChatMessageRow, options: MapOptions): P
   };
 }
 
+/**
+ * Ids of messages this account chose to hide ("у себя").
+ *
+ * Read once per page rather than joined into the message query: the set is small
+ * and the join would make every page depend on a second table.
+ */
+export async function fetchHiddenMessageIds(messageIds: string[]): Promise<Set<string>> {
+  if (!supabase || messageIds.length === 0) return new Set();
+  const { data, error } = await supabase.from("message_hides").select("message_id").in("message_id", messageIds);
+  // A failure here hides nothing rather than hiding everything.
+  if (error) return new Set();
+  return new Set((data ?? []).map((row) => row.message_id as string));
+}
+
 /** Loads the newest page of a chat (keyset pagination sorted newest first). */
 export async function fetchLatestMessages(chatId: string, limit: number): Promise<ChatMessageRow[] | null> {
   if (!supabase) return null;
@@ -109,7 +123,9 @@ export async function fetchLatestMessages(chatId: string, limit: number): Promis
     .order("id", { ascending: false })
     .limit(limit);
   if (error) return null;
-  return (data ?? []) as ChatMessageRow[];
+  const rows = (data ?? []) as ChatMessageRow[];
+  const hidden = await fetchHiddenMessageIds(rows.map((row) => row.id));
+  return hidden.size ? rows.filter((row) => !hidden.has(row.id)) : rows;
 }
 
 /**
@@ -132,7 +148,9 @@ export async function fetchOlderMessages(
     .order("id", { ascending: false })
     .limit(limit);
   if (error) return null;
-  return (data ?? []) as ChatMessageRow[];
+  const rows = (data ?? []) as ChatMessageRow[];
+  const hidden = await fetchHiddenMessageIds(rows.map((row) => row.id));
+  return hidden.size ? rows.filter((row) => !hidden.has(row.id)) : rows;
 }
 
 /** Loads reaction emojis for a set of messages, grouped by message id. */

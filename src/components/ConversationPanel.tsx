@@ -49,6 +49,7 @@ type ConversationPanelProps = {
   onEffect: (messageId: number, effect: MessageEffect) => void;
   onEdit: (message: Message) => void;
   onDelete: (messageId: number) => void;
+  onDeleteLocal: (messageId: number) => void;
   onGameInvite: () => void;
   typingNames: string[];
   /** Live upload state for the file being sent, if any. */
@@ -99,6 +100,7 @@ export default function ConversationPanel({
   onEffect,
   onEdit,
   onDelete,
+  onDeleteLocal,
   onGameInvite,
   typingNames,
   uploadProgress,
@@ -265,6 +267,7 @@ export default function ConversationPanel({
                 onEffect={(effect) => onEffect(message.id, effect)}
                 onEdit={() => onEdit(message)}
                 onDelete={() => onDelete(message.id)}
+                onDeleteLocal={() => onDeleteLocal(message.id)}
                 onGameInvite={onGameInvite}
               />
             </Fragment>

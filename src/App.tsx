@@ -1061,6 +1061,31 @@ export default function App() {
     }
   }
 
+  /**
+   * Removes a message from this account's view only.
+   *
+   * Nothing is written to the other side: "у себя" is a viewing preference, not a
+   * statement about the conversation. The row stays hidden until the next full
+   * reload, which is what other messengers do too.
+   */
+  async function deleteMessageLocal(messageId: number) {
+    const chat = chats.find((item) => item.id === activeId);
+    const index = chat?.messages.findIndex((message) => message.id === messageId) ?? -1;
+    const message = index >= 0 ? chat?.messages[index] : undefined;
+    if (!chat || !message) return;
+    if (chat.remoteId && message.remoteId && supabase && accountId) {
+      // Recorded per account so the row does not come back on reload.
+      await supabase.from("message_hides").upsert(
+        { message_id: message.remoteId, user_id: accountId },
+        { onConflict: "message_id,user_id" }
+      );
+    }
+    setDeletedMessage({ chatId: activeId, message, index });
+    setChats((current) => removeMessage(current, activeId, messageId).chats);
+    setOpenMessageActionsId(null);
+    action("Удалено у вас");
+  }
+
   function undoDelete() {
     if (!deletedMessage) return;
     setChats((current) => restoreMessage(current, deletedMessage));
@@ -1361,6 +1386,7 @@ export default function App() {
           setOpenMessageActionsId(null);
         }}
         onDelete={(messageId) => void deleteMessage(messageId)}
+        onDeleteLocal={(messageId) => void deleteMessageLocal(messageId)}
         onGameInvite={() => action("Приглашение в игру скоро появится")}
         typingNames={typingUsers.map((user) => user.name)}
         uploadProgress={uploadProgress}
