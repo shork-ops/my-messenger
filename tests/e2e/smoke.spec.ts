@@ -90,6 +90,12 @@ test.describe("Nexus messenger smoke", () => {
   });
 
   test("opens the privacy settings", async ({ page }) => {
+    // Below 1440px the profile panel is a drawer, so open it first.
+    const panel = page.locator(".right-panel");
+    if (!(await panel.isVisible())) {
+      await page.getByRole("button", { name: "Профиль", exact: true }).click();
+      await expect(panel).toBeVisible();
+    }
     await page.getByText("Приватность и блокировки").click();
     const modal = page.locator(".privacy-modal");
     await expect(modal).toBeVisible();

@@ -74,7 +74,23 @@ export default function App() {
   const [mentionOpen, setMentionOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [activeNav, setActiveNav] = useState("Чаты");
-  const [showProfile, setShowProfile] = useState(true);
+  // The profile panel is a grid column on wide screens and a drawer below
+  // 1440px, so it starts closed: open by default it would cover the chat.
+  const [showProfile, setShowProfile] = useState(false);
+  // At 1440px and wider the panel is the third grid column and is always
+  // visible; below that it is a drawer the user opens. One flag cannot express
+  // both, so the layout asks the viewport.
+  const [wideLayout, setWideLayout] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia("(min-width: 1440px)").matches : false
+  );
+
+  useEffect(() => {
+    const query = window.matchMedia("(min-width: 1440px)");
+    const sync = () => setWideLayout(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
   const [membersRefreshKey, setMembersRefreshKey] = useState(0);
   const [pinnedMessageIds, setPinnedMessageIds] = useState<Set<number>>(() => new Set());
   const [uploadProgress, setUploadProgress] = useState<{ name: string; percent: number; stage: string } | null>(null);
@@ -1358,7 +1374,7 @@ export default function App() {
         }}
       />
 
-      {showProfile && (
+      {(wideLayout || showProfile) && (
         <RightPanel
           profileName={profileName}
           profileAvatar={profileAvatar}

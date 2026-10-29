@@ -79,6 +79,8 @@ test.describe("Phase 2 acceptance: two tabs, group, search, attachment, block", 
   test("blocking is reachable and blocks nothing until used", async ({ page }) => {
     await openApp(page);
     await page.getByText("Команда").first().click();
+    await page.getByRole("button", { name: "Профиль", exact: true }).click();
+    await expect(page.locator(".right-panel")).toBeVisible();
     await page.getByText("Приватность и блокировки").click();
 
     const modal = page.locator(".privacy-modal");
@@ -99,6 +101,8 @@ test.describe("Phase 2 acceptance: two tabs, group, search, attachment, block", 
   test("group roles surface their cloud-only requirement", async ({ page }) => {
     await openApp(page);
     await page.getByText("Команда").first().click();
+    await page.getByRole("button", { name: "Профиль", exact: true }).click();
+    await expect(page.locator(".right-panel")).toBeVisible();
 
     // Demo groups have no remote id, so the member list stays empty; the panel
     // must still render rather than crash on a missing backend.
