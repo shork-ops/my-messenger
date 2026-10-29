@@ -1,5 +1,6 @@
 import { ChevronRight, LogOut, Plus, ShieldCheck, ShieldMinus, UserMinus, X } from "lucide-react";
 import Avatar from "./Avatar";
+import UserAvatar from "./UserAvatar";
 import type { ChatMember } from "../lib/groupAdmin";
 import type { Chat } from "../types";
 
@@ -12,6 +13,7 @@ const ROLE_LABEL: Record<string, string> = {
 type RightPanelProps = {
   profileName: string;
   profileAvatar: string;
+  selfAvatarUrl?: string | null;
   chat: Chat;
   members: ChatMember[];
   myRole: string | null;
@@ -28,6 +30,7 @@ type RightPanelProps = {
 export default function RightPanel({
   profileName,
   profileAvatar,
+  selfAvatarUrl,
   chat,
   members,
   myRole,
@@ -53,7 +56,7 @@ export default function RightPanel({
         </button>
       </div>
       <button className="profile-card" onClick={onOpenProfile}>
-        <Avatar color="self">{profileAvatar}</Avatar>
+        <Avatar color="self" src={selfAvatarUrl}>{profileAvatar}</Avatar>
         <span>
           <strong>{profileName}</strong>
           <small>
@@ -83,9 +86,13 @@ export default function RightPanel({
               return (
                 <div key={member.user_id} className="friend-row member-row">
                   <span className="friend-avatar-wrap">
-                    <Avatar color="blue" small>
-                      {name.slice(0, 1).toUpperCase()}
-                    </Avatar>
+                    <UserAvatar
+                      name={name}
+                      letter={name.slice(0, 1).toUpperCase()}
+                      avatarPath={member.avatar_path}
+                      color="blue"
+                      small
+                    />
                   </span>
                   <span className="member-copy">
                     <strong>{name}</strong>

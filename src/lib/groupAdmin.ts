@@ -26,7 +26,14 @@ function describe(error: { message: string } | null): GroupActionResult<never> {
   return { ok: false, message };
 }
 
-export type ChatMember = { user_id: string; role: string; joined_at: string; display_name?: string | null };
+export type ChatMember = {
+  user_id: string;
+  role: string;
+  joined_at: string;
+  display_name?: string | null;
+  /** Storage path of the member's photo, null when they use a letter. */
+  avatar_path?: string | null;
+};
 
 /** Members of a group with display names, ordered owner → admin → member. */
 export async function fetchChatMembers(client: SupabaseClient, chatId: string): Promise<GroupActionResult<ChatMember[]>> {
@@ -41,16 +48,17 @@ export async function fetchChatMembers(client: SupabaseClient, chatId: string): 
 
   const { data: profiles, error: profileError } = await client
     .from("profiles")
-    .select("id, display_name")
+    .select("id, display_name, avatar_path")
     .in("id", members.map((member) => member.user_id));
   if (profileError) return describe(profileError);
 
   const names = new Map((profiles ?? []).map((profile) => [profile.id as string, profile.display_name as string | null]));
+  const photos = new Map((profiles ?? []).map((profile) => [profile.id as string, profile.avatar_path as string | null]));
   const weight: Record<string, number> = { owner: 0, admin: 1, member: 2 };
   return {
     ok: true,
     data: members
-      .map((member) => ({ ...member, display_name: names.get(member.user_id) ?? null }))
+      .map((member) => ({ ...member, display_name: names.get(member.user_id) ?? null, avatar_path: photos.get(member.user_id) ?? null }))
       .sort((a, b) => (weight[a.role] ?? 3) - (weight[b.role] ?? 3) || a.joined_at.localeCompare(b.joined_at)),
   };
 }

@@ -35,6 +35,7 @@ import { toggleLocalVote } from "./lib/polls";
 import { useNotice } from "./hooks/useNotice";
 import { useTheme } from "./hooks/useTheme";
 import { useProfile } from "./hooks/useProfile";
+import { useAvatar } from "./hooks/useAvatar";
 import { useGames } from "./hooks/useGames";
 import { useChatCollection } from "./hooks/useChatCollection";
 import { useUserSearch } from "./hooks/useUserSearch";
@@ -125,7 +126,15 @@ export default function App() {
     accountId,
     profileReady,
     saveUsername,
+    avatarPath,
+    setAvatarPath,
   } = useProfile({ notify: action });
+
+  const { avatarUrl: selfAvatarUrl, uploading: avatarUploading, upload: uploadAvatar, remove: removeAvatar } = useAvatar({
+    userId: accountId,
+    storedPath: avatarPath,
+    notify: action,
+  });
   const {
     activeGame,
     setActiveGame,
@@ -1264,6 +1273,7 @@ export default function App() {
         activeNav={activeNav}
         profileName={profileName}
         profileAvatar={profileAvatar}
+        selfAvatarUrl={selfAvatarUrl}
         unreadTotal={unreadTotal}
         onNavigate={(label) => {
           setActiveNav(label);
@@ -1388,6 +1398,7 @@ export default function App() {
         <RightPanel
           profileName={profileName}
           profileAvatar={profileAvatar}
+          selfAvatarUrl={selfAvatarUrl}
           chat={activeChat}
           members={chatMembers}
           myRole={myChatRole}
@@ -1485,6 +1496,10 @@ export default function App() {
         open={profileOpen}
         name={profileName}
         avatar={profileAvatar}
+        avatarPhotoUrl={selfAvatarUrl}
+        avatarUploading={avatarUploading}
+        onAvatarFile={(file) => void uploadAvatar(file)}
+        onAvatarRemove={() => void removeAvatar()}
         username={username}
         usernameSaving={usernameSaving}
         theme={theme}

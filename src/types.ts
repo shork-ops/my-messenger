@@ -51,6 +51,8 @@ export type Chat = {
   remoteId?: string;
   name: string;
   avatar: string;
+  /** Storage path of the other person's photo in a direct chat; groups have none. */
+  avatarPath?: string | null;
   color: string;
   preview: string;
   time: string;
@@ -72,6 +74,7 @@ export type UserSearchResult = {
   username: string;
   display_name: string;
   avatar: string;
+  avatar_path?: string | null;
 };
 
 export type ChatFilter = "all" | "unread" | "pinned" | "groups";

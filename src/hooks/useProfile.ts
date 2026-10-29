@@ -6,6 +6,7 @@ type UseProfileOptions = { notify: (message: string) => void };
 export function useProfile({ notify }: UseProfileOptions) {
   const [profileName, setProfileName] = useState(() => window.localStorage.getItem("nexus-profile-name") || "Алексей");
   const [profileAvatar, setProfileAvatar] = useState(() => window.localStorage.getItem("nexus-profile-avatar") || "N");
+  const [avatarPath, setAvatarPath] = useState<string | null>(null);
   const [username, setUsername] = useState("");
   const [usernameSaving, setUsernameSaving] = useState(false);
   const [accountId, setAccountId] = useState<string | null>(null);
@@ -39,7 +40,7 @@ export function useProfile({ notify }: UseProfileOptions) {
             : "";
       const { data: existingProfile, error: readError } = await client
         .from("profiles")
-        .select("display_name, avatar, username")
+        .select("display_name, avatar, username, avatar_path")
         .eq("id", user.id)
         .maybeSingle();
       if (!alive) return;
@@ -53,6 +54,7 @@ export function useProfile({ notify }: UseProfileOptions) {
         setProfileName(existingProfile.display_name || metadataName || "Пользователь");
         setProfileAvatar(existingProfile.avatar || metadataName.slice(0, 1).toUpperCase() || "N");
         setUsername(existingProfile.username || "");
+        setAvatarPath(existingProfile.avatar_path || null);
       } else {
         const displayName = metadataName.trim() || user.email?.split("@")[0] || "Пользователь";
         const avatar = displayName.slice(0, 1).toUpperCase() || "N";
@@ -118,6 +120,8 @@ export function useProfile({ notify }: UseProfileOptions) {
     setProfileName,
     profileAvatar,
     setProfileAvatar,
+    avatarPath,
+    setAvatarPath,
     username,
     setUsername,
     usernameSaving,

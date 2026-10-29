@@ -5,6 +5,8 @@ type RailProps = {
   activeNav: string;
   profileName: string;
   profileAvatar: string;
+  /** Signed URL of the profile photo, null when no photo is set. */
+  selfAvatarUrl?: string | null;
   unreadTotal: number;
   notificationsGranted: boolean;
   onNavigate: (label: string) => void;
@@ -18,6 +20,7 @@ export default function Rail({
   activeNav,
   profileName,
   profileAvatar,
+  selfAvatarUrl,
   unreadTotal,
   notificationsGranted,
   onNavigate,
@@ -60,7 +63,7 @@ export default function Rail({
       </nav>
 
       <button className="self-profile" onClick={onOpenProfile}>
-        <Avatar color="self">{profileAvatar}</Avatar>
+        <Avatar color="self" src={selfAvatarUrl}>{profileAvatar}</Avatar>
         <span className="self-copy">
           <strong>{profileName}</strong>
           <small>

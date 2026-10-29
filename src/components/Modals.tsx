@@ -1,5 +1,7 @@
 import type { FormEvent } from "react";
-import { ChevronRight, ShieldCheck, X } from "lucide-react";
+import { useRef } from "react";
+import { Camera, ChevronRight, ShieldCheck, Trash2, X } from "lucide-react";
+import { avatarFallback } from "../lib/avatar";
 import type { Message } from "../types";
 
 type NewChatModalProps = {
@@ -136,6 +138,11 @@ type ProfileModalProps = {
   open: boolean;
   name: string;
   avatar: string;
+  /** Signed URL of the uploaded photo, null when the letter is in use. */
+  avatarPhotoUrl: string | null;
+  avatarUploading: boolean;
+  onAvatarFile: (file: File) => void;
+  onAvatarRemove: () => void;
   username: string;
   usernameSaving: boolean;
   theme: string;
@@ -154,6 +161,10 @@ export function ProfileModal({
   open,
   name,
   avatar,
+  avatarPhotoUrl,
+  avatarUploading,
+  onAvatarFile,
+  onAvatarRemove,
   username,
   usernameSaving,
   theme,
@@ -196,10 +207,15 @@ export function ProfileModal({
         <button type="button" className="save-settings" disabled={usernameSaving} onClick={onSaveUsername}>
           {usernameSaving ? "Сохраняю..." : "Сохранить username"}
         </button>
-        <label>
-          Буква или эмодзи аватара
-          <input value={avatar} maxLength={3} onChange={(event) => onAvatarChange(event.target.value)} />
-        </label>
+        <AvatarEditor
+          name={name}
+          avatar={avatar}
+          photoUrl={avatarPhotoUrl}
+          uploading={avatarUploading}
+          onFile={onAvatarFile}
+          onRemove={onAvatarRemove}
+          onLetterChange={onAvatarChange}
+        />
         <label>
           Цветовая тема
           <select value={theme} onChange={(event) => onThemeChange(event.target.value)}>
@@ -225,4 +241,67 @@ export function ProfileModal({
       </section>
     </div>
   );
+
+type AvatarEditorProps = {
+  name: string;
+  avatar: string;
+  photoUrl: string | null;
+  uploading: boolean;
+  onFile: (file: File) => void;
+  onRemove: () => void;
+  onLetterChange: (value: string) => void;
+};
+
+/**
+ * Photo first, letter second.
+ *
+ * The letter stays available because it is what shows before a photo is set and
+ * for anyone who would rather not upload one.
+ */
+function AvatarEditor({ name, avatar, photoUrl, uploading, onFile, onRemove, onLetterChange }: AvatarEditorProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <div className="field-block">
+      <span className="field-label">Фото профиля</span>
+      <div className="avatar-edit">
+        <div className="avatar self">
+          {photoUrl ? <img className="avatar-photo" src={photoUrl} alt="" /> : avatarFallback(name)}
+        </div>
+        <div className="avatar-edit-actions">
+          <div className="row">
+            <button type="button" className="avatar-upload" disabled={uploading} onClick={() => inputRef.current?.click()}>
+              <Camera size={17} />
+              {uploading ? "Загружаю…" : photoUrl ? "Заменить фото" : "Загрузить фото"}
+            </button>
+            {photoUrl && (
+              <button type="button" className="avatar-remove" disabled={uploading} onClick={onRemove}>
+                <Trash2 size={15} /> Убрать
+              </button>
+            )}
+          </div>
+          <small className="avatar-hint">JPEG, PNG или WebP до 5 МБ</small>
+        </div>
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="visually-hidden"
+        aria-label="Выбрать фото профиля"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) onFile(file);
+          // Reset so picking the same file twice still fires a change.
+          event.target.value = "";
+        }}
+      />
+      {!photoUrl && (
+        <label>
+          Буква или эмодзи вместо фото
+          <input value={avatar} maxLength={3} onChange={(event) => onLetterChange(event.target.value)} />
+        </label>
+      )}
+    </div>
+  );
+}
 }

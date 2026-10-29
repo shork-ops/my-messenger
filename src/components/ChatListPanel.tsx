@@ -1,5 +1,6 @@
 import { PencilLine, Search } from "lucide-react";
 import Avatar from "./Avatar";
+import UserAvatar from "./UserAvatar";
 import type { Chat, ChatFilter, UserSearchResult } from "../types";
 
 const FILTERS: { id: ChatFilter; label: string }[] = [
@@ -93,7 +94,11 @@ export default function ChatListPanel({
             }}
             onClick={() => onSelectChat(chat)}
           >
-            <Avatar color={chat.color}>{chat.avatar}</Avatar>
+            {chat.avatarPath ? (
+              <UserAvatar name={chat.name} letter={chat.avatar} avatarPath={chat.avatarPath} color={chat.color} />
+            ) : (
+              <Avatar color={chat.color}>{chat.avatar}</Avatar>
+            )}
             <span className="chat-row-copy">
               <strong>
                 {chat.pinned && <span className="pinned-mark">📌 </span>}

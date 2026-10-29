@@ -61,8 +61,8 @@ export function useCloudChats({
       }
       const memberIds = [...new Set((profileRows ?? []).map((row) => row.user_id as string).filter((id) => id !== accountId))];
       const { data: memberProfiles } = memberIds.length
-        ? await client.from("profiles").select("id, username, display_name, avatar, last_seen_at").in("id", memberIds)
-        : { data: [] as { id: string; username: string | null; display_name: string; avatar: string; last_seen_at: string | null }[] };
+        ? await client.from("profiles").select("id, username, display_name, avatar, avatar_path, last_seen_at").in("id", memberIds)
+        : { data: [] as { id: string; username: string | null; display_name: string; avatar: string; avatar_path?: string | null; last_seen_at: string | null }[] };
 
       // One first page per chat, loaded in parallel instead of the old single limit(1000) request.
       const pages = await Promise.all(
@@ -105,6 +105,7 @@ export function useCloudChats({
           remoteId: row.id,
           name: row.is_group ? row.title : other?.display_name || row.title,
           avatar: row.is_group ? "👥" : other?.avatar || other?.display_name?.slice(0, 1) || "N",
+          avatarPath: row.is_group ? null : other?.avatar_path ?? null,
           color: row.is_group ? "group" : "blue",
           preview: last?.text || "Начни общение",
           time: last?.time || "",
