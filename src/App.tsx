@@ -58,6 +58,7 @@ import { useUnreadBadge, useMessageNotifications, usePushSubscriptionSync, useNo
 import { useNotificationPrefs } from "./hooks/useNotificationPrefs";
 import { useLanguage } from "./hooks/useLanguage";
 import { usePasscode } from "./hooks/usePasscode";
+import { useTwoFactor } from "./hooks/useTwoFactor";
 import PasscodeLock from "./components/PasscodeLock";
 import { type MuteOptionId, muteUntil } from "./lib/chatSettings";
 import { subscribeToPush } from "./lib/push";
@@ -228,6 +229,18 @@ export default function App() {
   const { language, setLanguage } = useLanguage();
   // A four-digit lock on this device, separate from the account password.
   const { passcode: lockCode, unlocked: lockUnlocked, setCode, unlock } = usePasscode();
+  // TOTP two-factor, verified on the server: the app cannot declare itself verified.
+  const twoFactorState = useTwoFactor(supabase, accountId);
+  const twoFactor = {
+    status: twoFactorState.status,
+    pending: twoFactorState.pending,
+    busy: twoFactorState.busy,
+    error: twoFactorState.error,
+    start: () => void twoFactorState.start(),
+    confirm: (code: string) => void twoFactorState.confirm(code),
+    cancel: () => void twoFactorState.cancel(),
+    disable: () => void twoFactorState.disable(),
+  };
   // Which chat the mute chooser is open for; null when it is closed.
   const [muteChatId, setMuteChatId] = useState<number | null>(null);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">(() =>
@@ -1838,6 +1851,7 @@ export default function App() {
         signingOut={signingOutOthers}
         passcode={lockCode}
         onPasscodeChange={setCode}
+        twoFactor={twoFactor}
       />
 
       {deletedMessage && (

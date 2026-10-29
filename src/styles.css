@@ -484,6 +484,13 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .quiet-row label { display: flex; align-items: center; gap: 8px; color: var(--fg-secondary); font-size: 13px; }
 .settings-action.danger { border-color: var(--yellow); color: var(--yellow); }
 .settings-divider { height: 1px; margin: 16px 0 4px; background: var(--border); }
+.twofactor { display: flex; flex-direction: column; gap: 10px; padding: 10px 0; }
+.twofactor-secret { display: flex; align-items: center; gap: 10px; padding: 11px 13px; border: 1px dashed var(--border-strong); border-radius: 10px; background: var(--surface-0); }
+.twofactor-secret code { color: var(--fg); font-size: 14px; letter-spacing: 1px; word-break: break-all; }
+.twofactor-code { display: flex; flex-direction: column; gap: 6px; color: var(--fg-secondary); font-size: 13px; }
+.twofactor-code input { width: 140px; min-height: 44px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--surface-0); color: var(--fg); font: inherit; font-size: 20px; letter-spacing: 6px; text-align: center; }
+.twofactor-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.twofactor-error { color: #ff7b7b; font-size: 13px; }
 .passcode-setter { display: flex; align-items: center; gap: 8px; }
 .passcode-setter input { width: 96px; min-height: 36px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 9px; background: var(--surface-0); color: var(--fg); font: inherit; font-size: 14px; letter-spacing: 2px; text-align: center; }
 .passcode-layer { position: fixed; inset: 0; z-index: 400; display: grid; place-items: center; padding: 24px; background: var(--surface-0); }

@@ -18,6 +18,7 @@ import { plural, storageSummary } from "../lib/storageUsage";
 import { LANGUAGES, type Language } from "../lib/i18n";
 import { type SessionRecord, lastSeenLabel } from "../lib/sessions";
 import { avatarFallback } from "../lib/avatar";
+import TwoFactorPanel from "./TwoFactorPanel";
 
 /** Sections in the order a person tends to look for them. */
 export const SETTINGS_SECTIONS = [
@@ -70,6 +71,7 @@ export type SettingsModalProps = {
   signingOut: boolean;
   passcode: string | null;
   onPasscodeChange: (code: string | null) => void;
+  twoFactor: TwoFactorState;
 };
 
 /**
@@ -206,6 +208,7 @@ export default function SettingsModal(props: SettingsModalProps) {
           signingOut={props.signingOut}
           passcode={props.passcode}
           onPasscodeChange={props.onPasscodeChange}
+          twoFactor={props.twoFactor}
         />
       )}
           </div>
@@ -466,6 +469,18 @@ function ToggleRow({
   );
 }
 
+/** The 2FA callbacks, bundled so three layers do not each list eight props. */
+type TwoFactorState = {
+  status: "verified" | "unverified" | null;
+  pending: { uri: string; secret: string } | null;
+  busy: boolean;
+  error: string | null;
+  start: () => void;
+  confirm: (code: string) => void;
+  cancel: () => void;
+  disable: () => void;
+};
+
 type DataSectionProps = {
   /** Bytes of attachments this account has, and how many messages carry them. */
   mediaBytes: number;
@@ -481,6 +496,7 @@ type DataSectionProps = {
   signingOut: boolean;
   passcode: string | null;
   onPasscodeChange: (code: string | null) => void;
+  twoFactor: TwoFactorState;
 };
 
 /**
@@ -502,6 +518,7 @@ function DataSection({
   signingOut,
   passcode,
   onPasscodeChange,
+  twoFactor,
 }: DataSectionProps) {
   const now = Date.now();
   const [codeDraft, setCodeDraft] = useState("");
@@ -530,6 +547,19 @@ function DataSection({
       <p className="settings-note">
         Очистка сбрасывает тему, размер текста, настройки уведомлений и язык. Сообщения и вложения останутся — они в облаке.
       </p>
+
+      <div className="settings-divider" />
+      <p className="settings-note">Двухфакторная аутентификация</p>
+      <TwoFactorPanel
+        status={twoFactor.status}
+        pending={twoFactor.pending}
+        busy={twoFactor.busy}
+        error={twoFactor.error}
+        onStart={twoFactor.start}
+        onSubmitCode={twoFactor.confirm}
+        onCancel={twoFactor.cancel}
+        onDisable={twoFactor.disable}
+      />
 
       <div className="settings-divider" />
       <div className="settings-row">
