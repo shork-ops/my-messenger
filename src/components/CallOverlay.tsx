@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState } from "react";
-import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff } from "lucide-react";
+import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, ScreenShare, ScreenShareOff } from "lucide-react";
 import { formatCallDuration, presentCall, type ActiveCall } from "../lib/calls";
 import {
   isGroupCall,
@@ -22,6 +22,8 @@ type CallOverlayProps = {
   onHangUp: () => void;
   onToggleMute: () => void;
   onToggleCamera: () => void;
+  screenSharing: boolean;
+  onToggleScreenShare: () => void;
   muted: boolean;
   cameraOff: boolean;
   /** Receives the element the remote camera stream is attached to. */
@@ -48,6 +50,8 @@ export function CallOverlay({
   onHangUp,
   onToggleMute,
   onToggleCamera,
+  screenSharing,
+  onToggleScreenShare,
   muted,
   cameraOff,
   onRemoteVideo,
@@ -154,6 +158,14 @@ export function CallOverlay({
                   {cameraOff ? <VideoOff size={22} /> : <Video size={22} />}
                 </button>
               ) : null}
+              <button
+                className={`call-button ${screenSharing ? "active" : ""}`}
+                onClick={onToggleScreenShare}
+                aria-label={screenSharing ? "Остановить показ экрана" : "Показать экран"}
+                aria-pressed={screenSharing}
+              >
+                {screenSharing ? <ScreenShareOff size={22} /> : <ScreenShare size={22} />}
+              </button>
               <button className="call-button decline" onClick={onHangUp} aria-label="Завершить">
                 <PhoneOff size={22} />
               </button>

@@ -35,6 +35,7 @@ type UseCallsResult = {
   attachRemoteVideo: (element: HTMLVideoElement | null) => void;
   toggleMute: () => Promise<void>;
   toggleCamera: () => Promise<void>;
+  toggleScreenShare: () => Promise<void>;
 };
 
 /**
@@ -51,6 +52,7 @@ const INITIAL_MEDIA_STATE: MediaState = {
   cameraEnabled: false,
   error: null,
   participants: [],
+  screenSharing: false,
 };
 
 export function useCalls({ accountId, enabled, notify }: UseCallsOptions): UseCallsResult {
@@ -178,6 +180,13 @@ export function useCalls({ accountId, enabled, notify }: UseCallsOptions): UseCa
     await sessionRef.current?.setCameraEnabled(!media.cameraEnabled);
   }, [media.cameraEnabled]);
 
+  const toggleScreenShare = useCallback(async () => {
+    // The refusal text is already in words a person can act on, so it is shown as a
+    // notice rather than left to a console.
+    const refusal = await sessionRef.current?.setScreenShare(!media.screenSharing);
+    if (refusal) notify(refusal);
+  }, [media.screenSharing, notify]);
+
   const startCall = useCallback(
     async (chatId: string, kind: CallKind) => {
       setStarting(true);
@@ -234,6 +243,7 @@ export function useCalls({ accountId, enabled, notify }: UseCallsOptions): UseCa
     attachRemoteVideo,
     toggleMute,
     toggleCamera,
+    toggleScreenShare,
   };
 }
 

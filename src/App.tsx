@@ -228,6 +228,7 @@ export default function App() {
     attachRemoteVideo,
     toggleMute,
     toggleCamera,
+    toggleScreenShare,
   } = useCalls({ accountId: accountId ?? null, enabled: Boolean(accountId), notify: action });
   const [callError, setCallError] = useState<string | null>(null);
   // Calls are cloud-only: a demo chat has no remoteId, so there is nothing to signal.
@@ -1991,6 +1992,8 @@ export default function App() {
         onHangUp={() => void hangUp("ended")}
         onToggleMute={() => void toggleMute()}
         onToggleCamera={() => void toggleCamera()}
+        screenSharing={callMedia.screenSharing}
+        onToggleScreenShare={() => void toggleScreenShare()}
         muted={callMedia.micEnabled === false}
         cameraOff={callMedia.cameraEnabled === false}
         onRemoteVideo={attachRemoteVideo}

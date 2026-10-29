@@ -1,6 +1,7 @@
 import { Room, RoomEvent, Track } from "livekit-client";
 import type { CallToken } from "./calls";
 import type { RoomParticipant } from "./groupCall";
+import { screenShareRequest, shareErrorMessage } from "./screenShare";
 
 /**
  * Thin wrapper over a LiveKit room.
@@ -23,6 +24,8 @@ export type MediaState = {
    * as often as by pressing hang up, and only the SFU knows about that.
    */
   participants: RoomParticipant[];
+  /** Whether the local participant is sharing their screen. */
+  screenSharing: boolean;
 };
 
 const INITIAL_MEDIA: MediaState = {
@@ -31,6 +34,7 @@ const INITIAL_MEDIA: MediaState = {
   cameraEnabled: false,
   error: null,
   participants: [],
+  screenSharing: false,
 };
 
 /** Reads the room's people into the shape the call screen renders. */
@@ -103,7 +107,7 @@ export class CallSession {
       .on(RoomEvent.TrackUnsubscribed, (track) => {
         if (track.kind === Track.Kind.Video) this.listeners.onRemoteVideo(null);
       })
-      .on(RoomEvent.Disconnected, () => this.emit({ connected: false, micEnabled: false, cameraEnabled: false }));
+      .on(RoomEvent.Disconnected, () => this.emit({ connected: false, micEnabled: false, cameraEnabled: false, screenSharing: false }));
 
     try {
       await room.connect(token.url, token.token, { autoSubscribe: true });
@@ -132,6 +136,43 @@ export class CallSession {
     if (!this.room) return;
     await this.room.localParticipant.setCameraEnabled(enabled).catch(() => undefined);
     this.emit({ cameraEnabled: enabled });
+  }
+
+  /**
+   * Shares the screen, or stops sharing.
+   *
+   * The browser decides what can be shared, so the failure paths matter as much as the
+   * success one: a person who cancelled the picker should not see an error, and a
+   * share the browser stops on its own must clear the state here rather than leave a
+   * frozen frame on the other side.
+   */
+  async setScreenShare(enabled: boolean): Promise<string | null> {
+    if (!this.room) return null;
+    const room = this.room;
+    try {
+      if (!enabled) {
+        await room.localParticipant.setScreenShareEnabled(false);
+        this.emit({ screenSharing: false });
+        return null;
+      }
+      // The request is built here rather than by LiveKit's defaults so a shared
+      // document stays sharp at a low frame rate instead of being resampled for video.
+      const stream = await navigator.mediaDevices.getDisplayMedia(screenShareRequest() as DisplayMediaStreamOptions);
+      const track = stream.getVideoTracks()[0];
+      if (!track) return "Экран не выбран";
+      track.addEventListener("ended", () => {
+        // The browser's own "stop sharing" bar ends the track without telling us.
+        void room.localParticipant.unpublishTrack(track).catch(() => undefined);
+        this.emit({ screenSharing: false });
+      });
+      await room.localParticipant.publishTrack(track, { name: "screen" });
+      this.emit({ screenSharing: true });
+      return null;
+    } catch (error) {
+      const name = (error as { name?: string }).name ?? "";
+      this.emit({ screenSharing: false });
+      return shareErrorMessage(name);
+    }
   }
 
   /** Leaves the room and releases the microphone light. */
