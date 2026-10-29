@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { Shield, X } from "lucide-react";
 import { supabase } from "./lib/supabase";
@@ -25,6 +25,7 @@ import {
 } from "./lib/privacy";
 import type { PrivacyPreferences } from "./lib/privacy";
 import { removeMember, rotateInvite, setMemberRole } from "./lib/groupAdmin";
+import { CACHE_KEYS, mediaBytes, presentCacheKeys } from "./lib/storageUsage";
 import { createFavouritesChat, favouriteMessage, formatForwardText, isFavouritesChat, nextLocalId } from "./lib/messageActions";
 import { MAX_UPLOAD_BYTES, blobToDataUrl, buildStoragePath, formatBytes, isSupportedFile, prepareImage, shouldCompress } from "./lib/media";
 import { analyseWaveform } from "./lib/voice";
@@ -1151,6 +1152,43 @@ export default function App() {
     return true;
   }
 
+  // The media total and the settings keys this browser actually holds.
+  const attachmentBytes = useMemo(() => mediaBytes(chats.flatMap((chat) => chat.messages)), [chats]);
+  const attachmentCount = useMemo(
+    () => chats.reduce((sum, chat) => sum + chat.messages.filter((message) => message.attachment).length, 0),
+    [chats]
+  );
+  const [cacheKeys, setCacheKeys] = useState<string[]>([]);
+  const [clearingCache, setClearingCache] = useState(false);
+
+  useEffect(() => {
+    try {
+      setCacheKeys(presentCacheKeys(CACHE_KEYS, (key) => window.localStorage.getItem(key) !== null));
+    } catch {
+      // Storage blocked: nothing to clear and nothing to offer.
+      setCacheKeys([]);
+    }
+  }, [profileOpen]);
+
+  async function clearCache() {
+    setClearingCache(true);
+    try {
+      for (const key of cacheKeys) window.localStorage.removeItem(key);
+      // The service-worker cache is separate from local storage and is the part
+      // that actually grows.
+      if ("caches" in window) {
+        const names = await caches.keys();
+        await Promise.all(names.map((name) => caches.delete(name)));
+      }
+      setCacheKeys([]);
+      action("Кеш очищен");
+    } catch {
+      action("Не удалось очистить кеш");
+    } finally {
+      setClearingCache(false);
+    }
+  }
+
   async function applyMute(optionId: MuteOptionId) {
     if (muteChatId === null) return;
     const until = muteUntil(optionId, new Date());
@@ -1662,6 +1700,11 @@ export default function App() {
         onPrefsChange={setNotificationPrefs}
         permission={notificationPermission}
         onRequestPermission={() => void askForNotifications()}
+        mediaBytes={attachmentBytes}
+        attachmentCount={attachmentCount}
+        cacheKeys={cacheKeys}
+        onClearCache={() => void clearCache()}
+        clearing={clearingCache}
       />
 
       {deletedMessage && (

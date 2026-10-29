@@ -14,6 +14,7 @@ import {
 import { ABOUT_MAX, normalizeAbout, shouldShowAboutCounter } from "../lib/about";
 import { TEXT_SIZES } from "../lib/textSize";
 import { formatMinute, parseMinute, type NotificationPrefs } from "../lib/notificationPrefs";
+import { plural, storageSummary } from "../lib/storageUsage";
 import { avatarFallback } from "../lib/avatar";
 
 /** Sections in the order a person tends to look for them. */
@@ -54,6 +55,11 @@ export type SettingsModalProps = {
   /** Current permission state, shown so a blocked browser is not a mystery. */
   permission: NotificationPermission | "unsupported";
   onRequestPermission: () => void;
+  mediaBytes: number;
+  attachmentCount: number;
+  cacheKeys: string[];
+  onClearCache: () => void;
+  clearing: boolean;
 };
 
 /**
@@ -175,7 +181,15 @@ export default function SettingsModal(props: SettingsModalProps) {
                 onRequestPermission={props.onRequestPermission}
               />
             )}
-            {active === "data" && <DataSection />}
+            {active === "data" && (
+        <DataSection
+          mediaBytes={props.mediaBytes}
+          attachmentCount={props.attachmentCount}
+          cacheKeys={props.cacheKeys}
+          onClearCache={props.onClearCache}
+          clearing={props.clearing}
+        />
+      )}
           </div>
         </div>
       </section>
@@ -420,11 +434,50 @@ function ToggleRow({
   );
 }
 
-function DataSection() {
+type DataSectionProps = {
+  /** Bytes of attachments this account has, and how many messages carry them. */
+  mediaBytes: number;
+  attachmentCount: number;
+  /** Keys currently present in this browser's storage. */
+  cacheKeys: string[];
+  onClearCache: () => void;
+  clearing: boolean;
+};
+
+/**
+ * The two numbers are shown apart on purpose.
+ *
+ * Cache is free to throw away. Attachments are not: they cost bandwidth to fetch
+ * again, so folding them into one "1.2 ГБ" would invite people to clear the wrong
+ * thing.
+ */
+function DataSection({ mediaBytes, attachmentCount, cacheKeys, onClearCache, clearing }: DataSectionProps) {
   return (
-    <p className="settings-note">
-      Здесь появятся хранилище, кеш и управление аккаунтом.
-    </p>
+    <>
+      <p className="settings-note">Вложения в этом аккаунте. Хранятся в облаке, не на устройстве.</p>
+      <div className="settings-row">
+        <span>
+          <strong>Вложения</strong>
+          <small>{storageSummary(mediaBytes, attachmentCount)}</small>
+        </span>
+      </div>
+      <div className="settings-row">
+        <span>
+          <strong>Кеш браузера</strong>
+          <small>
+            {cacheKeys.length === 0
+              ? "Пусто"
+              : `${cacheKeys.length} ${plural(cacheKeys.length, "настройка", "настройки", "настроек")} на этом устройстве`}
+          </small>
+        </span>
+        <button type="button" className="settings-action" disabled={clearing || cacheKeys.length === 0} onClick={onClearCache}>
+          {clearing ? "Очищаю…" : "Очистить"}
+        </button>
+      </div>
+      <p className="settings-note">
+        Очистка сбрасывает тему, размер текста, настройки уведомлений и язык. Сообщения и вложения останутся — они в облаке.
+      </p>
+    </>
   );
 }
 
