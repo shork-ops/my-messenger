@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { ABOUT_MAX, normalizeAbout, shouldShowAboutCounter } from "../lib/about";
 import { TEXT_SIZES } from "../lib/textSize";
+import { formatMinute, parseMinute, type NotificationPrefs } from "../lib/notificationPrefs";
 import { avatarFallback } from "../lib/avatar";
 
 /** Sections in the order a person tends to look for them. */
@@ -48,6 +49,11 @@ export type SettingsModalProps = {
   onSaveUsername: () => void;
   onThemeChange: (value: string) => void;
   onOpenPrivacy: () => void;
+  prefs: NotificationPrefs;
+  onPrefsChange: (next: NotificationPrefs) => void;
+  /** Current permission state, shown so a blocked browser is not a mystery. */
+  permission: NotificationPermission | "unsupported";
+  onRequestPermission: () => void;
 };
 
 /**
@@ -161,7 +167,14 @@ export default function SettingsModal(props: SettingsModalProps) {
               />
             )}
             {active === "privacy" && <PrivacySection onOpenPrivacy={props.onOpenPrivacy} />}
-            {active === "notifications" && <NotificationsSection />}
+            {active === "notifications" && (
+              <NotificationsSection
+                prefs={props.prefs}
+                onPrefsChange={props.onPrefsChange}
+                permission={props.permission}
+                onRequestPermission={props.onRequestPermission}
+              />
+            )}
             {active === "data" && <DataSection />}
           </div>
         </div>
@@ -296,11 +309,114 @@ function PrivacySection({ onOpenPrivacy }: { onOpenPrivacy: () => void }) {
   );
 }
 
-function NotificationsSection() {
+function NotificationsSection({
+  prefs,
+  onPrefsChange,
+  permission,
+  onRequestPermission,
+}: {
+  prefs: NotificationPrefs;
+  onPrefsChange: (next: NotificationPrefs) => void;
+  permission: NotificationPermission | "unsupported";
+  onRequestPermission: () => void;
+}) {
+  const permissionText =
+    permission === "granted"
+      ? "Разрешены"
+      : permission === "denied"
+        ? "Запрещены в настройках браузера"
+        : permission === "unsupported"
+          ? "Браузер не поддерживает"
+          : "Не запрошены";
+
+  const setQuiet = (patch: Partial<NotificationPrefs["quiet"]>) =>
+    onPrefsChange({ ...prefs, quiet: { ...prefs.quiet, ...patch } });
+
   return (
-    <p className="settings-note">
-      Настройки уведомлений появятся здесь. Пока уведомления включаются кнопкой с колокольчиком в левом меню.
-    </p>
+    <>
+      <div className="settings-row">
+        <span>
+          <strong>Системные уведомления</strong>
+          <small>{permissionText}</small>
+        </span>
+        {permission === "default" && (
+          <button type="button" className="settings-action" onClick={onRequestPermission}>
+            Разрешить
+          </button>
+        )}
+      </div>
+
+      <ToggleRow
+        label="Звук"
+        hint="Короткий сигнал при новом сообщении"
+        checked={prefs.sound}
+        onChange={(checked) => onPrefsChange({ ...prefs, sound: checked })}
+      />
+      <ToggleRow
+        label="Вибрация"
+        hint="На телефоне — при новом сообщении"
+        checked={prefs.vibration}
+        onChange={(checked) => onPrefsChange({ ...prefs, vibration: checked })}
+      />
+
+      <div className="settings-divider" />
+
+      <ToggleRow
+        label="Тихие часы"
+        hint="Сообщения приходят, но без звука и вибрации"
+        checked={prefs.quiet.enabled}
+        onChange={(checked) => setQuiet({ enabled: checked })}
+      />
+      {prefs.quiet.enabled && (
+        <div className="quiet-row">
+          <label>
+            С
+            <input
+              type="time"
+              value={formatMinute(prefs.quiet.fromMinute)}
+              onChange={(event) => {
+                const minute = parseMinute(event.target.value);
+                if (minute !== null) setQuiet({ fromMinute: minute });
+              }}
+            />
+          </label>
+          <label>
+            До
+            <input
+              type="time"
+              value={formatMinute(prefs.quiet.toMinute)}
+              onChange={(event) => {
+                const minute = parseMinute(event.target.value);
+                if (minute !== null) setQuiet({ toMinute: minute });
+              }}
+            />
+          </label>
+        </div>
+      )}
+    </>
+  );
+}
+
+function ToggleRow({
+  label,
+  hint,
+  checked,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="settings-row toggle-row">
+      <span>
+        <strong>{label}</strong>
+        <small>{hint}</small>
+      </span>
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+      <i className="toggle-track" aria-hidden="true" />
+    </label>
   );
 }
 

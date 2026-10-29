@@ -47,6 +47,7 @@ import { SIGNED_URL_TTL_SECONDS } from "./lib/messageSync";
 import { loadMessagePage } from "./lib/messageLoader";
 import { useHistoryPagination, useInfiniteHistory } from "./hooks/useHistoryPagination";
 import { useUnreadBadge, useMessageNotifications, usePushSubscriptionSync, useNotificationsPrompt, requestNotificationPermission } from "./hooks/useNotifications";
+import { useNotificationPrefs } from "./hooks/useNotificationPrefs";
 import { subscribeToPush } from "./lib/push";
 import { useAutoScroll } from "./hooks/useAutoScroll";
 import { unreadMessages } from "./lib/unread";
@@ -207,8 +208,26 @@ export default function App() {
 
   const { loadOlder, loadingChatIds } = useHistoryPagination({ accountId, profileName, notify: action, setChats });
   useInfiniteHistory(messagesAreaRef, activeChat, loadOlder);
+  // Notification preferences live per device, and the permission state is read
+  // once so the settings screen can say plainly whether the browser allows them.
+  const { prefs: notificationPrefs, setPrefs: setNotificationPrefs } = useNotificationPrefs();
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">(() =>
+    typeof Notification === "undefined" ? "unsupported" : Notification.permission
+  );
+
+  async function askForNotifications() {
+    const permission = await requestNotificationPermission();
+    setNotificationPermission(permission);
+    if (permission === "granted" && accountId) {
+      const result = await subscribeToPush(accountId);
+      action(result === "subscribed" ? "Уведомления включены, в том числе в фоне" : "Уведомления включены");
+    } else if (permission === "denied") {
+      action("Браузер запретил уведомления — разреши их в настройках сайта");
+    }
+  }
+
   useUnreadBadge(unreadTotal);
-  useMessageNotifications({ accountId, chats });
+  useMessageNotifications({ accountId, chats, prefs: notificationPrefs });
   // Re-register the push subscription on every sign-in: a cleared cache, a fresh
   // PWA install or a rotated endpoint would otherwise leave the user silently
   // unsubscribed until they pressed the bell again.
@@ -1550,6 +1569,10 @@ export default function App() {
         onSaveUsername={() => void saveUsername()}
         onThemeChange={setTheme}
         onOpenPrivacy={() => setPrivacyOpen(true)}
+        prefs={notificationPrefs}
+        onPrefsChange={setNotificationPrefs}
+        permission={notificationPermission}
+        onRequestPermission={() => void askForNotifications()}
       />
 
       {deletedMessage && (

@@ -466,6 +466,23 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .settings-nav-item.active > svg:first-child { color: var(--yellow); }
 .settings-detail { display: flex; flex-direction: column; gap: 16px; padding: 18px; overflow-y: auto; max-height: min(560px, 72vh); }
 .settings-note { margin: 0; color: var(--fg-muted); font-size: 13px; line-height: 1.5; }
+.settings-row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--border); }
+.settings-row > span { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
+.settings-row strong { color: var(--fg); font-size: var(--text-caption); font-weight: 600; }
+.settings-row small { color: var(--fg-muted); font-size: 12px; line-height: 1.4; }
+.settings-action { min-height: 36px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: 9px; background: var(--surface-2); color: var(--fg); font: inherit; font-size: 13px; cursor: pointer; }
+.settings-action:hover { border-color: var(--yellow); }
+/* A checkbox with a drawn track: the native control cannot be sized reliably. */
+.toggle-row { position: relative; cursor: pointer; }
+.toggle-row input { position: absolute; opacity: 0; width: 0; height: 0; }
+.toggle-track { position: relative; flex-shrink: 0; width: 42px; height: 24px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border-strong); transition: background .15s, border-color .15s; }
+.toggle-track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--fg-secondary); transition: transform .15s, background .15s; }
+.toggle-row input:checked + .toggle-track { background: var(--yellow); border-color: var(--yellow); }
+.toggle-row input:checked + .toggle-track::after { transform: translateX(18px); background: #1a1400; }
+.toggle-row input:focus-visible + .toggle-track { outline: 2px solid var(--yellow); outline-offset: 2px; }
+.quiet-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px 0; }
+.quiet-row label { display: flex; align-items: center; gap: 8px; color: var(--fg-secondary); font-size: 13px; }
+.quiet-row input { flex: 1; min-height: 40px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 9px; background: var(--surface-0); color: var(--fg); font: inherit; font-size: 14px; }
 .field-block { display: flex; flex-direction: column; gap: 9px; }
 .field-label { color: var(--fg-secondary); font-size: 12px; }
 @media (max-width: 640px) {

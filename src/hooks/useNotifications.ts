@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 import { badgeCount, formatDocumentTitle } from "../lib/notifications";
 import { pushConfigured, subscribeToPush } from "../lib/push";
 import { pushPromptAlreadySeen, rememberPushPrompt } from "../lib/pushPrompt";
+import { VIBRATION_PATTERN, type NotificationPrefs, shouldPlaySound, shouldVibrate } from "../lib/notificationPrefs";
 
 /**
  * Mirrors unread chats into the browser tab title and the installed-PWA badge.
@@ -29,7 +30,43 @@ type ChatSummary = { remoteId?: string; name: string; group?: boolean };
 type UseMessageNotificationsOptions = {
   accountId: string | null;
   chats: ChatSummary[];
+  prefs: NotificationPrefs;
 };
+
+/**
+ * A short two-tone chime, synthesized rather than loaded.
+ *
+ * A bundled audio file is one more thing to fail to download on a slow
+ * connection, and a message that arrives silently is worse than a plain sound.
+ */
+function playChime() {
+  try {
+    const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctor) return;
+    const context = new Ctor();
+    const now = context.currentTime;
+    // Two notes a fifth apart, each fading out - recognizable without being shrill.
+    for (const [time, frequency] of [
+      [0, 880],
+      [0.12, 1174],
+    ] as const) {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.value = frequency;
+      gain.gain.setValueAtTime(0.0001, now + time);
+      gain.gain.exponentialRampToValueAtTime(0.16, now + time + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + time + 0.18);
+      oscillator.connect(gain).connect(context.destination);
+      oscillator.start(now + time);
+      oscillator.stop(now + time + 0.2);
+    }
+    // Release the audio context; browsers cap how many may exist.
+    window.setTimeout(() => void context.close().catch(() => undefined), 600);
+  } catch {
+    // Autoplay policy refused: the notification itself still appears.
+  }
+}
 
 /** Direct chats use the sender name as the title, groups prefix it with the chat title. */
 export function notificationTitle(chatName: string, group: boolean): string {
@@ -40,9 +77,11 @@ export function notificationTitle(chatName: string, group: boolean): string {
  * Shows an OS notification for new messages while the tab is in the background.
  * Only covers the open-app case; the Web Push path is delivered by the service worker.
  */
-export function useMessageNotifications({ accountId, chats }: UseMessageNotificationsOptions) {
+export function useMessageNotifications({ accountId, chats, prefs }: UseMessageNotificationsOptions) {
   const chatsRef = useRef(chats);
   chatsRef.current = chats;
+  const prefsRef = useRef(prefs);
+  prefsRef.current = prefs;
 
   useEffect(() => {
     const client = supabase;
@@ -56,6 +95,18 @@ export function useMessageNotifications({ accountId, chats }: UseMessageNotifica
         if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
         const chat = chatsRef.current.find((item) => item.remoteId === row.chat_id);
         const body = row.attachment ? "Вложение" : row.body || "Новое сообщение";
+        // Quiet hours silence sound and buzz, never the notification itself: a
+        // message at 3am should still be there in the morning.
+        const now = new Date();
+        const current = prefsRef.current;
+        if (shouldPlaySound(current, now)) playChime();
+        if (shouldVibrate(current, now)) {
+          try {
+            navigator.vibrate?.(VIBRATION_PATTERN);
+          } catch {
+            // Vibration is missing on most desktops.
+          }
+        }
         try {
           const notification = new Notification(chat ? notificationTitle(chat.name, Boolean(chat.group)) : "Nexus", {
             body,
