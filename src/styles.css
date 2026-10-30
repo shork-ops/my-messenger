@@ -1421,3 +1421,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
   background-position: center;
   border-radius: 0 0 10px 10px;
 }
+
+/* The space standing in for messages that are not rendered. It must not be interactive and
+   must not be announced: it represents nothing a reader can do anything with. */
+.window-spacer { flex: none; width: 100%; pointer-events: none; }
+.window-item { display: contents; }

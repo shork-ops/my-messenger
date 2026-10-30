@@ -3,6 +3,7 @@ import type { ComponentProps, MutableRefObject } from "react";
 import { type WallpaperId, wallpaperBackground, wallpaperSize } from "../lib/wallpaper";
 import { ArrowDown, ChevronsUp, Download, FolderPlus, Megaphone } from "lucide-react";
 import { canPostToChannel, channelSubtitle } from "../lib/channels";
+import { ESTIMATED_ITEM_HEIGHT, VIRTUALISE_THRESHOLD, initialWindow } from "../lib/messageWindow";
 import { Archive, BellOff, BellRing, ChevronLeft, MoreVertical, Phone, Pin, Search, Trash2, UserRound, Video, X } from "lucide-react";
 import Avatar from "./Avatar";
 import UserAvatar from "./UserAvatar";
@@ -254,6 +255,84 @@ export default function ConversationPanel({
     };
   }, [messagesRef, chat.id]);
 
+  // Long conversations render a slice. Five thousand messages put sixty thousand elements
+  // in the page and took two and a half seconds to open - measured before this existed.
+  //
+  // A search is exempt: its results are a different set of messages, and the arithmetic below
+  // is about positions in the full list. So is a short conversation, where the whole window
+  // would be the whole list anyway.
+  const total = chat.messages.length;
+  const searching = visibleMessages.length !== total;
+  const virtualised = !searching && total > VIRTUALISE_THRESHOLD;
+  const [renderWindow, setRenderWindow] = useState(() => initialWindow(chat.messages.length));
+  useEffect(() => {
+    // A different chat, or a conversation that grew past the threshold, starts at the end.
+    setRenderWindow(initialWindow(chat.messages.length));
+  }, [chat.id]);
+
+
+  /**
+   * The rendered slice of a long conversation.
+   *
+   * The position of the window is derived from one number and nothing else: how far the list is
+   * scrolled, as a fraction of its height. Every version of this that tried to derive the
+   * position from the spacer's own height failed the same way - the spacer is a guess, so the
+   * number read from it disagreed with the guess that produced it, and the two chased each
+   * other for a frame at a time. A ratio cannot disagree with itself.
+   *
+   * The window keeps a fixed size and slides, never growing or shrinking. Growing needs the
+   * scroll position compensated for the height of the messages that appeared above, and each
+   * of those compensations is a chance to lose the reader's place; sliding from the ratio needs
+   * no compensation at all.
+   */
+  const [scrollRatio, setScrollRatio] = useState(1);
+  // Which conversation the list has been laid out for. Until it has, its maximum scroll is a
+  // number the browser has not settled on, and a position read from it would be meaningless.
+  const placedRef = useRef<number | null>(null);
+  useEffect(() => {
+    placedRef.current = null;
+  }, [chat.id]);
+  const windowSize = initialWindow(chat.messages.length);
+  const windowSpan = Math.max(40, windowSize.last - windowSize.first);
+
+  useEffect(() => {
+    const area = messagesRef.current;
+    if (!area || !virtualised) return;
+
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      const max = area.scrollHeight - area.clientHeight;
+      // The list is laid out lazily, so early in its life the maximum is wrong and any position
+      // read from it is too. Only a settled list is trusted, and until then the window stays
+      // where it was - at the end, where a conversation is read from.
+      if (placedRef.current !== chat.id) {
+        if (max > 0 && max - area.scrollTop <= 4) placedRef.current = chat.id;
+        return;
+      }
+      setScrollRatio(max > 0 ? Math.min(1, Math.max(0, area.scrollTop / max)) : 1);
+    };
+    const onScroll = () => {
+      if (frame !== 0) return;
+      frame = window.requestAnimationFrame(measure);
+    };
+    area.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      area.removeEventListener("scroll", onScroll);
+      if (frame !== 0) window.cancelAnimationFrame(frame);
+    };
+  }, [messagesRef, virtualised, chat.id]);
+
+  // The rendered slice, from the ratio alone.
+  const anchor = Math.round(scrollRatio * (total - windowSpan));
+  const first = Math.max(0, Math.min(total - windowSpan, anchor));
+  const last = Math.min(total, first + windowSpan);
+  const windowStart = virtualised ? first : 0;
+  const windowEnd = virtualised ? last : total;
+  const renderedMessages = virtualised ? chat.messages.slice(windowStart, windowEnd) : visibleMessages;
+  const renderedIndexOffset = windowStart;
+
+
   const unreadCount = unreadStart === null ? 0 : chat.messages.length - unreadStart;
   const jump = jumpButton({ atBottom, hasUnreadBelow: unreadStart !== null && unreadCount > 0, unreadCount });
 
@@ -451,7 +530,19 @@ export default function ConversationPanel({
         {visibleMessages.length === 0 && (
           <div className="empty-search">{searchValue.trim() ? "Сообщения не найдены" : "Пока нет сообщений. Напиши первым!"}</div>
         )}
-        {visibleMessages.map((message, index) => {
+        {virtualised && windowStart > 0 && (
+          // The space stands in for messages that are not in the DOM. Its height is an
+          // estimate, but it only affects where the scrollbar thumb sits: the reader is
+          // looking at the slice, which is rendered at its real size.
+          <div
+            className="window-spacer"
+            data-window-start
+            aria-hidden="true"
+            style={{ height: windowStart * ESTIMATED_ITEM_HEIGHT }}
+          />
+        )}
+        {renderedMessages.map((message, sliceIndex) => {
+          const index = sliceIndex + (virtualised ? renderedIndexOffset : 0);
           const previous = chat.messages[index - 1];
           // The divider marks where reading left off; not shown while searching,
           // where the visible list is a different set from the conversation.
@@ -476,6 +567,7 @@ export default function ConversationPanel({
                   <span>Непрочитанные</span>
                 </div>
               )}
+              <div className="window-item" data-window-item>
               <MessageBubble
                 message={message}
                 showAuthor={Boolean(chat.group) && (run?.startsRun ?? true)}
@@ -503,6 +595,7 @@ export default function ConversationPanel({
                 onDeleteLocal={() => onDeleteLocal(message.id)}
                 onGameInvite={onGameInvite}
               />
+              </div>
             </Fragment>
           );
         })}

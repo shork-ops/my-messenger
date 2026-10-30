@@ -104,6 +104,26 @@ export function createDemoSeedChats(now: number = Date.now()): Chat[] {
       })),
     },
     {
+      // A chat long enough to be a performance question rather than a layout one: the
+      // virtual list has to be measured on something, and 5000 messages is where a phone
+      // starts to struggle. Kept last so it does not disturb the other tests' assumptions.
+      id: 8,
+      name: "Очень длинный чат",
+      avatar: "О",
+      color: "blue",
+      preview: "Сообщение 5000 из 5000",
+      time: "07:00",
+      lastReadAt: now,
+      messages: Array.from({ length: 5000 }, (_, index) => ({
+        id: 10_000 + index,
+        author: index % 4 === 0 ? "Я" : "Пётр",
+        mine: index % 4 === 0,
+        text: `Очень длинный чат, сообщение ${index + 1}. Немного текста, чтобы пузырь был правдоподобной высоты.`,
+        time: "07:00",
+        createdAt: now - (5000 - index) * 30_000,
+      })),
+    },
+    {
       // A channel the reader only reads. It exists so the demo can show what a channel looks
       // like from the subscriber's side, which is the side most people will see.
       id: 7,
