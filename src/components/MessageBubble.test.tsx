@@ -21,7 +21,11 @@ function message(overrides: Partial<Message> = {}): Message {
 
 const noop = () => {};
 
-function renderBubble(overrides: Partial<Message> = {}, showAuthor = false, runs: { continuesRun?: boolean; endsRun?: boolean } = {}) {
+function renderBubble(
+  overrides: Partial<Message> = {},
+  showAuthor = false,
+  runs: { continuesRun?: boolean; endsRun?: boolean; actionsOpen?: boolean } = {}
+) {
   return render(
     <MessageBubble
       message={message(overrides)}
@@ -32,7 +36,7 @@ function renderBubble(overrides: Partial<Message> = {}, showAuthor = false, runs
       autoloadMedia={false}
       accountId={null}
       profileName="Алексей"
-      actionsOpen={false}
+      actionsOpen={runs.actionsOpen ?? false}
       showGamePreview
       onToggleActions={noop}
       onVote={noop}
@@ -130,5 +134,28 @@ describe("who spoke is named only where it is needed", () => {
   it("does not name the reader to themselves even in a group", () => {
     const { container } = renderBubble({ author: "Алексей", mine: true }, true);
     expect(container.querySelector(".message-author")).toBeNull();
+  });
+});
+
+describe("an effect belongs to whoever wrote the message", () => {
+  it("offers the effect stickers on the reader's own message", () => {
+    const { container } = renderBubble({ mine: true }, false, { actionsOpen: true });
+    expect(container.querySelector('[aria-label="Эффекты"]')).not.toBeNull();
+    expect(container.querySelectorAll(".effect-action")).toHaveLength(4);
+  });
+
+  it("keeps the effect stickers out of the menu on someone else's message", () => {
+    // Showing them invited a choice the server refused, and the refusal was silent.
+    const { container } = renderBubble({ mine: false }, false, { actionsOpen: true });
+    expect(container.querySelector('[aria-label="Эффекты"]')).toBeNull();
+    expect(container.querySelectorAll(".effect-action")).toHaveLength(0);
+  });
+
+  it("still shows an effect that is already on someone else's message", () => {
+    // The decoration is part of the message and is meant to be seen by both sides; it is
+    // only the controls that belong to the author.
+    const { container } = renderBubble({ mine: false, effect: "hearts" }, false, { actionsOpen: true });
+    expect(container.querySelector(".message-effect-mark")).not.toBeNull();
+    expect(container.querySelector('[aria-label="Эффекты"]')).toBeNull();
   });
 });

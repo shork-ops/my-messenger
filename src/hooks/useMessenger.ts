@@ -1173,7 +1173,11 @@ export function useMessenger() {
   async function applyMessageEffect(messageId: number, effect: MessageEffect) {
     const chat = chats.find((item) => item.id === activeId);
     const message = chat?.messages.find((item) => item.id === messageId);
-    if (chat?.remoteId && message?.remoteId) {
+    // The menu hides the stickers on someone else's message, but hiding a control is not a
+    // rule. In the cloud the update is already scoped to the sender; locally it was not, so
+    // an effect could be painted onto a message its author never decorated.
+    if (!message?.mine) return;
+    if (chat?.remoteId && message.remoteId) {
       if (!supabase) return;
       const { error } = await supabase
         .from("messages")

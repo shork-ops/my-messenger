@@ -351,20 +351,25 @@ export default function MessageBubble({
                   👍
                 </button>
               </span>
-              <span className="message-actions-group" role="group" aria-label="Эффекты">
-                <button type="button" className="effect-action" onClick={() => onEffect("sparkle")} title="Эффект: искры" aria-label="Эффект: искры">
-                  ✦
-                </button>
-                <button type="button" className="effect-action" onClick={() => onEffect("hearts")} title="Эффект: сердечки" aria-label="Эффект: сердечки">
-                  ♥
-                </button>
-                <button type="button" className="effect-action" onClick={() => onEffect("fireworks")} title="Эффект: салют" aria-label="Эффект: салют">
-                  ✧
-                </button>
-                <button type="button" className="effect-action" onClick={() => onEffect("glow")} title="Эффект: сияние" aria-label="Эффект: сияние">
-                  ✺
-                </button>
-              </span>
+              {/* An effect decorates the message it is attached to, so it belongs to whoever
+                  wrote it. Offering the stickers on someone else's message invited a choice
+                  the server then refused, and the refusal was silent. */}
+              {message.mine && (
+                <span className="message-actions-group" role="group" aria-label="Эффекты">
+                  <button type="button" className="effect-action" onClick={() => onEffect("sparkle")} title="Эффект: искры" aria-label="Эффект: искры">
+                    ✦
+                  </button>
+                  <button type="button" className="effect-action" onClick={() => onEffect("hearts")} title="Эффект: сердечки" aria-label="Эффект: сердечки">
+                    ♥
+                  </button>
+                  <button type="button" className="effect-action" onClick={() => onEffect("fireworks")} title="Эффект: салют" aria-label="Эффект: салют">
+                    ✧
+                  </button>
+                  <button type="button" className="effect-action" onClick={() => onEffect("glow")} title="Эффект: сияние" aria-label="Эффект: сияние">
+                    ✺
+                  </button>
+                </span>
+              )}
               {message.mine && (
                 <button type="button" onClick={onEdit} aria-label="Редактировать сообщение">
                   <PencilLine size={13} /> Изменить

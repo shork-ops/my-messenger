@@ -657,6 +657,43 @@ async function expectCount(page, selector, expected, label) {
   }
 }
 
+// --- an effect belongs to the message its author decorated -------------------------------
+{
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: "ru-RU" });
+  const page = await context.newPage();
+  await page.goto(base + tag(), { waitUntil: "networkidle", timeout: 90000 });
+  await page.waitForSelector(".chat-row", { timeout: 30000 });
+  await page.waitForTimeout(1200);
+  await page.locator(".chat-row").filter({ hasText: "Команда" }).first().click();
+  await page.waitForTimeout(800);
+  await page.locator('.composer input[aria-label="Текст сообщения"]').fill("проверка эффектов");
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(900);
+
+  // The reader's own message offers the stickers.
+  await page.locator(".message-line.mine").last().getByLabel("Действия с сообщением").click();
+  await page.waitForTimeout(400);
+  const ownStickers = await page.evaluate(() => {
+    const row = [...document.querySelectorAll(".message-line.mine")].pop();
+    return row.querySelectorAll(".effect-action").length;
+  });
+  record("своё сообщение предлагает стикеры эффектов", ownStickers === 4, `${ownStickers} стикера`);
+  await page.locator(".message-line.mine").last().getByLabel("Эффект: сердечки").click();
+  await page.waitForTimeout(700);
+  const applied = await page.evaluate(() => Boolean([...document.querySelectorAll(".message-line.mine")].pop().querySelector(".message-effect-mark")));
+  record("эффект ставится на своё сообщение", applied, applied ? "метка видна" : "метки нет");
+
+  // Someone else's message does not.
+  await page.locator(".message-line:not(.mine)").last().getByLabel("Действия с сообщением").click();
+  await page.waitForTimeout(400);
+  const peerStickers = await page.evaluate(() => {
+    const row = [...document.querySelectorAll(".message-line:not(.mine)")].pop();
+    return { stickers: row.querySelectorAll(".effect-action").length, group: Boolean(row.querySelector('[aria-label="Эффекты"]')) };
+  });
+  record("чужое сообщение не предлагает стикеры", peerStickers.stickers === 0 && !peerStickers.group, `${peerStickers.stickers} стикеров`);
+  await context.close();
+}
+
 await browser.close();
 
 const failed = results.filter((r) => !r.ok);
