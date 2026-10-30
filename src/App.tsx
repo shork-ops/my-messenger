@@ -257,7 +257,7 @@ export default function App() {
   const { prefs: notificationPrefs, setPrefs: setNotificationPrefs } = useNotificationPrefs();
   // The language is a device preference, like the theme: a phone in English should
   // not change the laptop.
-  const { language, setLanguage } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
   // A four-digit lock on this device, separate from the account password.
   const { passcode: lockCode, unlocked: lockUnlocked, setCode, unlock } = usePasscode();
   const { wallpaper, setWallpaper } = useWallpaper();
@@ -289,6 +289,7 @@ export default function App() {
         case "escape":
           setShortcutsOpen(false);
           setEmojiOpen(false);
+          setOpenMessageActionsId(null);
           if (editingMessageId !== null) {
             setEditingMessageId(null);
             setEditDraft("");
@@ -1730,6 +1731,7 @@ export default function App() {
   return (
     <main className={`app-shell ${mobileView === "chat" ? "mobile-chat" : "mobile-list"}`}>
       <Rail
+        t={t}
         activeNav={activeNav}
         profileName={profileName}
         profileAvatar={profileAvatar}

@@ -1,4 +1,5 @@
 import { badgeText } from "../lib/notifications";
+import type { Dictionary } from "../lib/i18n";
 import { Bell, Gamepad2, MessageCircle, Settings } from "lucide-react";
 import Avatar from "./Avatar";
 
@@ -15,6 +16,8 @@ type RailProps = {
   onOpenGames: () => void;
   onOpenProfile: () => void;
   onToggleNotifications: () => void;
+  /** The Russian strings are the source, so the caller passes them with the keys. */
+  t: (key: string, ru?: Dictionary) => string;
 };
 
 export default function Rail({
@@ -29,6 +32,7 @@ export default function Rail({
   onOpenGames,
   onOpenProfile,
   onToggleNotifications,
+  t,
 }: RailProps) {
   return (
     <aside className="rail">
@@ -38,18 +42,26 @@ export default function Rail({
       </button>
 
       <nav className="main-nav">
-        <button className={`nav-link ${activeNav === "Чаты" ? "active" : ""}`} onClick={() => onNavigate("Чаты")} aria-label="Чаты">
+        <button
+          className={`nav-link ${activeNav === "Чаты" ? "active" : ""}`}
+          onClick={() => onNavigate("Чаты")}
+          aria-label={t("nav.chats", { "nav.chats": "Чаты" })}
+        >
           <MessageCircle size={22} />
-          <span>Чаты</span>
+          <span>{t("nav.chats", { "nav.chats": "Чаты" })}</span>
           {unreadTotal > 0 && (
             <b className="nav-count" title={`${unreadTotal} непрочитанных`}>
               {badgeText(unreadTotal)}
             </b>
           )}
         </button>
-        <button className={`nav-link ${activeNav === "Мини-игры" ? "active" : ""}`} onClick={onOpenGames} aria-label="Мини-игры">
+        <button
+          className={`nav-link ${activeNav === "Мини-игры" ? "active" : ""}`}
+          onClick={onOpenGames}
+          aria-label={t("nav.games", { "nav.games": "Мини-игры" })}
+        >
           <Gamepad2 size={22} />
-          <span>Мини-игры</span>
+          <span>{t("nav.games", { "nav.games": "Мини-игры" })}</span>
         </button>
         <button
           className={`nav-link ${notificationsGranted ? "notifications-on" : ""}`}
@@ -58,12 +70,16 @@ export default function Rail({
           aria-label={notificationsGranted ? "Уведомления включены" : "Включить уведомления"}
         >
           <Bell size={22} />
-          <span>Уведомления</span>
+          <span>{t("nav.notifications", { "nav.notifications": "Уведомления" })}</span>
         </button>
         <div className="nav-divider" />
-        <button className={`nav-link ${activeNav === "Настройки" ? "active" : ""}`} onClick={onOpenSettings} aria-label="Настройки">
+        <button
+          className={`nav-link ${activeNav === "Настройки" ? "active" : ""}`}
+          onClick={onOpenSettings}
+          aria-label={t("nav.settings", { "nav.settings": "Настройки" })}
+        >
           <Settings size={22} />
-          <span>Настройки</span>
+          <span>{t("nav.settings", { "nav.settings": "Настройки" })}</span>
         </button>
       </nav>
 

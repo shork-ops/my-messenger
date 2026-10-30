@@ -26,6 +26,7 @@ const en: Dictionary = {
   "nav.calls": "Calls",
   "nav.contacts": "Contacts",
   "nav.settings": "Settings",
+  "nav.notifications": "Notifications",
 
   "chat.search": "Search",
   "chat.newChat": "New chat",

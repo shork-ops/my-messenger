@@ -31,9 +31,11 @@ export function useBackSwipe({ enabled, onBack }: UseBackSwipeOptions) {
       start = null;
       const touch = event.changedTouches[0];
       if (!from || !touch) return;
-      // A gesture that began inside a field or a button belongs to it, not to us.
-      const target = event.target as HTMLElement | null;
-      if (target?.closest("input, textarea, select, button, [contenteditable='true']")) return;
+      // A gesture that began inside a field or a button belongs to it, not to us. The
+      // target of a touch event is usually an element, but on window-level listeners it
+      // can be the window or the document, and neither has closest().
+      const target: EventTarget | null = event.target;
+      if (target instanceof Element && target.closest("input, textarea, select, button, [contenteditable='true']")) return;
       if (isBackSwipe(from, { x: touch.clientX, y: touch.clientY, t: Date.now() })) onBack();
     };
 

@@ -168,6 +168,32 @@ export default function MessageBubble({
   onDelete,
   onGameInvite,
 }: MessageBubbleProps) {
+  // Which way the action menu opens. Upwards is the natural direction beside a bubble,
+  // but there has to be room above it; otherwise the menu is placed below instead.
+  const [menuBelow, setMenuBelow] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const toggleRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!actionsOpen) return;
+    const toggle = toggleRef.current;
+    const menu = menuRef.current;
+    if (!toggle || !menu) return;
+    // Measure after the menu has been laid out, then decide once.
+    const needed = menu.offsetHeight;
+    const room = toggle.getBoundingClientRect().top;
+    setMenuBelow(room < needed + 16);
+
+    // A menu belongs to the message it was opened on. Scrolling the thread detaches it
+    // from that message, and it was left hanging above the viewport, so it closes.
+    const area = menu.closest(".messages-area");
+    const onScroll = () => onToggleActions();
+    if (area) area.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      if (area) area.removeEventListener("scroll", onScroll);
+    };
+  }, [actionsOpen, onToggleActions]);
+
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressed = useRef(false);
 
@@ -279,11 +305,13 @@ export default function MessageBubble({
             className="message-menu-toggle"
             onClick={onToggleActions}
             aria-label="Действия с сообщением"
+            aria-expanded={actionsOpen}
+            ref={toggleRef}
           >
             <MoreVertical size={15} />
           </button>
           {actionsOpen && (
-            <div className="message-actions">
+            <div className={menuBelow ? "message-actions below" : "message-actions"} ref={menuRef}>
               <button type="button" onClick={onReply}>
                 <MessageCircle size={13} /> Ответить
               </button>

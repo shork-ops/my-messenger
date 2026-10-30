@@ -4,6 +4,7 @@ import UserAvatar from "./UserAvatar";
 import type { Chat, ChatFilter, UserSearchResult } from "../types";
 import type { Folder } from "../lib/chatFolders";
 import FolderBar from "./FolderBar";
+import { muteLabel } from "../lib/chatSettings";
 
 const FILTERS: { id: ChatFilter; label: string }[] = [
   { id: "all", label: "Все" },
@@ -58,6 +59,8 @@ export default function ChatListPanel({
   onSelectChat,
   onTogglePin,
 }: ChatListPanelProps) {
+  // One clock for the whole list, so every row agrees on what "muted" means right now.
+  const now = new Date();
   const query = search.trim().replace(/^@/, "");
 
   return (
@@ -138,7 +141,14 @@ export default function ChatListPanel({
                 {chat.pinned && <span className="pinned-mark">📌 </span>}
                 {chat.name}
               </strong>
-              <small>{chat.preview}</small>
+              <small>
+                {muteLabel(chat.mutedUntil ?? null, now) && (
+                  <span className="muted-mark" title={muteLabel(chat.mutedUntil ?? null, now) ?? ""}>
+                    {"🔇 "}
+                  </span>
+                )}
+                {chat.preview}
+              </small>
             </span>
             <span className="chat-meta">
               <small>{chat.time}</small>

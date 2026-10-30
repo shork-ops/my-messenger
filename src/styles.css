@@ -288,7 +288,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
   .app-shell.mobile-chat .chat-list-panel { display: none; }
   .conversation-panel { grid-column: 2; }
   .conversation-header { min-height: 70px; padding: 10px; gap: 9px; }
-  .back-button { display: grid; place-items: center; width: 44px; height: 44px; margin-left: -8px; border: 0; border-radius: 12px; background: transparent; color: var(--fg); }
+  /* flex-shrink: 0 because the header squeezes its children: measured at 34px wide,
+     it fell under the 44px a thumb needs while every other control was fine. */
+  .back-button { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; margin-left: -8px; border: 0; border-radius: 12px; background: transparent; color: var(--fg); }
   .back-button:hover { background: var(--surface-2); }
   .conversation-header > .avatar { width: 38px; height: 38px; }
   .conversation-title strong { font-size: 16px; }
@@ -325,7 +327,26 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 /* A fixed-width grid keeps the menu inside the panel no matter how many
    actions exist; a single row would overflow once real labels are added. */
 .message-actions { position: absolute; z-index: 5; right: 0; bottom: 27px; display: grid; grid-template-columns: repeat(2, minmax(120px, 1fr)); gap: 4px; width: max-content; max-width: min(280px, 78vw); padding: 6px; border: 1px solid var(--border-strong); border-radius: 11px; background: var(--surface-1); box-shadow: 0 8px 24px #0009; }
+/* Opened below the toggle when there is no room above it, which is the case for every
+   message except the last few in a thread. */
+.message-actions.below { top: 27px; bottom: auto; }
 .message-actions button { display: inline-flex; align-items: center; gap: 5px; min-width: 0; padding: 7px 9px; border: 1px solid var(--border); border-radius: 7px; background: #18191c; color: #b9bac1; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* On a phone the menu is wider than the screen, so it is pinned to the panel instead of
+   to the bubble: measured at 390px it ran from x=183 to x=441 and the last effect button
+   was mostly off-screen with no way to scroll to it. */
+@media (max-width: 760px) {
+  .message-actions,
+  .message-actions.below {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-width: none;
+    bottom: 84px;
+    top: auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 .message-actions button:hover { border-color: var(--yellow); color: var(--yellow); }
 /* Reactions and effects share a compact row so the menu stays narrow. */
 .message-actions-group { display: flex; gap: 4px; grid-column: span 2; }
@@ -349,8 +370,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .message-line.mine .message-action-wrap { position: absolute; top: 0; right: -31px; margin-top: 0; }
 .message-line.mine .message-menu-toggle { width: 44px; height: 44px; }
 @media (max-width: 760px) {
-  .message-line.mine .message-content { max-width: calc(100% - 29px); }
-  .message-line.mine .message-action-wrap { right: -28px; }
+  /* The toggle is positioned against the message line, which is as wide as the panel, so
+     pushing it "outside" the bubble ran it past the right edge of the screen: measured at
+     390px its right edge was at 423 and the menu icon was clipped. On a phone it sits inside
+     the bubble's own right edge instead, where there is always room. */
+  .message-line.mine .message-content { max-width: calc(100% - 24px); }
+  .message-line.mine .message-action-wrap { right: 0; }
   .message-line.mine .message-menu-toggle { width: 44px; height: 44px; }
 }
 
