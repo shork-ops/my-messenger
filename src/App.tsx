@@ -5,27 +5,35 @@
  * nothing else. It was two thousand lines of both, which made every change a change to
  * three things at once.
  */
+import { lazy, Suspense, useState } from "react";
+import type { ChangeEvent } from "react";
+import { Shield, X } from "lucide-react";
 import PasscodeLock from "./components/PasscodeLock";
 import Rail from "./components/Rail";
 import ChatListPanel from "./components/ChatListPanel";
 import ConversationPanel from "./components/ConversationPanel";
 import RightPanel from "./components/RightPanel";
-import GameModal from "./components/GameModal";
 import PrivacyModal from "./components/PrivacyModal";
-import { useState } from "react";
-import SettingsModal, { type SettingsSectionId } from "./components/SettingsModal";
-import type { ChangeEvent } from "react";
-import { Shield, X } from "lucide-react";
-import { GalleryModal, MuteModal, NewChatModal, PollModal } from "./components/Modals";
 import FolderPicker from "./components/FolderPicker";
 import EmojiPicker from "./components/EmojiPicker";
-import VideoNoteRecorder from "./components/VideoNoteRecorder";
+import type { SettingsSectionId } from "./components/SettingsModal";
 import { formatNoteTime } from "./lib/videoNote";
 import { isDemoMode } from "./lib/constants";
 import { useMessenger } from "./hooks/useMessenger";
 import "./styles.css";
-import { CallOverlay } from "./components/CallOverlay";
-import ShortcutHelp from "./components/ShortcutHelp";
+
+// Everything below opens on a press: settings, a game, a call, the camera, a dialog.
+// Each is its own chunk, so the first screen does not download what it may never open.
+// `Modals` exports four dialogs from one file and keeps one chunk between them.
+const GameModal = lazy(() => import("./components/GameModal"));
+const SettingsModal = lazy(() => import("./components/SettingsModal"));
+const VideoNoteRecorder = lazy(() => import("./components/VideoNoteRecorder"));
+const ShortcutHelp = lazy(() => import("./components/ShortcutHelp"));
+const CallOverlay = lazy(() => import("./components/CallOverlay").then((m) => ({ default: m.CallOverlay })));
+const GalleryModal = lazy(() => import("./components/Modals").then((m) => ({ default: m.GalleryModal })));
+const MuteModal = lazy(() => import("./components/Modals").then((m) => ({ default: m.MuteModal })));
+const NewChatModal = lazy(() => import("./components/Modals").then((m) => ({ default: m.NewChatModal })));
+const PollModal = lazy(() => import("./components/Modals").then((m) => ({ default: m.PollModal })));
 
 export default function App() {
   const [settingsSection, setSettingsSection] = useState<SettingsSectionId | null>(null);
@@ -433,6 +441,11 @@ export default function App() {
         }}
       />
 
+      {/* Every dialog in this block is a separate chunk. One Suspense boundary covers the
+          lot: while a chunk loads the rest of the app keeps its state, and a null fallback
+          means a dialog that has not arrived yet looks like a closed dialog, which is what
+          it is. */}
+      <Suspense fallback={null}>
       {shortcutsOpen && <ShortcutHelp onClose={() => setShortcutsOpen(false)} />}
 
       {folderPickerChat && (
@@ -517,128 +530,145 @@ export default function App() {
         />
       )}
 
+      {/* Mounted only while open: a lazy component starts downloading on its first
+          render, so keeping it mounted with open={false} would fetch it anyway. */}
+      {newChatOpen && (
       <NewChatModal
-        open={newChatOpen}
-        groupOnly={!isDemoMode}
-        name={newChatName}
-        isGroup={newChatIsGroup}
-        onNameChange={setNewChatName}
-        onIsGroupChange={setNewChatIsGroup}
-        onClose={() => setNewChatOpen(false)}
-        onSubmit={createChat}
-      />
+          open={newChatOpen}
+          groupOnly={!isDemoMode}
+          name={newChatName}
+          isGroup={newChatIsGroup}
+          onNameChange={setNewChatName}
+          onIsGroupChange={setNewChatIsGroup}
+          onClose={() => setNewChatOpen(false)}
+          onSubmit={createChat}
+        />
+      )}
 
+      {muteChatId !== null && (
       <MuteModal
-        open={muteChatId !== null}
-        chatName={chats.find((chat) => chat.id === muteChatId)?.name ?? ""}
-        onPick={(optionId) => void applyMute(optionId)}
-        onClose={() => setMuteChatId(null)}
-      />
+          open={muteChatId !== null}
+          chatName={chats.find((chat) => chat.id === muteChatId)?.name ?? ""}
+          onPick={(optionId) => void applyMute(optionId)}
+          onClose={() => setMuteChatId(null)}
+        />
+      )}
 
+      {pollOpen && (
       <PollModal
-        open={pollOpen}
-        question={pollQuestion}
-        options={pollOptions}
-        onClose={() => setPollOpen(false)}
-        onSubmit={createPoll}
-        onQuestionChange={setPollQuestion}
-        onOptionChange={(index, value) => setPollOptions((current) => current.map((item, itemIndex) => (itemIndex === index ? value : item)))}
-        onAddOption={() => setPollOptions((current) => [...current, ""])}
-      />
+          open={pollOpen}
+          question={pollQuestion}
+          options={pollOptions}
+          onClose={() => setPollOpen(false)}
+          onSubmit={createPoll}
+          onQuestionChange={setPollQuestion}
+          onOptionChange={(index, value) => setPollOptions((current) => current.map((item, itemIndex) => (itemIndex === index ? value : item)))}
+          onAddOption={() => setPollOptions((current) => [...current, ""])}
+        />
+      )}
 
+      {galleryOpen && (
       <GalleryModal
-        open={galleryOpen}
-        images={galleryImages}
-        onClose={() => setGalleryOpen(false)}
-        onOpenImage={(image) => {
-          setActiveId(chats.find((chat) => chat.name === image.chatName)?.id ?? activeId);
-          setGalleryOpen(false);
-        }}
-      />
+          open={galleryOpen}
+          images={galleryImages}
+          onClose={() => setGalleryOpen(false)}
+          onOpenImage={(image) => {
+            setActiveId(chats.find((chat) => chat.name === image.chatName)?.id ?? activeId);
+            setGalleryOpen(false);
+          }}
+        />
+      )}
 
+      {Boolean(call) && (
       <CallOverlay
-        call={call}
-        chatName={activeChat.name}
-        chatColor={activeChat.color ?? "yellow"}
-        error={callError ?? callMedia.error}
-        connected={callMedia.connected}
-        onAnswer={() => void answerCall()}
-        onDecline={() => void hangUp("declined")}
-        onHangUp={() => void hangUp("ended")}
-        onToggleMute={() => void toggleMute()}
-        onToggleCamera={() => void toggleCamera()}
-        screenSharing={callMedia.screenSharing}
-        onToggleScreenShare={() => void toggleScreenShare()}
-        muted={callMedia.micEnabled === false}
-        cameraOff={callMedia.cameraEnabled === false}
-        onRemoteVideo={attachRemoteVideo}
-        onRemoteScreen={attachRemoteScreen}
-        participants={callMedia.participants}
-      />
+          call={call}
+          chatName={activeChat.name}
+          chatColor={activeChat.color ?? "yellow"}
+          error={callError ?? callMedia.error}
+          connected={callMedia.connected}
+          onAnswer={() => void answerCall()}
+          onDecline={() => void hangUp("declined")}
+          onHangUp={() => void hangUp("ended")}
+          onToggleMute={() => void toggleMute()}
+          onToggleCamera={() => void toggleCamera()}
+          screenSharing={callMedia.screenSharing}
+          onToggleScreenShare={() => void toggleScreenShare()}
+          muted={callMedia.micEnabled === false}
+          cameraOff={callMedia.cameraEnabled === false}
+          onRemoteVideo={attachRemoteVideo}
+          onRemoteScreen={attachRemoteScreen}
+          participants={callMedia.participants}
+        />
+      )}
 
+      {privacyOpen && (
       <PrivacyModal
-        open={privacyOpen}
-        preferences={privacy}
-        blockedNames={blockedEntries}
-        saving={privacySaving}
-        deleting={deletingAccount}
-        onChange={(next) => void changePrivacy(next)}
-        visibility={visibility}
-        onVisibilityChange={(next) => void changeVisibility(next)}
-        onUnblock={(userId) => void unblockPerson(userId)}
-        onDeleteAccount={() => void confirmDeleteAccount()}
-        onClose={() => setPrivacyOpen(false)}
-      />
+          open={privacyOpen}
+          preferences={privacy}
+          blockedNames={blockedEntries}
+          saving={privacySaving}
+          deleting={deletingAccount}
+          onChange={(next) => void changePrivacy(next)}
+          visibility={visibility}
+          onVisibilityChange={(next) => void changeVisibility(next)}
+          onUnblock={(userId) => void unblockPerson(userId)}
+          onDeleteAccount={() => void confirmDeleteAccount()}
+          onClose={() => setPrivacyOpen(false)}
+        />
+      )}
 
+      {profileOpen && (
       <SettingsModal
-        open={profileOpen}
-        initialSection={settingsSection}
-        name={profileName}
-        avatar={profileAvatar}
-        avatarPhotoUrl={selfAvatarUrl}
-        avatarUploading={avatarUploading}
-        onAvatarFile={(file) => void uploadAvatar(file)}
-        onAvatarRemove={() => void removeAvatar()}
-        username={username}
-        about={about}
-        onAboutSave={(value) => void saveAbout(value)}
-        usernameSaving={usernameSaving}
-        theme={theme}
-        textSize={textSize}
-        onTextSizeChange={setTextSize}
-        onClose={() => {
-          setProfileOpen(false);
-          setSettingsSection(null);
-        }}
-        onNameChange={setProfileName}
-        onAvatarChange={setProfileAvatar}
-        onUsernameChange={setUsername}
-        onSaveUsername={() => void saveUsername()}
-        onThemeChange={setTheme}
-        onOpenPrivacy={() => setPrivacyOpen(true)}
-        prefs={notificationPrefs}
-        onPrefsChange={setNotificationPrefs}
-        permission={notificationPermission}
-        onRequestPermission={() => void askForNotifications()}
-        mediaBytes={attachmentBytes}
-        attachmentCount={attachmentCount}
-        cacheKeys={cacheKeys}
-        onClearCache={() => void clearCache()}
-        clearing={clearingCache}
-        language={language}
-        onLanguageChange={setLanguage}
-        devices={devices}
-        currentDeviceId={deviceId}
-        onSignOutOthers={() => void signOutOtherDevices()}
-        signingOut={signingOutOthers}
-        passcode={lockCode}
-        onPasscodeChange={setCode}
-        twoFactor={twoFactor}
-        wallpaper={wallpaper}
-        onWallpaperChange={setWallpaper}
-        mediaPolicy={mediaPolicy}
-        onMediaPolicyChange={setMediaPolicy}
-      />
+          open={profileOpen}
+          initialSection={settingsSection}
+          name={profileName}
+          avatar={profileAvatar}
+          avatarPhotoUrl={selfAvatarUrl}
+          avatarUploading={avatarUploading}
+          onAvatarFile={(file) => void uploadAvatar(file)}
+          onAvatarRemove={() => void removeAvatar()}
+          username={username}
+          about={about}
+          onAboutSave={(value) => void saveAbout(value)}
+          usernameSaving={usernameSaving}
+          theme={theme}
+          textSize={textSize}
+          onTextSizeChange={setTextSize}
+          onClose={() => {
+            setProfileOpen(false);
+            setSettingsSection(null);
+          }}
+          onNameChange={setProfileName}
+          onAvatarChange={setProfileAvatar}
+          onUsernameChange={setUsername}
+          onSaveUsername={() => void saveUsername()}
+          onThemeChange={setTheme}
+          onOpenPrivacy={() => setPrivacyOpen(true)}
+          prefs={notificationPrefs}
+          onPrefsChange={setNotificationPrefs}
+          permission={notificationPermission}
+          onRequestPermission={() => void askForNotifications()}
+          mediaBytes={attachmentBytes}
+          attachmentCount={attachmentCount}
+          cacheKeys={cacheKeys}
+          onClearCache={() => void clearCache()}
+          clearing={clearingCache}
+          language={language}
+          onLanguageChange={setLanguage}
+          devices={devices}
+          currentDeviceId={deviceId}
+          onSignOutOthers={() => void signOutOtherDevices()}
+          signingOut={signingOutOthers}
+          passcode={lockCode}
+          onPasscodeChange={setCode}
+          twoFactor={twoFactor}
+          wallpaper={wallpaper}
+          onWallpaperChange={setWallpaper}
+          mediaPolicy={mediaPolicy}
+          onMediaPolicyChange={setMediaPolicy}
+        />
+      )}
+      </Suspense>
 
       {deletedMessage && (
         <div className="toast undo-toast">

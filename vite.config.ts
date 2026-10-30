@@ -36,6 +36,26 @@ export default defineConfig(({ mode }) => ({
     port: 5173,
     open: false,
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Three groups instead of one monolith: React, the Supabase client and LiveKit
+        // change on their own schedule, not ours. Splitting them means a release that
+        // touches only app code leaves those chunks untouched and already cached on the
+        // user's device, so the download after an update is the app, not the SDKs.
+        manualChunks(id: string) {
+          if (!id.includes("node_modules")) return undefined;
+          // Match the package directory, not a substring of the whole path: `includes("react")`
+          // also caught lucide-react, which then shipped inside the React chunk.
+          const pkg = id.split("node_modules/").pop() ?? "";
+          if (pkg.startsWith("livekit-client") || pkg.startsWith("@livekit")) return "livekit";
+          if (pkg.startsWith("@supabase")) return "supabase";
+          if (pkg.startsWith("react-dom") || pkg.startsWith("react/") || pkg.startsWith("scheduler")) return "react";
+          return undefined;
+        },
+      },
+    },
+  },
   test: {
     // Logic tests run on Node, where there is no DOM at all; a component test declares
     // its own environment in a docblock comment at the top of the file instead.

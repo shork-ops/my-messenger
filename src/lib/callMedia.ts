@@ -1,4 +1,4 @@
-import { Room, RoomEvent, Track } from "livekit-client";
+import type { Room, Track } from "livekit-client";
 import type { CallToken } from "./calls";
 import type { RoomParticipant } from "./groupCall";
 import { screenShareRequest, shareErrorMessage } from "./screenShare";
@@ -89,6 +89,22 @@ export function describeMediaError(error: unknown): string {
   return "Не удалось подключиться к звонку";
 }
 
+/**
+ * The LiveKit SDK is loaded on the first call, not at import time.
+ *
+ * It is the largest dependency in the app and most sessions end without a call, so
+ * fetching it at startup made every visitor pay for a feature they did not use. The
+ * module is cached by the bundler after the first load, so a second call is instant.
+ */
+let livekitLoading: Promise<typeof import("livekit-client")> | null = null;
+
+function loadLiveKit(): Promise<typeof import("livekit-client")> {
+  // The promise is cached, not the result: two calls started at the same moment share
+  // one download instead of racing for it.
+  livekitLoading ??= import("livekit-client");
+  return livekitLoading;
+}
+
 export class CallSession {
   private room: Room | null = null;
   private state: MediaState = INITIAL_MEDIA;
@@ -103,6 +119,7 @@ export class CallSession {
 
   /** Connects to the SFU and starts publishing audio (and video when asked). */
   async connect(token: CallToken, options: { video: boolean }): Promise<void> {
+    const { Room, RoomEvent, Track } = await loadLiveKit();
     const room = new Room({
       // Echo cancellation and noise suppression matter more than raw quality in
       // a chat app: without them a laptop fan makes the call unusable.
