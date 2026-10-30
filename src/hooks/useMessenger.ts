@@ -61,6 +61,7 @@ import { useNotificationPrefs } from "../hooks/useNotificationPrefs";
 import { usePrivacyPrefs } from "../hooks/usePrivacyPrefs";
 import { stickerById, stickerMarkup } from "../lib/stickers";
 import { formatSendAt } from "../lib/scheduling";
+import { splitIntoAlbums } from "../lib/albums";
 import { useLanguage } from "../hooks/useLanguage";
 import { usePasscode } from "../hooks/usePasscode";
 import { useTwoFactor } from "../hooks/useTwoFactor";
@@ -86,7 +87,7 @@ import { useAutoScroll } from "../hooks/useAutoScroll";
 import { unreadMessages } from "../lib/unread";
 import { useTyping } from "../hooks/useTyping";
 import { usePresence } from "../hooks/usePresence";
-import type { Chat, ChatFilter, Message, MessageEffect, UserSearchResult } from "../types";
+import type { Attachment, Chat, ChatFilter, Message, MessageEffect, UserSearchResult } from "../types";
 
 
 /**
@@ -531,37 +532,27 @@ export function useMessenger() {
     action(`Диалог с @${user.username} создан`);
   }
 
-  async function handleAttachment(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-    const chat = chats.find((item) => item.id === activeId);
-    const client = supabase;
-    if (!client || !accountId || !chat?.remoteId) {
-      action("Открой облачный диалог, чтобы отправить файл");
-      return;
-    }
-    if (file.size > MAX_UPLOAD_BYTES) {
-      action(`Максимальный размер файла — ${formatBytes(MAX_UPLOAD_BYTES)}`);
-      return;
-    }
-    if (!isSupportedFile(file.type)) {
-      action("Этот формат файла пока не поддерживается");
-      return;
-    }
-
-    // Photos are downscaled before upload: a 12 MP shot would otherwise waste
-    // the user's traffic and the bucket budget for no visible gain.
+  /**
+   * Uploads one picture and returns what the message will carry for it.
+   *
+   * Shared by single pictures and albums so a photo looks and costs the same either way; the
+   * compression and the size rules are not worth having in two places.
+   */
+  async function uploadPicture(
+    client: NonNullable<typeof supabase>,
+    chatRemoteId: string,
+    ownerId: string,
+    file: File,
+    percentFrom: number,
+    percentTo: number,
+  ): Promise<{ meta: Attachment; path: string } | null> {
     let payload: Blob = file;
     let uploadName = file.name;
-    let meta: { name: string; type: string; size: number; width?: number; height?: number; thumbnail?: string } = {
-      name: file.name,
-      type: file.type || "application/octet-stream",
-      size: file.size,
-    };
+    const base = { name: file.name, type: file.type || "application/octet-stream", size: file.size };
+    let meta: Omit<Attachment, "data"> = base;
 
     if (shouldCompress(file)) {
-      setUploadProgress({ name: file.name, percent: 10, stage: "Сжимаю фото…" });
+      setUploadProgress({ name: file.name, percent: percentFrom, stage: "Сжимаю фото…" });
       const prepared = await prepareImage(file);
       payload = prepared.blob;
       uploadName = prepared.fileName;
@@ -575,52 +566,110 @@ export function useMessenger() {
       };
     }
 
-    setUploadProgress({ name: uploadName, percent: 45, stage: "Отправляю файл…" });
-    const path = buildStoragePath(chat.remoteId, accountId, uploadName, crypto.randomUUID());
-    // storage-js 2.118 exposes no per-chunk callback, so the bar advances by
-    // stage instead of pretending to know real byte progress.
+    setUploadProgress({ name: uploadName, percent: Math.round((percentFrom + percentTo) / 2), stage: "Отправляю файл…" });
+    const path = buildStoragePath(chatRemoteId, ownerId, uploadName, crypto.randomUUID());
     const uploaded = await client.storage.from("chat-media").upload(path, payload, { contentType: meta.type });
-    if (uploaded.error) {
-      setUploadProgress(null);
-      action("Не удалось загрузить файл. Проверь миграцию online_media в Supabase.");
-      return;
-    }
-    setUploadProgress({ name: uploadName, percent: 80, stage: "Публикую сообщение…" });
+    if (uploaded.error) return null;
     const signed = await client.storage.from("chat-media").createSignedUrl(path, 3600);
     if (signed.error || !signed.data?.signedUrl) {
-      setUploadProgress(null);
-      action("Не удалось получить ссылку на файл");
-      return;
-    }
-    const attachmentMeta = { ...meta, path };
-    const inserted = await client.from("messages").insert({ chat_id: chat.remoteId, sender_id: accountId, body: uploadName, attachment: attachmentMeta }).select("id, created_at").single();
-    if (inserted.error || !inserted.data) {
-      // The row is the source of truth; a stored file without it is orphaned.
+      // A stored file whose message is never written is an orphan; remove it rather than
+      // leave the bucket to grow with files nobody can reach.
       await client.storage.from("chat-media").remove([path]);
-      setUploadProgress(null);
-      action("Не удалось отправить вложение");
+      return null;
+    }
+    return { meta: { ...meta, path, data: signed.data.signedUrl, expiresAt: Date.now() + SIGNED_URL_TTL_SECONDS * 1000 }, path };
+  }
+
+  async function handleAttachment(event: ChangeEvent<HTMLInputElement>) {
+    const chosen = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (chosen.length === 0) return;
+    const chat = chats.find((item) => item.id === activeId);
+    const client = supabase;
+    if (!client || !accountId || !chat?.remoteId) {
+      action("Открой облачный диалог, чтобы отправить файл");
       return;
     }
-    const row = inserted.data;
-    const created = new Date(row.created_at);
-    const message: Message = {
-      id: numericId(row.id),
-      remoteId: row.id,
-      author: profileName,
-      text: uploadName,
-      time: clockTime(created),
-      mine: true,
-      createdAt: created.getTime(),
-      attachment: {
-        ...attachmentMeta,
-        data: signed.data.signedUrl,
-        expiresAt: Date.now() + SIGNED_URL_TTL_SECONDS * 1000,
-      },
-    };
-    setChats((current) => appendMessage(current, activeId, message, "📎 " + uploadName, message.time));
-    setUploadProgress({ name: uploadName, percent: 100, stage: "Готово" });
+
+    // Every file is checked before anything is uploaded: a selection that fails halfway
+    // would leave half an album in the bucket and half in the conversation.
+    for (const file of chosen) {
+      if (file.size > MAX_UPLOAD_BYTES) {
+        action(`Файл «${file.name}» больше ${formatBytes(MAX_UPLOAD_BYTES)}`);
+        return;
+      }
+      if (!isSupportedFile(file.type)) {
+        action(`Формат файла «${file.name}» пока не поддерживается`);
+        return;
+      }
+    }
+
+    const albums = splitIntoAlbums(chosen);
+    let sent = 0;
+    for (const group of albums) {
+      const pictures: Attachment[] = [];
+      const stored: Omit<Attachment, "data">[] = [];
+      const paths: string[] = [];
+      let failed = false;
+      for (const [index, file] of group.entries()) {
+        const from = 10 + Math.round((index / group.length) * 70);
+        const to = 10 + Math.round(((index + 1) / group.length) * 70);
+        const uploaded = await uploadPicture(client, chat.remoteId, accountId, file, from, to);
+        if (!uploaded) {
+          failed = true;
+          break;
+        }
+        pictures.push(uploaded.meta);
+        const { data: _url, ...withoutUrl } = uploaded.meta;
+        stored.push(withoutUrl);
+        paths.push(uploaded.path);
+      }
+      if (failed) {
+        // Nothing half-sent: the whole group is undone, or the conversation would show a
+        // message that is missing the picture the person meant to send.
+        await client.storage.from("chat-media").remove(paths);
+        setUploadProgress(null);
+        action("Не удалось загрузить файл. Проверь миграцию online_media в Supabase.");
+        return;
+      }
+
+      setUploadProgress({ name: group[0].name, percent: 85, stage: "Публикую сообщение…" });
+      const first = pictures[0];
+      const isAlbum = pictures.length > 1;
+      const body = isAlbum ? `${pictures.length} фото` : first.name;
+      const attachmentValue = isAlbum ? { items: stored } : stored[0];
+      const inserted = await client
+        .from("messages")
+        .insert({ chat_id: chat.remoteId, sender_id: accountId, body, attachment: attachmentValue })
+        .select("id, created_at")
+        .single();
+      if (inserted.error || !inserted.data) {
+        await client.storage.from("chat-media").remove(paths);
+        setUploadProgress(null);
+        action("Не удалось отправить вложение");
+        return;
+      }
+      const row = inserted.data;
+      const created = new Date(row.created_at);
+      const message: Message = {
+        id: numericId(row.id),
+        remoteId: row.id,
+        author: profileName,
+        text: body,
+        time: clockTime(created),
+        mine: true,
+        createdAt: created.getTime(),
+        ...(isAlbum ? { album: pictures } : { attachment: first }),
+      };
+      setChats((current) =>
+        appendMessage(current, activeId, message, isAlbum ? `${pictures.length} фото` : "📎 " + first.name, message.time)
+      );
+      sent += isAlbum ? pictures.length : 1;
+    }
+
+    setUploadProgress({ name: chosen[0].name, percent: 100, stage: "Готово" });
     window.setTimeout(() => setUploadProgress(null), 900);
-    action("Вложение отправлено");
+    action(sent === 1 ? "Вложение отправлено" : `Отправлено: ${sent}`);
   }
 
   async function createChat(event: FormEvent) {

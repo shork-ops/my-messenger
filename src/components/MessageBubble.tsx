@@ -11,6 +11,7 @@ import { stickerById } from "../lib/stickers";
 import { firstLink } from "../lib/links";
 import { useLinkCard } from "../hooks/useLinkCard";
 import LinkPreview from "./LinkPreview";
+import AlbumGrid from "./AlbumGrid";
 import { formatBytes } from "../lib/media";
 import type { Message, MessageEffect, Poll } from "../types";
 
@@ -297,6 +298,8 @@ export default function MessageBubble({
                 {sticker.glyph}
               </span>
             </span>
+          ) : message.album && message.album.length > 0 ? (
+            <AlbumGrid items={message.album} autoload={autoloadMedia} />
           ) : message.attachment ? (
             <AttachmentCard attachment={message.attachment} autoload={autoloadMedia} />
           ) : (

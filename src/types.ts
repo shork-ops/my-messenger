@@ -37,6 +37,12 @@ export type Attachment = {
 
 export type ReplyPreview = { author: string; text: string };
 
+/**
+ * One picture of an album. The same shape as a single Attachment, because the first picture
+ * of an album and a picture sent alone should not be two different things to render.
+ */
+export type AlbumItem = Attachment;
+
 export type Message = {
   id: number;
   remoteId?: string;
@@ -46,6 +52,12 @@ export type Message = {
   mine?: boolean;
   image?: boolean;
   attachment?: Attachment;
+  /**
+   * Pictures sent together. The message carries the album instead of a single attachment:
+   * five rows for five photos would push the conversation down five lines and arrive as
+   * five notifications.
+   */
+  album?: AlbumItem[];
   poll?: Poll;
   edited?: boolean;
   createdAt?: number;
