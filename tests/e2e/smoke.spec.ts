@@ -91,11 +91,17 @@ test.describe("Nexus messenger smoke", () => {
 
   test("opens message actions on a long press", async ({ page }) => {
     const line = page.locator(".message-line").first();
+    // The conversation scrolls itself to the newest message, so the first row can be half
+    // above the fold when the box is measured. Pressing at a point that is not on the row
+    // would test the list's background, not the long press.
     const box = await line.boundingBox();
     if (!box) throw new Error("no message on screen");
+    const area = await page.locator(".messages-area").boundingBox();
+    const top = Math.max(box.y, (area?.y ?? box.y) + 4);
+    const pressY = Math.min(top + 12, box.y + box.height - 4);
 
     // A short tap must leave the menu closed.
-    await page.mouse.move(box.x + 40, box.y + box.height / 2);
+    await page.mouse.move(box.x + 40, pressY);
     await page.mouse.down();
     await page.waitForTimeout(120);
     await page.mouse.up();
@@ -103,7 +109,7 @@ test.describe("Nexus messenger smoke", () => {
     await expect(page.locator(".message-actions")).toHaveCount(0);
 
     // Holding past the threshold opens it.
-    await page.mouse.move(box.x + 40, box.y + box.height / 2);
+    await page.mouse.move(box.x + 40, pressY);
     await page.mouse.down();
     await page.waitForTimeout(700);
     const openedDuringHold = (await page.locator(".message-actions").count()) > 0;

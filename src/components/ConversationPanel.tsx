@@ -73,6 +73,8 @@ type ConversationPanelProps = {
   peerOnline: boolean;
   peerLastSeenAt: number | null;
   endRef: MutableRefObject<HTMLDivElement | null>;
+  /** The scrolling message list, used to keep the newest message in view. */
+  listRef: MutableRefObject<HTMLDivElement | null>;
   messagesRef: MutableRefObject<HTMLDivElement | null>;
   /** Remote id of a message a search result pointed at, to scroll to and highlight. */
   revealMessageId?: string | null;
@@ -135,6 +137,7 @@ export default function ConversationPanel({
   peerOnline,
   peerLastSeenAt,
   endRef,
+  listRef,
   messagesRef,
   /** Remote id of a message a search result pointed at, to scroll to and highlight. */
   revealMessageId,
@@ -320,7 +323,10 @@ export default function ConversationPanel({
 
       {/* The pattern is drawn behind the messages, so bubbles keep their own
           background and the contrast they were checked with. */}
-      <div className="messages-area" ref={messagesRef}>
+      <div className="messages-area" ref={(node) => {
+        messagesRef.current = node;
+        listRef.current = node;
+      }}>
         {wallpaper !== "none" && (
           <span
             className="wallpaper-layer"

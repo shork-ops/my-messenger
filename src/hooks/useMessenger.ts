@@ -159,6 +159,8 @@ export function useMessenger() {
   const [openMessageActionsId, setOpenMessageActionsId] = useState<number | null>(null);
   const [deletedMessage, setDeletedMessage] = useState<{ chatId: number; message: Message; index: number } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  /** The scrolling list itself, which is what the reader actually looks at. */
+  const messagesListRef = useRef<HTMLDivElement | null>(null);
   const messagesAreaRef = useRef<HTMLDivElement | null>(null);
 
   const { notice, notify: action, clearNotice } = useNotice();
@@ -279,7 +281,7 @@ export function useMessenger() {
   // the view down.
   // Non-null while the opened chat has unread messages the reader has not reached.
   const unreadHold = unreadMessages(activeChat) ? activeChat.id : null;
-  useAutoScroll(messagesEndRef, [activeId, activeChat.messages.length], unreadHold);
+  useAutoScroll(messagesListRef, [activeId, activeChat.messages.length], unreadHold);
 
   const { loadOlder, loadingChatIds } = useHistoryPagination({ accountId, profileName, notify: action, setChats });
   useInfiniteHistory(messagesAreaRef, activeChat, loadOlder);
@@ -1939,6 +1941,7 @@ export function useMessenger() {
     messageSearchOpen,
     messagesAreaRef,
     messagesEndRef,
+    messagesListRef,
     mobileView,
     moveChatFolder,
     muteChatId,

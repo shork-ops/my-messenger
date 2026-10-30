@@ -118,6 +118,7 @@ export default function App() {
     messageSearchOpen,
     messagesAreaRef,
     messagesEndRef,
+    messagesListRef,
     mobileView,
     moveChatFolder,
     muteChatId,
@@ -395,6 +396,7 @@ export default function App() {
         peerOnline={peerOnline}
         peerLastSeenAt={peerLastSeenAt}
         endRef={messagesEndRef}
+        listRef={messagesListRef}
         messagesRef={messagesAreaRef}
         revealMessageId={revealMessageId}
         onRevealed={() => setRevealMessageId(null)}

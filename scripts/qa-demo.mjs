@@ -533,6 +533,51 @@ async function expectCount(page, selector, expected, label) {
   await context.close();
 }
 
+// --- a long conversation opens on its newest message -------------------------------------
+{
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "ru-RU", isMobile: true, hasTouch: true });
+  const page = await context.newPage();
+  await page.goto(base + tag(), { waitUntil: "networkidle", timeout: 90000 });
+  await page.waitForSelector(".chat-row", { timeout: 30000 });
+  await page.waitForTimeout(1200);
+  await page.locator(".chat-row").first().click();
+  await page.waitForTimeout(900);
+  const composer = page.locator('.composer input[aria-label="Текст сообщения"]');
+  // A conversation tall enough that "at the bottom" and "at the top" are different places.
+  for (let i = 1; i <= 30; i += 1) {
+    await composer.fill("прокрутка " + i);
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(60);
+  }
+  await page.waitForTimeout(1500);
+  const fromBottom = () =>
+    page.evaluate(() => {
+      const area = document.querySelector(".messages-area");
+      return Math.round(area.scrollHeight - area.clientHeight - area.scrollTop);
+    });
+  const afterSending = await fromBottom();
+  record("отправка держит новый внизу", afterSending === 0, `${afterSending} px до конца`);
+
+  await page.getByLabel("Назад к чатам").click();
+  await page.waitForTimeout(600);
+  await page.locator(".chat-row").first().click();
+  await page.waitForTimeout(1600);
+  const afterReturn = await fromBottom();
+  record("чат открывается на новых сообщениях", afterReturn === 0, `${afterReturn} px до конца`);
+
+  // Reading history must not be undone by the next arriving message.
+  await page.evaluate(() => {
+    document.querySelector(".messages-area").scrollTop = 0;
+  });
+  await page.waitForTimeout(800);
+  await composer.fill("пришло, пока читаю историю");
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(1200);
+  const whileReading = await fromBottom();
+  record("чтение истории не сбивается", whileReading > 100, `${whileReading} px от конца`);
+  await context.close();
+}
+
 await browser.close();
 
 const failed = results.filter((r) => !r.ok);
