@@ -78,7 +78,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .self-copy small, .profile-card small { display: flex; align-items: center; gap: 6px; color: var(--fg-secondary); font-size: var(--text-meta); }
 .self-copy i, .profile-card i, .online-heading i, .friend-avatar-wrap i { width: 8px; height: 8px; border-radius: 50%; background: #45e5a1; display: inline-block; }
 .self-settings { color: var(--fg-muted); }
-.avatar { position: relative; display: grid; flex-shrink: 0; place-items: center; width: 44px; height: 44px; border: 1px solid var(--border-strong); border-radius: 50%; background: var(--surface-2); color: var(--fg); font-weight: 600; font-size: 17px; }
+.avatar { position: relative; display: grid; flex-shrink: 0; place-items: center; width: 44px; height: 44px; overflow: hidden; border: 1px solid var(--border-strong); border-radius: 50%; background: var(--surface-2); color: var(--fg); font-weight: 600; font-size: 17px; }
 .avatar.group { background: var(--fg); color: #111; border-color: var(--fg); font-size: 23px; }
 .avatar.blue { background: linear-gradient(145deg, #5b7b91, #18232d); }
 .avatar.pink { background: linear-gradient(145deg, #c58e89, #3b2229); }

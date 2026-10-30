@@ -500,6 +500,39 @@ async function expectCount(page, selector, expected, label) {
   await context.close();
 }
 
+// --- who is named in a conversation ------------------------------------------------------
+{
+  const context = await browser.newContext({ viewport: { width: 1200, height: 800 }, locale: "ru-RU" });
+  const page = await context.newPage();
+  await page.goto(base + tag(), { waitUntil: "networkidle", timeout: 90000 });
+  await page.waitForSelector(".chat-row", { timeout: 30000 });
+  await page.waitForTimeout(1200);
+  const chat = async (name) => {
+    await page.locator(".chat-row").filter({ hasText: name }).first().click();
+    await page.waitForTimeout(700);
+    return page.evaluate(() => ({
+      authors: document.querySelectorAll(".messages-area .message-author").length,
+      avatars: document.querySelectorAll(".messages-area .message-line .avatar").length,
+      bubbles: document.querySelectorAll(".messages-area .message-line").length,
+    }));
+  };
+  // A one-to-one chat has one other person in it: a face and a name on every line repeat
+  // what the header already says. In a group they are how you tell who spoke.
+  const direct = await chat("Максим");
+  record("личный чат без имени и аватара", direct.authors === 0 && direct.avatars === 0, `имён ${direct.authors}, аватаров ${direct.avatars}, сообщений ${direct.bubbles}`);
+  const group = await chat("Команда");
+  record("группа с именем и аватаром", group.authors > 0 && group.avatars > 0, `имён ${group.authors}, аватаров ${group.avatars}`);
+
+  // The header must be able to show a photo, and crop it to the circle.
+  const shape = await page.evaluate(() => {
+    const avatar = document.querySelector(".conversation-header .avatar");
+    if (!avatar) return null;
+    return { radius: getComputedStyle(avatar).borderRadius, overflow: getComputedStyle(avatar).overflow };
+  });
+  record("шапка обрезает фото в круг", Boolean(shape) && shape.radius === "50%" && shape.overflow === "hidden", shape ? shape.overflow : "нет аватара");
+  await context.close();
+}
+
 await browser.close();
 
 const failed = results.filter((r) => !r.ok);

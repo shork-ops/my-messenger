@@ -120,6 +120,8 @@ const EFFECT_MARKS: Record<MessageEffect, string> = {
 
 type MessageBubbleProps = {
   message: Message;
+  /** Whether to show who spoke: true in a group, false in a one-to-one chat. */
+  showAuthor: boolean;
   /** Whether pictures in this conversation load without a tap. */
   autoloadMedia: boolean;
   accountId: string | null;
@@ -147,6 +149,7 @@ type MessageBubbleProps = {
 
 export default function MessageBubble({
   message,
+  showAuthor,
   autoloadMedia,
   accountId,
   profileName,
@@ -239,13 +242,16 @@ export default function MessageBubble({
       }}
       onClickCapture={handleClickCapture}
     >
-      {!message.mine && (
+      {/* In a one-to-one chat there is only one other person, so a face and a name on every
+          line say nothing that the header has not already said. In a group they are the whole
+          point: they are how a reader tells who spoke. */}
+      {showAuthor && !message.mine && (
         <Avatar color={friends.find((friend) => friend.name === message.author)?.color ?? "blue"} small>
           {message.author.slice(0, 1)}
         </Avatar>
       )}
       <div className="message-content">
-        {!message.mine && <strong className="message-author">{message.author}</strong>}
+        {showAuthor && !message.mine && <strong className="message-author">{message.author}</strong>}
         <div className={`bubble ${message.mine ? "mine-bubble" : ""} ${message.effect ? `message-effect-${message.effect}` : ""}`}>
           {message.replyTo && (
             <div className="reply-quote">

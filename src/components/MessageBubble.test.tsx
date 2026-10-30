@@ -21,10 +21,11 @@ function message(overrides: Partial<Message> = {}): Message {
 
 const noop = () => {};
 
-function renderBubble(overrides: Partial<Message> = {}) {
+function renderBubble(overrides: Partial<Message> = {}, showAuthor = false) {
   return render(
     <MessageBubble
       message={message(overrides)}
+      showAuthor={showAuthor}
       autoloadMedia={false}
       accountId={null}
       profileName="Алексей"
@@ -105,5 +106,26 @@ describe("MessageBubble", () => {
     const { container } = renderBubble({ text: "<b>не жирный</b>" });
     expect(container.querySelector("b")).toBeNull();
     expect(container.textContent).toContain("<b>не жирный</b>");
+  });
+});
+
+
+describe("who spoke is named only where it is needed", () => {
+  it("keeps the name and face off a one-to-one chat", () => {
+    // There is one other person in the conversation; the header already says who it is.
+    const { container } = renderBubble({ author: "Аня", mine: false }, false);
+    expect(container.querySelector(".message-author")).toBeNull();
+    expect(container.querySelector(".avatar")).toBeNull();
+  });
+
+  it("names the speaker in a group, where names are how you tell who spoke", () => {
+    const { container } = renderBubble({ author: "Аня", mine: false }, true);
+    expect(container.querySelector(".message-author")?.textContent).toBe("Аня");
+    expect(container.querySelector(".avatar")).not.toBeNull();
+  });
+
+  it("does not name the reader to themselves even in a group", () => {
+    const { container } = renderBubble({ author: "Алексей", mine: true }, true);
+    expect(container.querySelector(".message-author")).toBeNull();
   });
 });

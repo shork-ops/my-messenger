@@ -4,6 +4,7 @@ import { type WallpaperId, wallpaperBackground, wallpaperSize } from "../lib/wal
 import { Download, FolderPlus } from "lucide-react";
 import { Archive, BellOff, BellRing, ChevronLeft, MoreVertical, Phone, Pin, Search, Trash2, UserRound, Video, X } from "lucide-react";
 import Avatar from "./Avatar";
+import UserAvatar from "./UserAvatar";
 import Composer from "./Composer";
 import MessageBubble from "./MessageBubble";
 import SearchHits from "./SearchHits";
@@ -230,7 +231,13 @@ export default function ConversationPanel({
         <button type="button" className="back-button" onClick={onBack} aria-label="Назад к чатам">
           <ChevronLeft size={22} />
         </button>
-        <Avatar color={chat.color}>{chat.avatar}</Avatar>
+        {/* The photo, not just the letter: the chat list showed the photo and the header
+            above it showed initials, so the same person looked like two different people. */}
+        {chat.avatarPath ? (
+          <UserAvatar name={chat.name} letter={chat.avatar} avatarPath={chat.avatarPath} color={chat.color} />
+        ) : (
+          <Avatar color={chat.color}>{chat.avatar}</Avatar>
+        )}
         <div className="conversation-title">
           <strong>{chat.name}</strong>
           <small>{subtitle}</small>
@@ -369,6 +376,7 @@ export default function ConversationPanel({
               )}
               <MessageBubble
                 message={message}
+                showAuthor={Boolean(chat.group)}
                 autoloadMedia={autoloadMedia}
                 accountId={accountId}
                 profileName={profileName}
