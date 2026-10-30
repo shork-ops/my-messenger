@@ -1262,3 +1262,35 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 }
 .sticker-item:hover { background: rgba(0, 0, 0, 0.06); }
 .sticker-item:focus-visible { outline: 2px solid var(--accent, #f0b429); outline-offset: 1px; }
+
+/* A pending message is visibly not yet gone: a dashed edge and a muted time. It must not
+   look delivered, or the reader would think it had been sent and then watch it vanish. */
+.message-pending { font-style: italic; opacity: .8; }
+
+.schedule-modal { width: min(420px, calc(100vw - 32px)); }
+.schedule-preview {
+  margin: 4px 18px 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, .05);
+  font-size: 14px;
+  line-height: 1.45;
+  max-height: 96px;
+  overflow: hidden;
+}
+.schedule-choices { display: grid; gap: 6px; padding: 0 14px; }
+.schedule-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 0, 0, .1);
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.schedule-choice:hover { background: rgba(0, 0, 0, .04); }
+.schedule-choice small { color: var(--muted, #6b7280); }

@@ -60,6 +60,7 @@ import { useUnreadBadge, useMessageNotifications, usePushSubscriptionSync, useNo
 import { useNotificationPrefs } from "../hooks/useNotificationPrefs";
 import { usePrivacyPrefs } from "../hooks/usePrivacyPrefs";
 import { stickerById, stickerMarkup } from "../lib/stickers";
+import { formatSendAt } from "../lib/scheduling";
 import { useLanguage } from "../hooks/useLanguage";
 import { usePasscode } from "../hooks/usePasscode";
 import { useTwoFactor } from "../hooks/useTwoFactor";
@@ -301,6 +302,7 @@ export function useMessenger() {
   const { wallpaper, setWallpaper } = useWallpaper();
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [stickerOpen, setStickerOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   // The message a search result points at. Cleared once the highlight has been shown.
   const [revealMessageId, setRevealMessageId] = useState<string | null>(null);
   const [noteOpen, setNoteOpen] = useState(false);
@@ -1234,6 +1236,76 @@ export function useMessenger() {
   }
 
 
+  /**
+   * Sends the draft at a later moment.
+   *
+   * The moment goes to the database with the message, and the row is hidden from everyone
+   * but its author until then. That is the whole difference between this and a timer: a
+   * timer stops when the tab closes, and a message that silently never arrives is worse
+   * than one that was sent at the wrong time.
+   */
+  async function scheduleMessage(at: Date, stickerId?: string) {
+    const sticker = stickerId ? stickerById(stickerId) : undefined;
+    const text = sticker ? sticker.label : draft.trim();
+    if (!text) return;
+    const targetChat = chats.find((chat) => chat.id === activeId);
+    const client = supabase;
+    if (!targetChat?.remoteId) {
+      // Local chats live in this browser, so there is nowhere to keep a moment the browser
+      // cannot outlive. Saying so is better than accepting the message and losing it.
+      action("Отложенная отправка работает в облачных чатах");
+      setScheduleOpen(false);
+      return;
+    }
+    if (!client || !accountId) {
+      action("Нужно войти в аккаунт, чтобы отправить позже");
+      setScheduleOpen(false);
+      return;
+    }
+    const body = sticker ? stickerMarkup(sticker.id) : text;
+    const inserted = await withRetry(
+      async () =>
+        client
+          .from("messages")
+          .insert({ chat_id: targetChat.remoteId, sender_id: accountId, body, send_at: at.toISOString() })
+          .select("id, created_at")
+          .single(),
+      { shouldRetry: (error) => isTransientError(error) }
+    ).catch((error: unknown) => ({ error }));
+    const { data, error } = inserted as { data?: { id: string; created_at: string } | null; error?: unknown };
+    if (error || !data) {
+      action("Не удалось отложить сообщение. Проверь подключение и права Supabase.");
+      setScheduleOpen(false);
+      return;
+    }
+    const createdAt = new Date(data.created_at).getTime();
+    const message: Message = {
+      id: numericId(data.id),
+      remoteId: data.id,
+      author: profileName,
+      text,
+      time: at.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
+      mine: true,
+      createdAt,
+      sendAt: at.getTime(),
+      ...(sticker ? { stickerId: sticker.id } : {}),
+    };
+    setChats((current) =>
+      updateChat(current, activeId, (chat) => ({
+        ...chat,
+        // The chat list keeps showing the last delivered message: a pending one is not what
+        // the conversation last said.
+        messages: placeNewMessage(chat.messages, message),
+      }))
+    );
+    setDraft("");
+    setDrafts((current) => ({ ...current, [activeId]: "" }));
+    setReplyTarget(null);
+    setScheduleOpen(false);
+    action(`Уйдёт ${formatSendAt(at, new Date())}`);
+  }
+
+
   function startEditing(message: Message) {
     setEditingMessageId(message.id);
     setEditDraft(message.text);
@@ -1989,6 +2061,7 @@ export function useMessenger() {
     editingMessageId,
     emojiOpen,
     stickerOpen,
+    scheduleOpen,
     exportChat,
     fileInputRef,
     folderChats,
@@ -2066,6 +2139,7 @@ export function useMessenger() {
     selfAvatarUrl,
     sendMessage,
     sendSticker,
+    scheduleMessage,
     serverSearch,
     setActiveFolderId,
     setActiveGame,
@@ -2080,6 +2154,7 @@ export function useMessenger() {
     setEditingMessageId,
     setEmojiOpen,
     setStickerOpen,
+    setScheduleOpen,
     setFolderPickerChat,
     setGalleryOpen,
     setLanguage,

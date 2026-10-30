@@ -17,6 +17,7 @@ import PrivacyModal from "./components/PrivacyModal";
 import FolderPicker from "./components/FolderPicker";
 import EmojiPicker from "./components/EmojiPicker";
 import StickerPicker from "./components/StickerPicker";
+import ScheduleModal from "./components/ScheduleModal";
 import type { SettingsSectionId } from "./components/SettingsModal";
 import { formatNoteTime } from "./lib/videoNote";
 import { isDemoMode } from "./lib/constants";
@@ -101,6 +102,8 @@ export default function App() {
     editingMessageId,
     emojiOpen,
     stickerOpen,
+    scheduleOpen,
+    setScheduleOpen,
     setStickerOpen,
     exportChat,
     fileInputRef,
@@ -180,6 +183,7 @@ export default function App() {
     selfAvatarUrl,
     sendMessage,
     sendSticker,
+    scheduleMessage,
     serverSearch,
     setActiveFolderId,
     setActiveGame,
@@ -431,6 +435,7 @@ export default function App() {
           onChangeText: changeDraft,
           onEmoji: () => setEmojiOpen((open) => !open),
   onStickers: () => setStickerOpen((open) => !open),
+  onSchedule: () => setScheduleOpen(true),
           onVideoNote: () => setNoteOpen(true),
           onToggleVoice: () => void startVoiceRecording(),
           onSubmit: sendMessage,
@@ -484,6 +489,10 @@ export default function App() {
           }}
           onClose={() => setNoteOpen(false)}
         />
+      )}
+
+      {scheduleOpen && (
+        <ScheduleModal text={draft} onPick={(at) => void scheduleMessage(at)} onClose={() => setScheduleOpen(false)} />
       )}
 
       {stickerOpen && (

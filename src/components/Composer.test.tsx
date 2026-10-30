@@ -46,6 +46,7 @@ const renderComposer = () =>
       fileInputRef={createRef<HTMLInputElement>()}
       onChangeText={noop}
       onEmoji={noop}
+      onSchedule={noop}
       onStickers={noop}
       onVideoNote={noop}
       onToggleVoice={noop}

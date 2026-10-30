@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent, MutableRefObject } from "react";
-import { CheckCheck, Image, Mic, Paperclip, Plus, Send, Smile, Sticker, Users, Video, X } from "lucide-react";
+import { CheckCheck, Clock, Image, Mic, Paperclip, Plus, Send, Smile, Sticker, Users, Video, X } from "lucide-react";
 import type { Message } from "../types";
 
 type ComposerProps = {
@@ -25,6 +25,8 @@ type ComposerProps = {
   onAttachment: (event: ChangeEvent<HTMLInputElement>) => void;
   onOpenGallery: () => void;
   onOpenPoll: () => void;
+  /** Offers the moments to send at, when the draft is ready. */
+  onSchedule: () => void;
 };
 
 export default function Composer({
@@ -49,6 +51,7 @@ export default function Composer({
   onAttachment,
   onOpenGallery,
   onOpenPoll,
+  onSchedule,
 }: ComposerProps) {
   const value = editing ? editDraft : draft;
   const [attachOpen, setAttachOpen] = useState(false);
@@ -127,6 +130,16 @@ export default function Composer({
               </button>
               <button type="button" role="menuitem" onClick={() => runFromMenu(onOpenPoll)}>
                 <Users size={18} /> Опрос
+              </button>
+              {/* Scheduling needs something to send; offering it on an empty input would
+                  open a menu that can only be cancelled. */}
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => runFromMenu(onSchedule)}
+                disabled={value.trim() === ""}
+              >
+                <Clock size={18} /> Отправить позже
               </button>
             </div>
           )}

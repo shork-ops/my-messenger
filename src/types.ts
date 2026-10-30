@@ -57,6 +57,8 @@ export type Message = {
    * and the artwork is drawn from the bundle so it cannot rot behind a dead link.
    */
   stickerId?: string;
+  /** When this message is due, for one scheduled ahead. Absent means it is already sent. */
+  sendAt?: number;
   /** Message pinned to the chat header; servers store the timestamp. */
   pinned?: boolean;
 };

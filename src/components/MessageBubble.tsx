@@ -241,6 +241,7 @@ export default function MessageBubble({
   // A sticker id from a newer build resolves to nothing; the message then falls back to
   // its text rather than rendering an empty bubble.
   const sticker = message.stickerId ? stickerById(message.stickerId) : undefined;
+  const pendingSend = message.sendAt !== undefined && message.sendAt > Date.now();
   return (
     <div
       data-remote-id={message.remoteId ?? undefined}
@@ -295,9 +296,19 @@ export default function MessageBubble({
             <MessageBody text={forwardRelease.label ? forwardRelease.body : message.text} />
           )}
           <span className="message-time">
-            {message.edited ? "изменено · " : ""}
-            {message.time}
-            {receipt && (
+            {/* A pending message says when it will go, not when it was typed: the time it
+                was typed is of no interest to the person waiting for it. */}
+            {pendingSend ? (
+              <span className="message-pending" title="Ещё не отправлено">
+                отправлю {message.time}
+              </span>
+            ) : (
+              <>
+                {message.edited ? "изменено · " : ""}
+                {message.time}
+              </>
+            )}
+            {!pendingSend && receipt && (
               <span className={`message-receipt ${receipt === "read" ? "read" : ""}`} aria-label={receipt === "read" ? "Прочитано" : "Отправлено"}>
                 {receipt === "read" ? "✓✓" : "✓"}
               </span>

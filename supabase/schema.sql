@@ -35,7 +35,12 @@ create table if not exists public.messages (
   sender_id uuid not null default auth.uid() references auth.users(id) on delete restrict,
   body text not null default '',
   attachment jsonb,
-  effect text check (effect is null or effect in ('sparkle','hearts','fireworks','glow')),
+  effect text check (
+    effect is null
+    or effect in ('sparkle','hearts','fireworks','glow','confetti','snow','fire','rainbow','bounce','shadow')
+  ),
+  -- Written now, delivered later. Set by the sender; enforced by the read policy below.
+  send_at timestamptz,
   reply_to uuid references public.messages(id) on delete set null,
   created_at timestamptz not null default now(),
   edited_at timestamptz,
@@ -171,7 +176,10 @@ for delete to authenticated using (
 
 drop policy if exists "messages_select_members" on public.messages;
 create policy "messages_select_members" on public.messages
-for select to authenticated using (public.is_chat_member(chat_id));
+for select to authenticated using (
+  public.is_chat_member(chat_id)
+  and (send_at is null or send_at <= now() or sender_id = (select auth.uid()))
+);
 drop policy if exists "messages_insert_as_member" on public.messages;
 create policy "messages_insert_as_member" on public.messages
 for insert to authenticated with check (
