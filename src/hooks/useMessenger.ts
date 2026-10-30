@@ -1269,21 +1269,31 @@ export function useMessenger() {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
+  // The drafts as they are right now, not as they were when the handler was created. Reading
+  // the state directly here was the bug: the box kept the previous chat's text because the
+  // handler looked at a copy of the map from before the typing.
+  const draftsRef = useRef(drafts);
+  draftsRef.current = drafts;
+
   // The draft for the chat that opens on load, which selectChat would have filled if the
   // user had chosen it. Without this the text is stored and never shown.
+  //
+  // Choosing a chat clears or restores the box itself, so this must only fill in the case
+  // it was written for: the chat that opens without being chosen. It used to run on every
+  // change of activeId and do nothing when the new chat had no draft, which left the
+  // previous chat's text sitting in the box.
   const restoredDraftFor = useRef<number | null>(null);
   useEffect(() => {
     if (restoredDraftFor.current === activeId) return;
     restoredDraftFor.current = activeId;
-    const stored = drafts[activeId];
-    if (stored) setDraft(stored);
+    setDraft(drafts[activeId] ?? "");
   }, [activeId, drafts]);
 
   async function selectChat(chat: Chat) {
     setActiveId(chat.id);
     setMobileView("chat");
     if (window.matchMedia("(max-width: 760px)").matches) window.history.pushState({ nexusChat: chat.id }, "");
-    setDraft(drafts[chat.id] ?? "");
+    setDraft(draftsRef.current[chat.id] ?? "");
     setMessageSearch("");
     setChats((current) => markRead(current, chat.id));
     const client = supabase;

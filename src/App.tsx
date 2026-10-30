@@ -299,6 +299,7 @@ export default function App() {
         activeId={activeId}
         onSelectChat={selectChat}
         onTogglePin={toggleChatPin}
+        onPickFolders={(chat) => setFolderPickerChat(chat)}
       />
 
       <ConversationPanel

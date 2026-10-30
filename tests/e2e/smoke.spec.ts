@@ -149,4 +149,93 @@ test.describe("Nexus messenger smoke", () => {
     await expect(page.getByText("Звонки доступны в облачных чатах")).toBeVisible();
     await expect(page.locator(".call-overlay")).toHaveCount(0);
   });
+
+  test("keeps a draft when the chat is left and comes back", async ({ page }) => {
+    // A draft that vanishes on a chat switch is worse than no draft: it teaches people
+    // not to trust the box.
+    const composer = page.locator('.composer input[aria-label="Текст сообщения"]');
+    const rows = page.locator(".chat-row");
+    const openIndex = await rows.evaluateAll((els) => els.findIndex((el) => el.classList.contains("selected")));
+    expect(openIndex, "no conversation is open").toBeGreaterThanOrEqual(0);
+
+    // By this row's own copy of the name, not by "the selected one": after the switch that
+    // selector points at a different chat, and the test walks in a circle.
+    const openRow = rows.nth(openIndex);
+    const openName = (await openRow.textContent()) ?? "";
+
+    await composer.fill("незаконченная мысль");
+
+    const other = rows.filter({ hasNotText: openName.slice(0, 4) }).first();
+    await other.click();
+    await expect(composer).toHaveValue("");
+
+    await openRow.click();
+    await expect(composer).toHaveValue("незаконченная мысль");
+  });
+
+  test("keeps a draft across a reload", async ({ page }) => {
+    // The draft was written to storage but only read when a chat was chosen, so after a
+    // reload the box was empty while the text sat in storage. This is that bug, in a test.
+    const composer = page.locator('.composer input[aria-label="Текст сообщения"]');
+    await composer.fill("переживёт перезагрузку");
+    await expect
+      .poll(() => page.evaluate(() => window.localStorage.getItem("nexus-drafts-v1") ?? ""))
+      .toContain("переживёт перезагрузку");
+
+    await page.reload();
+    await expect(page.locator(".app-shell")).toBeVisible();
+    await expect(composer).toHaveValue("переживёт перезагрузку");
+  });
+
+  test("creates, renames and deletes a folder without touching the others", async ({ page }) => {
+    // Two folders made within the same millisecond used to share an id, so deleting one
+    // took the other with it.
+    const chips = page.locator(".folder-chip > button:first-child");
+
+    for (const name of ["Работа", "Учёба"]) {
+      await page.getByLabel("Создать папку").click();
+      await page.getByLabel("Название папки").fill(name);
+      await page.keyboard.press("Enter");
+      await expect(page.locator(".folder-chip")).toHaveCount(name === "Работа" ? 1 : 2);
+    }
+    await expect(chips).toHaveText([/Работа/, /Учёба/]);
+
+    // Renaming one must leave the other alone.
+    await page.locator(".folder-chip", { hasText: "Учёба" }).locator("> button").first().dblclick();
+    await page.getByLabel(/Новое название папки/).fill("Проекты");
+    await page.getByLabel("Сохранить название").click();
+    await expect(chips).toHaveText([/Работа/, /Проекты/]);
+
+    // Deleting one must leave the other alone.
+    await page.locator(".folder-chip", { hasText: "Работа" }).getByLabel(/Удалить папку/).click();
+    await expect(chips).toHaveText([/Проекты/]);
+  });
+
+  test("puts a chat in a folder and keeps it there after a reload", async ({ page }) => {
+    // Filing a chat into a folder had no way in at all: the picker existed, was styled and
+    // was covered by the hook's tests, and nothing in the interface opened it.
+    await expect(page.locator(".chat-file-button"), "offered with no folder to file into").toHaveCount(0);
+
+    await page.getByLabel("Создать папку").click();
+    await page.getByLabel("Название папки").fill("Работа");
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".chat-file-button").first()).toBeAttached();
+
+    const row = page.locator(".chat-row").first();
+    const name = ((await row.textContent()) ?? "").slice(0, 4);
+    await row.hover();
+    await page.locator(".chat-file-button").first().click();
+    await expect(page.locator(".folder-picker")).toBeVisible();
+    await page.locator(".folder-option", { hasText: "Работа" }).click();
+    await expect(page.locator(".folder-option").first()).toHaveAttribute("aria-pressed", "true");
+    await page.locator('.folder-picker button[aria-label="Закрыть"]').click();
+
+    await page.locator(".folder-chip > button").first().click();
+    await expect(page.locator(".chat-row", { hasText: name })).toHaveCount(1);
+
+    await page.reload();
+    await expect(page.locator(".app-shell")).toBeVisible();
+    await page.locator(".folder-chip > button").first().click();
+    await expect(page.locator(".chat-row", { hasText: name })).toHaveCount(1);
+  });
 });

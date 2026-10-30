@@ -1,4 +1,4 @@
-import { PencilLine, Search } from "lucide-react";
+import { FolderInput, PencilLine, Search } from "lucide-react";
 import Avatar from "./Avatar";
 import UserAvatar from "./UserAvatar";
 import type { Chat, ChatFilter, UserSearchResult } from "../types";
@@ -39,6 +39,8 @@ type ChatListPanelProps = {
   activeId: number;
   onSelectChat: (chat: Chat) => void;
   onTogglePin: (chat: Chat) => void;
+  /** Opens the folder chooser for one conversation. */
+  onPickFolders?: (chat: Chat) => void;
 };
 
 export default function ChatListPanel({
@@ -62,6 +64,7 @@ export default function ChatListPanel({
   activeId,
   onSelectChat,
   onTogglePin,
+  onPickFolders,
 }: ChatListPanelProps) {
   // One clock for the whole list, so every row agrees on what "muted" means right now.
   const now = new Date();
@@ -128,8 +131,8 @@ export default function ChatListPanel({
 
       <div className="chat-list">
         {chats.map((chat) => (
+          <div key={chat.id} className={`chat-row-wrap ${chat.id === activeId ? "selected" : ""}`}>
           <button
-            key={chat.id}
             className={`chat-row ${chat.id === activeId ? "selected" : ""}`}
             onContextMenu={(event) => {
               event.preventDefault();
@@ -161,6 +164,20 @@ export default function ChatListPanel({
               {chat.unread ? <b>{chat.unread}</b> : null}
             </span>
           </button>
+          {/* Filing a chat into a folder had no way in: the picker existed and nothing
+              opened it. It is offered only once there is a folder to file into. */}
+          {onPickFolders && folders.length > 0 ? (
+            <button
+              type="button"
+              className="chat-file-button"
+              aria-label={`Разложить чат «${chat.name}» по папкам`}
+              title="Разложить по папкам"
+              onClick={() => onPickFolders(chat)}
+            >
+              <FolderInput size={14} />
+            </button>
+          ) : null}
+          </div>
         ))}
         {!hasVisibleChats && <div className="empty-search">По этим фильтрам чатов нет</div>}
       </div>

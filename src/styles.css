@@ -461,6 +461,37 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 :root[data-theme="violet"] .bubble.mine-bubble { border-color: #bd91ff; background: linear-gradient(120deg, #d0b4ff, #a77aff); }
 :root[data-theme="mint"] .bubble.mine-bubble { border-color: #5ce0b4; background: linear-gradient(120deg, #8cf0cf, #42c99d); }
 .chat-row { position: relative; }
+/* The row is a button, so the folder control beside it needs its own wrapper. It appears on
+   hover and on focus, and stays visible where there is no hover. */
+.chat-row-wrap { position: relative; }
+.chat-row-wrap.selected .chat-row { border-color: var(--yellow); background: linear-gradient(100deg, #19190f, var(--surface-1)); }
+/* 44 px is the smallest target a finger hits reliably; 28 was measured and rejected. It
+   sits in a gutter of its own rather than over the timestamp. */
+.chat-file-button {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--fg-secondary);
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity 0.12s ease;
+}
+.chat-row-wrap:has(.chat-file-button) .chat-row { padding-right: 52px; }
+.chat-row-wrap:has(.chat-file-button) .chat-meta { padding-right: 0; }
+.chat-row-wrap:hover .chat-file-button,
+.chat-row-wrap:focus-within .chat-file-button { opacity: 1; }
+.chat-file-button:hover { color: var(--fg); }
+@media (hover: none) {
+  .chat-file-button { opacity: 1; }
+}
 .pinned-mark { font-size: 12px; }
 .message-action-wrap { position: absolute; top: 0; right: -29px; margin-top: 0; }
 .message-line:not(.mine) .message-content { position: relative; }
