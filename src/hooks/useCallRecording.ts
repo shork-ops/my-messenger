@@ -28,6 +28,10 @@ export function useCallRecording(chatName: string) {
   const startedAtRef = useRef(0);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<number | null>(null);
+  // False once the component is gone. The file still has to be saved from the recorder's
+  // `onstop` - that is how a recording made during a hang-up reaches the person - but state
+  // must not be set on a component that no longer exists.
+  const mountedRef = useRef(true);
 
   // Asked once, before anyone presses anything: finding out the browser refuses at the moment
   // of pressing the button on a call in progress is the worst possible time.
@@ -43,12 +47,34 @@ export function useCallRecording(chatName: string) {
     }
   }, []);
 
-  useEffect(() => stopTimer, [stopTimer]);
+  /**
+   * Everything that holds a device or a file is released on unmount.
+   *
+   * The call ends by the overlay disappearing, which unmounts this hook without anyone pressing
+   * "stop". Without this, a recording running at hang-up kept the microphone live (the browser's
+   * recording light stayed on) and its chunks were never turned into a file: the person lost the
+   * recording and was left with no explanation.
+   */
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+      stopTimer();
+      const recorder = recorderRef.current;
+      if (recorder && recorder.state !== "inactive") {
+        // `stop()` still fires `onstop`, which is what saves the file.
+        recorder.stop();
+      }
+      recorderRef.current = null;
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    },
+    [stopTimer]
+  );
 
   const save = useCallback(
     (blob: Blob) => {
       if (blob.size === 0) {
-        setError("Запись пустая: звук не дошёл до браузера");
+        if (mountedRef.current) setError("Запись пустая: звук не дошёл до браузера");
         return;
       }
       const name = recordingFileName(chatName, startedAtRef.current || Date.now());
@@ -59,7 +85,7 @@ export function useCallRecording(chatName: string) {
       link.click();
       // Revoking straight away cancels the download in some browsers.
       window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
-      setLastSaved(name);
+      if (mountedRef.current) setLastSaved(name);
     },
     [chatName]
   );

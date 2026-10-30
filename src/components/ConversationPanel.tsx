@@ -291,6 +291,12 @@ export default function ConversationPanel({
   const placedRef = useRef<number | null>(null);
   useEffect(() => {
     placedRef.current = null;
+    // The ratio describes where the reader was in the *previous* conversation. Carried into a
+    // new one it decides the window before anything has been measured, so a chat left at the
+    // top opened the next chat at the top too - and because the rendered slice was the first
+    // messages rather than the last, the scroll height collapsed and the reader could not get
+    // to the end. A conversation is always opened at its end, so the ratio starts there.
+    setScrollRatio(1);
   }, [chat.id]);
   const windowSize = initialWindow(chat.messages.length);
   const windowSpan = Math.max(40, windowSize.last - windowSize.first);

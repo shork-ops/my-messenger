@@ -95,6 +95,36 @@ test.describe("a very long conversation", () => {
     expect(current.atEnd).toBe(true);
   });
 
+  test("reopening a chat after leaving it at the top still opens at the end", async ({ page }) => {
+    // The window decides which messages to render from the scroll ratio, and the ratio belongs
+    // to the conversation that produced it. Carried into the next one it decided the window
+    // before anything had been measured, so a chat left at the top opened the next chat at the
+    // top as well: the first messages were rendered instead of the last, the scroll height
+    // collapsed from 360 483 to 3 380, and there was no way to scroll to the end.
+    await page.goto("/my-messenger/");
+    await page.getByText("Очень длинный чат").first().click();
+    await expect(page.locator(".message-line").last()).toContainText("сообщение 5000.");
+
+    await wheel(page, -1500, (current) => current.firstVisible <= 2);
+    expect((await state(page)).firstVisible).toBeLessThanOrEqual(2);
+
+    // Leave for a short conversation and come back.
+    await page.getByText("Аня").first().click();
+    await expect(page.locator(".message-line")).toHaveCount(2);
+    await page.getByText("Очень длинный чат").first().click();
+
+    await expect(page.locator(".message-line").last()).toContainText("сообщение 5000.");
+    const reopened = await state(page);
+    expect(reopened.lastVisible).toBe(5000);
+    expect(reopened.atEnd).toBe(true);
+    // The history is still reachable, not truncated to the slice that was on screen.
+    const reachable = await page.evaluate(() => {
+      const area = document.querySelector(".messages-area");
+      return area ? Math.round(area.scrollHeight - area.clientHeight) : 0;
+    });
+    expect(reachable).toBeGreaterThan(100_000);
+  });
+
   test("a short conversation still renders every message", async ({ page }) => {
     // The window exists for a measured problem; applying it to a chat of a few messages would
     // trade a real risk for no gain.
