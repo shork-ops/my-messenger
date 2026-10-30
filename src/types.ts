@@ -52,6 +52,11 @@ export type Message = {
   replyTo?: ReplyPreview;
   reactions?: string[];
   effect?: MessageEffect;
+  /**
+   * The sticker this message is, by id. A sticker carries no text: the id is the message,
+   * and the artwork is drawn from the bundle so it cannot rot behind a dead link.
+   */
+  stickerId?: string;
   /** Message pinned to the chat header; servers store the timestamp. */
   pinned?: boolean;
 };

@@ -7,6 +7,7 @@ import { hasUserVoted, pollPercent, pollTotal } from "../lib/polls";
 import { splitForward } from "../lib/messageActions";
 import MessageBody from "./MessageBody";
 import { EFFECTS, effectByKey } from "../lib/effects";
+import { stickerById } from "../lib/stickers";
 import { formatBytes } from "../lib/media";
 import type { Message, MessageEffect, Poll } from "../types";
 
@@ -237,6 +238,9 @@ export default function MessageBubble({
   }
   // Forwarded bodies carry a marker line, which renders as a label instead of text.
   const forwardRelease = splitForward(message.text);
+  // A sticker id from a newer build resolves to nothing; the message then falls back to
+  // its text rather than rendering an empty bubble.
+  const sticker = message.stickerId ? stickerById(message.stickerId) : undefined;
   return (
     <div
       data-remote-id={message.remoteId ?? undefined}
@@ -276,6 +280,15 @@ export default function MessageBubble({
           )}
           {message.poll ? (
             <PollCard poll={message.poll} accountId={accountId} profileName={profileName} onVote={onVote} />
+          ) : sticker ? (
+            // A sticker is drawn large and without a bubble background of its own: the
+            // picture is the message. The label is the accessible name, since the glyph
+            // alone means nothing to a screen reader.
+            <span className="message-sticker" role="img" aria-label={`Стикер: ${sticker.label}`}>
+              <span className={`sticker-glyph sticker-tone-${sticker.tone}`} aria-hidden="true">
+                {sticker.glyph}
+              </span>
+            </span>
           ) : message.attachment ? (
             <AttachmentCard attachment={message.attachment} autoload={autoloadMedia} />
           ) : (

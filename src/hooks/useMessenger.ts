@@ -59,6 +59,7 @@ import { useHistoryPagination, useInfiniteHistory } from "../hooks/useHistoryPag
 import { useUnreadBadge, useMessageNotifications, usePushSubscriptionSync, useNotificationsPrompt, requestNotificationPermission } from "../hooks/useNotifications";
 import { useNotificationPrefs } from "../hooks/useNotificationPrefs";
 import { usePrivacyPrefs } from "../hooks/usePrivacyPrefs";
+import { stickerById, stickerMarkup } from "../lib/stickers";
 import { useLanguage } from "../hooks/useLanguage";
 import { usePasscode } from "../hooks/usePasscode";
 import { useTwoFactor } from "../hooks/useTwoFactor";
@@ -299,6 +300,7 @@ export function useMessenger() {
   const { passcode: lockCode, unlocked: lockUnlocked, setCode, unlock } = usePasscode();
   const { wallpaper, setWallpaper } = useWallpaper();
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [stickerOpen, setStickerOpen] = useState(false);
   // The message a search result points at. Cleared once the highlight has been shown.
   const [revealMessageId, setRevealMessageId] = useState<string | null>(null);
   const [noteOpen, setNoteOpen] = useState(false);
@@ -1168,6 +1170,70 @@ export function useMessenger() {
     setReplyTarget(null);
   }
 
+  /**
+   * Sends a sticker: a message whose content is the sticker id and nothing else.
+   *
+   * Kept separate from sendMessage rather than folded into it with a flag, because the two
+   * differ in more places than they look: a sticker has no draft to clear, no reply quote to
+   * attach, and a chat-list preview that names the sticker rather than showing its text.
+   * One function would turn every one of those differences into a conditional inside it.
+   */
+  async function sendSticker(stickerId: string) {
+    const sticker = stickerById(stickerId);
+    if (!sticker) return;
+    const targetChat = chats.find((chat) => chat.id === activeId);
+    const client = supabase;
+    let remoteMessageId: string | undefined;
+    let createdAt = Date.now();
+    if (targetChat?.remoteId) {
+      if (!client || !accountId) {
+        action("Нужно войти в аккаунт, чтобы отправить стикер");
+        return;
+      }
+      // The body carries the id, so the message needs no new column: a column per kind of
+      // content would mean a migration every time a kind is added.
+      const inserted = await withRetry(
+        async () =>
+          client
+            .from("messages")
+            .insert({ chat_id: targetChat.remoteId, sender_id: accountId, body: stickerMarkup(stickerId) })
+            .select("id, created_at")
+            .single(),
+        { shouldRetry: (error) => isTransientError(error) }
+      ).catch((error: unknown) => ({ error }));
+      const { data, error } = inserted as { data?: { id: string; created_at: string } | null; error?: unknown };
+      if (error || !data) {
+        action("Стикер не отправлен. Проверь подключение и права Supabase.");
+        return;
+      }
+      remoteMessageId = data.id;
+      createdAt = new Date(data.created_at).getTime();
+    } else if (client && accountId) {
+      action("Этот чат локальный. Начни переписку, выбрав пользователя по @username.");
+      return;
+    }
+    const message: Message = {
+      id: remoteMessageId ? numericId(remoteMessageId) : createdAt,
+      ...(remoteMessageId ? { remoteId: remoteMessageId } : {}),
+      author: profileName,
+      text: sticker.label,
+      time: clockTime(new Date(createdAt)),
+      mine: true,
+      createdAt,
+      stickerId,
+    };
+    setChats((current) =>
+      updateChat(current, activeId, (chat) => ({
+        ...chat,
+        preview: `Стикер: ${sticker.label}`,
+        time: message.time,
+        messages: placeNewMessage(chat.messages, message),
+      }))
+    );
+    setStickerOpen(false);
+  }
+
+
   function startEditing(message: Message) {
     setEditingMessageId(message.id);
     setEditDraft(message.text);
@@ -1922,6 +1988,7 @@ export function useMessenger() {
     editDraft,
     editingMessageId,
     emojiOpen,
+    stickerOpen,
     exportChat,
     fileInputRef,
     folderChats,
@@ -1998,6 +2065,7 @@ export function useMessenger() {
     selectChat,
     selfAvatarUrl,
     sendMessage,
+    sendSticker,
     serverSearch,
     setActiveFolderId,
     setActiveGame,
@@ -2011,6 +2079,7 @@ export function useMessenger() {
     setEditDraft,
     setEditingMessageId,
     setEmojiOpen,
+    setStickerOpen,
     setFolderPickerChat,
     setGalleryOpen,
     setLanguage,

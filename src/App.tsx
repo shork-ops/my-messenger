@@ -16,6 +16,7 @@ import RightPanel from "./components/RightPanel";
 import PrivacyModal from "./components/PrivacyModal";
 import FolderPicker from "./components/FolderPicker";
 import EmojiPicker from "./components/EmojiPicker";
+import StickerPicker from "./components/StickerPicker";
 import type { SettingsSectionId } from "./components/SettingsModal";
 import { formatNoteTime } from "./lib/videoNote";
 import { isDemoMode } from "./lib/constants";
@@ -99,6 +100,8 @@ export default function App() {
     editDraft,
     editingMessageId,
     emojiOpen,
+    stickerOpen,
+    setStickerOpen,
     exportChat,
     fileInputRef,
     folderChats,
@@ -176,6 +179,7 @@ export default function App() {
     selectChat,
     selfAvatarUrl,
     sendMessage,
+    sendSticker,
     serverSearch,
     setActiveFolderId,
     setActiveGame,
@@ -426,6 +430,7 @@ export default function App() {
           fileInputRef,
           onChangeText: changeDraft,
           onEmoji: () => setEmojiOpen((open) => !open),
+  onStickers: () => setStickerOpen((open) => !open),
           onVideoNote: () => setNoteOpen(true),
           onToggleVoice: () => void startVoiceRecording(),
           onSubmit: sendMessage,
@@ -478,6 +483,13 @@ export default function App() {
             void handleAttachment({ target: input } as unknown as ChangeEvent<HTMLInputElement>);
           }}
           onClose={() => setNoteOpen(false)}
+        />
+      )}
+
+      {stickerOpen && (
+        <StickerPicker
+          onPick={(stickerId) => sendSticker(stickerId)}
+          onClose={() => setStickerOpen(false)}
         />
       )}
 
