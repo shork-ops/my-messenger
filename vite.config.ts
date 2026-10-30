@@ -37,7 +37,9 @@ export default defineConfig(({ mode }) => ({
     open: false,
   },
   test: {
+    // Logic tests run on Node, where there is no DOM at all; a component test declares
+    // its own environment in a docblock comment at the top of the file instead.
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
   },
 }));
