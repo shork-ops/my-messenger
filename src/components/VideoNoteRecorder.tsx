@@ -1,11 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Circle, Square, Trash2, Send } from "lucide-react";
 import {
-  NOTE_SIZE,
   VIDEO_NOTE_MAX_MS,
   VIDEO_NOTE_WARN_MS,
+  canRetryCamera,
   formatNoteTime,
   isSendableNote,
+  noteCameraConstraints,
+  noteCameraError,
   noteProgress,
   noteRecorderOptions,
 } from "../lib/videoNote";
@@ -33,26 +35,54 @@ export default function VideoNoteRecorder({ onSend, onClose }: VideoNoteRecorder
   const [elapsed, setElapsed] = useState(0);
   const [result, setResult] = useState<{ blob: Blob; durationMs: number; type: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [retryable, setRetryable] = useState(true);
+  const [retrying, setRetrying] = useState(false);
 
-  // Open the camera, and release it on unmount whatever else happened.
-  useEffect(() => {
-    let cancelled = false;
-    navigator.mediaDevices
-      ?.getUserMedia({ video: { width: NOTE_SIZE, height: NOTE_SIZE }, audio: true })
+  const aliveRef = useRef(true);
+
+  const openCamera = useCallback(() => {
+    const media = navigator.mediaDevices;
+    if (!media?.getUserMedia) {
+      setError("Этот браузер не даёт доступ к камере. Откройте приложение в другом браузере");
+      setRetryable(false);
+      return;
+    }
+    // The previous stream is released before asking again, or a busy camera stays busy.
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setError(null);
+    setRetrying(true);
+    media
+      .getUserMedia({ video: noteCameraConstraints(), audio: true })
       .then((stream) => {
-        if (cancelled) {
+        if (!aliveRef.current) {
           stream.getTracks().forEach((track) => track.stop());
           return;
         }
         streamRef.current = stream;
         if (videoRef.current) videoRef.current.srcObject = stream;
+        setRetrying(false);
       })
-      .catch(() => setError("Нет доступа к камере. Разреши её в настройках браузера."));
+      .catch((failure) => {
+        if (!aliveRef.current) return;
+        // The reason decides the advice. Telling someone who has just allowed the camera
+        // to go and allow the camera sends them looking for a setting that was not it.
+        setRetryable(canRetryCamera(failure));
+        setRetrying(false);
+        setError(noteCameraError(failure));
+      });
+  }, []);
+
+  // Open the camera, and release it on unmount whatever else happened.
+  useEffect(() => {
+    aliveRef.current = true;
+    openCamera();
     return () => {
-      cancelled = true;
+      aliveRef.current = false;
       streamRef.current?.getTracks().forEach((track) => track.stop());
     };
-  }, []);
+  }, [openCamera]);
 
   useEffect(() => {
     if (!recording) return;
@@ -124,7 +154,17 @@ export default function VideoNoteRecorder({ onSend, onClose }: VideoNoteRecorder
   return (
     <div className="note-recorder" role="dialog" aria-label="Видеозаметка">
       <video ref={videoRef} className="note-preview" autoPlay muted playsInline aria-label="Предпросмотр камеры" />
-      {error ? <p className="note-error">{error}</p> : null}
+      {error ? (
+        <div className="note-error" role="alert">
+          <p>{error}</p>
+          {/* The sheet used to have no way back: once the camera failed, recording stayed
+              disabled until the note was closed and reopened. A person who has just changed
+              the browser setting retries from here. */}
+          <button type="button" className="note-button retry" onClick={openCamera} disabled={retrying}>
+            {retrying ? "Открываю…" : retryable ? "Попробовать снова" : "Я разрешил — попробовать"}
+          </button>
+        </div>
+      ) : null}
 
       {result ? (
         <div className="note-actions">

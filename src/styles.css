@@ -601,7 +601,16 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .note-button.send { background: var(--accent-fill); border-color: var(--accent-fill); color: #1a1400; }
 .note-time { min-width: 40px; color: var(--fg-secondary); font-size: 13px; font-variant-numeric: tabular-nums; }
 .note-error, .note-warn { margin: 0; font-size: 12px; text-align: center; }
-.note-error { color: #ff7b7b; }
+.note-error { color: #ff7b7b; display: grid; gap: 8px; justify-items: center; }
+/* The way back from a failed camera, on the same line the error is read on. */
+.note-error .note-button.retry {
+  width: auto;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 12px;
+  font-size: 13px;
+  color: var(--fg);
+}
 .note-warn { color: var(--yellow); }
 .note-ring { display: none; }
 @media (max-width: 640px) { .note-recorder { right: 10px; left: 10px; width: auto; } .note-preview { width: 200px; height: 200px; } }

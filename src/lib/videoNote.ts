@@ -14,6 +14,19 @@ export const VIDEO_NOTE_WARN_MS = 45_000;
 /** The video size a note is recorded at, square so the circle crops nothing. */
 export const NOTE_SIZE = 480;
 
+/**
+ * What to ask the camera for.
+ *
+ * These used to be bare numbers, which the browser reads as an exact requirement: a
+ * camera that cannot produce 480 by 480 refuses outright with `OverconstrainedError`,
+ * and the recorder reported that refusal as "no access to the camera, allow it in your
+ * browser" - advice that could never help, because the permission was never the problem.
+ * `ideal` asks for this size and accepts the closest one instead.
+ */
+export function noteCameraConstraints(): MediaTrackConstraints {
+  return { width: { ideal: NOTE_SIZE }, height: { ideal: NOTE_SIZE } };
+}
+
 export const NOTE_BITRATE = 900_000;
 
 /** Progress through the maximum, for the ring around the recording button. */
@@ -56,4 +69,37 @@ export function noteDurationLabel(ms: number): string {
 /** The file name a note is stored under, so a download is recognisable. */
 export function noteFileName(ms: number, extension: string): string {
   return `video-note-${Math.round(ms / 1000)}s.${extension}`;
+}
+
+/**
+ * Why the camera would not open, said in a way the reader can act on.
+ *
+ * Every failure used to be reported as "allow the camera in your browser", which sent
+ * people who had already allowed it to look for a setting that was not the problem: a
+ * busy camera, an absent one and an unsupported frame size all received the same advice.
+ */
+export function noteCameraError(error: unknown): string {
+  const name = (error as { name?: string })?.name ?? "";
+  if (name === "NotAllowedError" || name === "PermissionDeniedError" || name === "SecurityError") {
+    return "Камера запрещена в браузере. Разрешите доступ и нажмите «Попробовать снова»";
+  }
+  if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+    return "Камера не найдена. Подключите её и нажмите «Попробовать снова»";
+  }
+  // The camera exists and the permission is fine, but the frame size could not be met.
+  if (name === "OverconstrainedError" || name === "ConstraintNotSatisfiedError") {
+    return "Камера не поддерживает нужный размер кадра. Попробуйте снова";
+  }
+  if (name === "NotReadableError" || name === "TrackStartError") {
+    return "Камера занята другим приложением. Закройте его и попробуйте снова";
+  }
+  if (name === "AbortError") return "Камера не успела запуститься. Попробуйте снова";
+  return "Не удалось открыть камеру. Попробуйте снова";
+}
+
+/** Whether the camera can be asked again after this failure, rather than only explained. */
+export function canRetryCamera(error: unknown): boolean {
+  const name = (error as { name?: string })?.name ?? "";
+  // A refusal needs the person to change a setting first; everything else is worth another try.
+  return name !== "NotAllowedError" && name !== "PermissionDeniedError" && name !== "SecurityError";
 }

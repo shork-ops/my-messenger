@@ -9,6 +9,10 @@ import {
   noteFileName,
   noteProgress,
   noteRecorderOptions,
+  noteCameraConstraints,
+  noteCameraError,
+  canRetryCamera,
+  NOTE_SIZE,
 } from "./videoNote";
 
 describe("constants", () => {
@@ -95,5 +99,48 @@ describe("noteFileName", () => {
 
   it("handles a clip shorter than a second", () => {
     expect(noteFileName(400, "webm")).toBe("video-note-0s.webm");
+  });
+});
+
+
+describe("noteCameraConstraints", () => {
+  it("asks for the square size without demanding it", () => {
+    const { width, height } = noteCameraConstraints();
+    // A bare number is an exact requirement, and a camera that cannot meet it refuses.
+    expect(width).toEqual({ ideal: NOTE_SIZE });
+    expect(height).toEqual({ ideal: NOTE_SIZE });
+  });
+});
+
+describe("noteCameraError", () => {
+  it("sends a refused permission to the browser setting", () => {
+    expect(noteCameraError({ name: "NotAllowedError" })).toContain("запрещена в браузере");
+  });
+
+  it("says the camera is missing rather than blaming the permission", () => {
+    expect(noteCameraError({ name: "NotFoundError" })).toContain("не найдена");
+  });
+
+  it("names a busy camera, the case the old message got wrong", () => {
+    expect(noteCameraError({ name: "NotReadableError" })).toContain("занята");
+  });
+
+  it("explains a frame size the camera cannot do", () => {
+    expect(noteCameraError({ name: "OverconstrainedError" })).toContain("размер кадра");
+  });
+
+  it("still says something useful for an unknown failure", () => {
+    expect(noteCameraError({})).toContain("Не удалось открыть камеру");
+  });
+});
+
+describe("canRetryCamera", () => {
+  it("lets a busy or missing camera be tried again", () => {
+    expect(canRetryCamera({ name: "NotReadableError" })).toBe(true);
+    expect(canRetryCamera({ name: "NotFoundError" })).toBe(true);
+  });
+
+  it("asks for the setting to change before a refusal is retried", () => {
+    expect(canRetryCamera({ name: "NotAllowedError" })).toBe(false);
   });
 });

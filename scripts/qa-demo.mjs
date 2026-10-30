@@ -456,6 +456,50 @@ async function expectCount(page, selector, expected, label) {
   await context.close();
 }
 
+// --- a camera that refuses ---------------------------------------------------------------
+{
+  // This browser is launched with a fake camera and a standing "allow", so a real refusal
+  // cannot be produced here. The refusal is simulated instead: what is under test is that
+  // the sheet names the reason and offers a retry, not how the browser was configured.
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "ru-RU", isMobile: true, hasTouch: true });
+  const page = await context.newPage();
+  await page.addInitScript(() => {
+    const media = navigator.mediaDevices;
+    if (!media) return;
+    const real = media.getUserMedia.bind(media);
+    window.__nexusCameraBroken = true;
+    media.getUserMedia = (constraints) => {
+      if (!window.__nexusCameraBroken) return real(constraints);
+      const failure = new Error("denied");
+      failure.name = "NotAllowedError";
+      return Promise.reject(failure);
+    };
+  });
+  await page.goto(base + tag(), { waitUntil: "networkidle", timeout: 90000 });
+  await page.waitForSelector(".chat-row", { timeout: 30000 });
+  await page.waitForTimeout(1000);
+  await page.locator(".chat-row").first().click();
+  await page.waitForTimeout(700);
+  await page.getByLabel("Записать видеозаметку").click();
+  await page.locator(".note-error").waitFor({ timeout: 15000 });
+  const wording = await page.evaluate(() => (document.querySelector(".note-error")?.textContent || "").replace(/\s+/g, " ").trim());
+  const named = wording.includes("запрещена в браузере") && !wording.includes("Разреши её в настройках");
+  const retry = await page.locator(".note-error button").count();
+  record("камера: причина названа", named, wording.slice(0, 46));
+
+  // Allowing it and pressing retry must open the camera without closing the sheet.
+  await page.evaluate(() => { window.__nexusCameraBroken = false; });
+  await page.locator(".note-error button").click();
+  await page.waitForTimeout(2000);
+  const recovered = await page.evaluate(() => {
+    const video = document.querySelector("video");
+    return { camera: video ? Boolean(video.srcObject) : false, cleared: !document.querySelector(".note-error") };
+  });
+  const canRecord = await page.getByLabel("Начать запись").isEnabled().catch(() => false);
+  record("камера: повтор запускает её", retry > 0 && recovered.camera && recovered.cleared && canRecord, recovered.camera ? "камера пошла" : "камера не пошла");
+  await context.close();
+}
+
 await browser.close();
 
 const failed = results.filter((r) => !r.ok);
