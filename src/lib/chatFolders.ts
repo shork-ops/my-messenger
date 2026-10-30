@@ -12,6 +12,23 @@ export const FOLDERS_STORAGE_KEY = "nexus-chat-folders";
 /** How many folders a person can make before the list stops being useful. */
 export const MAX_FOLDERS = 12;
 
+/**
+ * The id for a new folder, distinct from every id already in use.
+ *
+ * The id used to be the current millisecond, which two folders created in the same tick
+ * would share: renaming or deleting one then hit both, because every operation finds its
+ * target by id. A counter suffix makes the collision impossible without changing the
+ * readable shape of the id.
+ */
+export function newFolderId(existing: Folder[], now: number = Date.now()): string {
+  const base = `f${now.toString(36)}`;
+  const taken = new Set(existing.map((folder) => folder.id));
+  if (!taken.has(base)) return base;
+  let suffix = 2;
+  while (taken.has(`${base}-${suffix}`)) suffix += 1;
+  return `${base}-${suffix}`;
+}
+
 export type Folder = {
   id: string;
   name: string;

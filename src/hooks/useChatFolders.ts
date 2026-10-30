@@ -3,6 +3,7 @@ import {
   FOLDERS_STORAGE_KEY,
   MAX_FOLDERS,
   moveFolder as moveFolderIn,
+  newFolderId,
   parseFolders,
   renameFolder as renameFolderIn,
   serializeFolders,
@@ -37,7 +38,7 @@ export function useChatFolders() {
   const createFolder = useCallback((name: string) => {
     setFolders((current) => {
       if (current.length >= MAX_FOLDERS) return current;
-      return [...current, { id: `f${Date.now().toString(36)}`, name, chatIds: [] }];
+      return [...current, { id: newFolderId(current), name, chatIds: [] }];
     });
   }, []);
 
