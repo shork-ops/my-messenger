@@ -19,10 +19,10 @@ async function distanceFromBottom(page: Page): Promise<number> {
 
 /** Opens the long demo chat by its name in the chat list. */
 async function openLongChat(page: Page): Promise<void> {
-  const row = page.locator(".chat-list .chat-row").filter({ hasText: "Длинный чат" }).first();
+  const row = page.locator(".chat-list .chat-row").filter({ hasText: "Прочитанный чат" }).first();
   await expect(row).toBeVisible();
   await row.click();
-  await expect(page.locator(".conversation-panel")).toContainText("Длинный чат");
+  await expect(page.locator(".conversation-panel")).toContainText("Прочитанный чат");
 }
 
 /** Waits until the list has actually grown taller than its viewport. */
@@ -50,7 +50,7 @@ test.describe("conversation opens at the end", () => {
     expect(await distanceFromBottom(page)).toBeLessThanOrEqual(2);
 
     // The last message is the one on screen, not the first.
-    await expect(page.locator(".messages-area")).toContainText("сообщение 60");
+    await expect(page.locator(".messages-area")).toContainText("Прочитанный чат, сообщение 60");
   });
 
   test("returning to a long conversation lands at the end again", async ({ page }) => {
@@ -64,7 +64,7 @@ test.describe("conversation opens at the end", () => {
     });
     await page.waitForTimeout(200);
 
-    await page.locator(".chat-list .chat-row").filter({ hasText: "Максим" }).first().click();
+    await page.locator(".chat-list .chat-row").filter({ hasText: "Команда" }).first().click();
     await page.waitForTimeout(200);
     await openLongChat(page);
     await waitForOverflow(page);
@@ -102,7 +102,7 @@ test.describe("conversation opens at the end", () => {
     await page.goto("/my-messenger/");
     await expect(page.locator(".app-shell")).toBeVisible();
 
-    const row = page.locator(".chat-list .chat-row").filter({ hasText: "Длинный чат" }).first();
+    const row = page.locator(".chat-list .chat-row").filter({ hasText: "Прочитанный чат" }).first();
     await expect(row).toBeVisible();
     await row.click();
 

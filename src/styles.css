@@ -1132,3 +1132,33 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .markup-spoiler.revealed,
 .markup-spoiler.revealed > * { color: inherit; }
 .markup-spoiler:focus-visible { outline: 2px solid var(--accent, #f0b429); outline-offset: 2px; }
+
+/* The jump button floats over the conversation, above the composer. It is deliberately
+   small and quiet: it answers "where are the unread ones" without competing with them. */
+.jump-button {
+  position: absolute;
+  right: 18px;
+  bottom: 78px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 38px;
+  height: 38px;
+  padding: 0 11px;
+  border: none;
+  border-radius: 19px;
+  background: var(--surface, #fff);
+  color: var(--fg, #121316);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.jump-button:hover { filter: brightness(0.97); }
+.jump-button:focus-visible { outline: 2px solid var(--accent, #f0b429); outline-offset: 2px; }
+.jump-button span { line-height: 1; }
+
+@media (max-width: 767px) {
+  .jump-button { bottom: 72px; right: 12px; }
+}

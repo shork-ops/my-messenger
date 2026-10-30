@@ -1,7 +1,7 @@
-import { Fragment, useEffect, useRef } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import type { ComponentProps, MutableRefObject } from "react";
 import { type WallpaperId, wallpaperBackground, wallpaperSize } from "../lib/wallpaper";
-import { Download, FolderPlus } from "lucide-react";
+import { ArrowDown, ChevronsUp, Download, FolderPlus } from "lucide-react";
 import { Archive, BellOff, BellRing, ChevronLeft, MoreVertical, Phone, Pin, Search, Trash2, UserRound, Video, X } from "lucide-react";
 import Avatar from "./Avatar";
 import UserAvatar from "./UserAvatar";
@@ -9,6 +9,7 @@ import Composer from "./Composer";
 import MessageBubble from "./MessageBubble";
 import SearchHits from "./SearchHits";
 import { firstUnreadIndex } from "../lib/unread";
+import { jumpButton, scrollTarget } from "../lib/jumpToUnread";
 import { dateLabel, lastSeenLabel } from "../lib/format";
 import { messageRuns } from "../lib/messageRuns";
 import { receiptFor } from "../lib/readState";
@@ -184,19 +185,86 @@ export default function ConversationPanel({
   const scrolledForRef = useRef<number | null>(null);
   useEffect(() => {
     if (scrolledForRef.current === chat.id) return;
-    if (unreadDividerRef.current && messagesRef.current) {
-      const area = messagesRef.current;
-      const divider = unreadDividerRef.current;
-      // offsetTop is measured from the nearest positioned ancestor, which is not
-      // necessarily the scroller. Work from the rectangles instead.
-      const areaTop = area.getBoundingClientRect().top;
-      const dividerTop = divider.getBoundingClientRect().top;
-      const withinContent = dividerTop - areaTop + area.scrollTop;
-      // Leave a third of the viewport above the divider so the context is visible.
-      area.scrollTop = Math.max(0, withinContent - area.clientHeight / 3);
+    const area = messagesRef.current;
+    const divider = unreadDividerRef.current;
+    if (!area || !divider) return;
+
+    // The divider exists on the first paint but the list may still be growing: pictures and
+    // fonts change every height below it, so a single scroll can miss the target. Repeat on
+    // the next few frames and stop as soon as it is in place. The attempt is abandoned when
+    // the reader scrolls, because at that point the position is theirs, not ours.
+    let attempts = 0;
+    let cancelled = false;
+    const place = () => {
+      if (cancelled) return;
+      const list = messagesRef.current;
+      const target = unreadDividerRef.current;
+      if (!list || !target) return;
+      const dividerTop = target.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
+      const wanted = scrollTarget({ dividerTop, viewportHeight: list.clientHeight, contentHeight: list.scrollHeight });
+      list.scrollTop = wanted;
+      attempts += 1;
+      const settled = Math.abs(list.scrollTop - wanted) <= 1;
+      if (settled && attempts >= 3) {
+        scrolledForRef.current = chat.id;
+        return;
+      }
+      if (attempts < 8) requestAnimationFrame(place);
+      else scrolledForRef.current = chat.id;
+    };
+    // The reader moving the list is a decision to stop placing them.
+    const onWheel = () => {
+      cancelled = true;
       scrolledForRef.current = chat.id;
-    }
+    };
+    area.addEventListener("wheel", onWheel, { passive: true, once: true });
+    area.addEventListener("touchstart", onWheel, { passive: true, once: true });
+    requestAnimationFrame(place);
+    return () => {
+      cancelled = true;
+      area.removeEventListener("wheel", onWheel);
+      area.removeEventListener("touchstart", onWheel);
+    };
   }, [chat.id, chat.lastReadAt, messagesRef]);
+
+  const unreadStart = searchValue.trim() ? null : firstUnreadIndex(chat.messages, chat.lastReadAt ?? null);
+
+  // The jump button exists to take a reader somewhere they are not, so its presence follows
+  // the scroll position rather than a timer. `atBottom` starts true because a chat opens at
+  // the end; the listener corrects it on the first scroll.
+  const [atBottom, setAtBottom] = useState(true);
+  useEffect(() => {
+    const area = messagesRef.current;
+    if (!area) return;
+    const read = () => setAtBottom(area.scrollHeight - area.clientHeight - area.scrollTop <= 24);
+    read();
+    area.addEventListener("scroll", read, { passive: true });
+    // A resize changes clientHeight without a scroll event, so the state would go stale.
+    window.addEventListener("resize", read);
+    return () => {
+      area.removeEventListener("scroll", read);
+      window.removeEventListener("resize", read);
+    };
+  }, [messagesRef, chat.id]);
+
+  const unreadCount = unreadStart === null ? 0 : chat.messages.length - unreadStart;
+  const jump = jumpButton({ atBottom, hasUnreadBelow: unreadStart !== null && unreadCount > 0, unreadCount });
+
+  /** Scrolls to the first unread message, or to the end when there is nothing unread. */
+  const jumpTo = () => {
+    const area = messagesRef.current;
+    if (!area) return;
+    const divider = unreadDividerRef.current;
+    if (jump?.kind === "unread" && divider) {
+      const dividerTop = divider.getBoundingClientRect().top - area.getBoundingClientRect().top + area.scrollTop;
+      area.scrollTo({
+        top: scrollTarget({ dividerTop, viewportHeight: area.clientHeight, contentHeight: area.scrollHeight }),
+        behavior: "smooth",
+      });
+      return;
+    }
+    area.scrollTo({ top: area.scrollHeight, behavior: "smooth" });
+  };
 
   // Dismiss the chat menu like any popover: outside click or Escape.
   useEffect(() => {
@@ -366,8 +434,7 @@ export default function ConversationPanel({
           const previous = chat.messages[index - 1];
           // The divider marks where reading left off; not shown while searching,
           // where the visible list is a different set from the conversation.
-          const unreadStart = searchValue.trim() ? null : firstUnreadIndex(chat.messages, chat.lastReadAt ?? null);
-          const showDivider =
+                  const showDivider =
             Boolean(message.createdAt) &&
             (index === 0 || !previous?.createdAt || dateLabel(message.createdAt!) !== dateLabel(previous.createdAt!));
           const showGamePreview =
@@ -420,6 +487,18 @@ export default function ConversationPanel({
         })}
         <div ref={endRef} />
       </div>
+
+      {jump && (
+        <button
+          type="button"
+          className="jump-button"
+          onClick={jumpTo}
+          aria-label={jump.kind === "unread" ? `К непрочитанным: ${jump.count}` : "Вниз к последнему сообщению"}
+        >
+          {jump.kind === "unread" ? <ChevronsUp size={16} /> : <ArrowDown size={16} />}
+          {jump.kind === "unread" && <span>{jump.count}</span>}
+        </button>
+      )}
 
       {uploadProgress && (
         <div className="upload-progress" role="status">

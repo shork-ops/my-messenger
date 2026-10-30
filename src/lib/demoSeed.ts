@@ -69,6 +69,10 @@ export function createDemoSeedChats(now: number = Date.now()): Chat[] {
       color: "violet",
       preview: "Сообщение 60 из 60",
       time: "08:00",
+      unread: 4,
+      // Read up to message 55, so the last five are unread and the divider is deep in a
+      // list tall enough to scroll - the only setup where "jump to unread" is meaningful.
+      lastReadAt: now - 6 * 60_000,
       // Sixty messages guarantee the conversation is taller than any viewport the suite
       // uses, so "opens at the bottom" is a claim a test can actually measure.
       messages: Array.from({ length: 60 }, (_, index) => ({
@@ -76,6 +80,25 @@ export function createDemoSeedChats(now: number = Date.now()): Chat[] {
         author: index % 3 === 0 ? "Я" : "Максим",
         mine: index % 3 === 0,
         text: `Длинный чат, сообщение ${index + 1}`,
+        time: "08:00",
+        createdAt: now - (60 - index) * 60_000,
+      })),
+    },
+    {
+      // Same length as "Длинный чат" but fully read, so the scroll tests can check "opens at
+      // the end" without the unread divider deciding where to open instead.
+      id: 6,
+      name: "Прочитанный чат",
+      avatar: "П",
+      color: "green",
+      preview: "Сообщение 60 из 60",
+      time: "08:00",
+      lastReadAt: now,
+      messages: Array.from({ length: 60 }, (_, index) => ({
+        id: 2000 + index,
+        author: index % 3 === 0 ? "Я" : "Ольга",
+        mine: index % 3 === 0,
+        text: `Прочитанный чат, сообщение ${index + 1}`,
         time: "08:00",
         createdAt: now - (60 - index) * 60_000,
       })),
