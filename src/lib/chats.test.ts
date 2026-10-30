@@ -8,6 +8,7 @@ import {
   mapMessagesByRemoteId,
   markRead,
   matchesChatFilter,
+  removeChat,
   removeMessage,
   restoreMessage,
   sortChats,
@@ -234,5 +235,36 @@ describe("splitArchived", () => {
 
   it("handles an empty list", () => {
     expect(splitArchived([])).toEqual({ active: [], archived: [] });
+  });
+});
+
+
+describe("removeChat", () => {
+  it("takes the conversation out of the list", () => {
+    const result = removeChat([chat({ id: 1 }), chat({ id: 2 })], 1, 2);
+    expect(result.chats.map((c) => c.id)).toEqual([2]);
+  });
+
+  it("leaves the reader alone when a different chat is deleted", () => {
+    const result = removeChat([chat({ id: 1 }), chat({ id: 2 })], 1, 2);
+    expect(result.nextActiveId).toBeNull();
+  });
+
+  it("moves to the row that takes its place when the open chat is deleted", () => {
+    const result = removeChat([chat({ id: 1 }), chat({ id: 2 }), chat({ id: 3 })], 2, 2);
+    expect(result.chats.map((c) => c.id)).toEqual([1, 3]);
+    // The chat that slid up into the empty spot, so the reader stays where they were looking.
+    expect(result.nextActiveId).toBe(3);
+  });
+
+  it("falls back upwards when the last chat is deleted", () => {
+    const result = removeChat([chat({ id: 1 }), chat({ id: 2 })], 2, 2);
+    expect(result.nextActiveId).toBe(1);
+  });
+
+  it("has nothing to open once the only chat is gone", () => {
+    const result = removeChat([chat({ id: 1 })], 1, 1);
+    expect(result.chats).toEqual([]);
+    expect(result.nextActiveId).toBeNull();
   });
 });

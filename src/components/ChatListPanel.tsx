@@ -1,4 +1,4 @@
-import { FolderInput, PencilLine, Search } from "lucide-react";
+import { FolderInput, PencilLine, Search, Trash2 } from "lucide-react";
 import Avatar from "./Avatar";
 import UserAvatar from "./UserAvatar";
 import type { Chat, ChatFilter, UserSearchResult } from "../types";
@@ -41,6 +41,7 @@ type ChatListPanelProps = {
   onTogglePin: (chat: Chat) => void;
   /** Opens the folder chooser for one conversation. */
   onPickFolders?: (chat: Chat) => void;
+  onDeleteChat?: (chat: Chat) => void;
 };
 
 export default function ChatListPanel({
@@ -65,6 +66,7 @@ export default function ChatListPanel({
   onSelectChat,
   onTogglePin,
   onPickFolders,
+  onDeleteChat,
 }: ChatListPanelProps) {
   // One clock for the whole list, so every row agrees on what "muted" means right now.
   const now = new Date();
@@ -175,6 +177,20 @@ export default function ChatListPanel({
               onClick={() => onPickFolders(chat)}
             >
               <FolderInput size={14} />
+            </button>
+          ) : null}
+          {/* Deleting the conversation, from the row rather than only from inside it: a chat
+              nobody wants back should not have to be opened to be got rid of. It confirms
+              first, because the next tap on that spot would otherwise land on whatever moved up. */}
+          {onDeleteChat ? (
+            <button
+              type="button"
+              className="chat-delete-button"
+              aria-label={`Удалить чат «${chat.name}»`}
+              title="Удалить чат"
+              onClick={() => onDeleteChat(chat)}
+            >
+              <Trash2 size={14} />
             </button>
           ) : null}
           </div>

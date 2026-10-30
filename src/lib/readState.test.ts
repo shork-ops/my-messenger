@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Message } from "../types";
-import { countUnread, isReadByEveryone, receiptFor } from "./readState";
+import { countUnread, isReadByEveryone, receiptFor, canMarkRead } from "./readState";
 
 function message(overrides: Partial<Message> = {}): Message {
   return { id: 1, author: "Аня", text: "привет", time: "10:00", createdAt: 1000, ...overrides };
@@ -53,5 +53,25 @@ describe("receiptFor", () => {
     expect(receiptFor(own, { self: 6000, other: 5000 }, "self")).toBe("read");
     expect(receiptFor(own, { self: 6000, other: 1000 }, "self")).toBe("sent");
     expect(receiptFor(message({ mine: false }), { other: 5000 }, "self")).toBeNull();
+  });
+});
+
+describe("canMarkRead", () => {
+  const onScreen = { chatOpen: true, conversationOnScreen: true, documentVisible: true };
+
+  it("stamps a message that arrives in the conversation being read", () => {
+    expect(canMarkRead(onScreen)).toBe(true);
+  });
+
+  it("does not stamp when the app is open but no conversation is", () => {
+    expect(canMarkRead({ ...onScreen, chatOpen: false })).toBe(false);
+  });
+
+  it("does not stamp when the phone is showing the chat list", () => {
+    expect(canMarkRead({ ...onScreen, conversationOnScreen: false })).toBe(false);
+  });
+
+  it("does not stamp when the tab is in the background", () => {
+    expect(canMarkRead({ ...onScreen, documentVisible: false })).toBe(false);
   });
 });

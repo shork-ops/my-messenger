@@ -12,7 +12,8 @@ import ConversationPanel from "./components/ConversationPanel";
 import RightPanel from "./components/RightPanel";
 import GameModal from "./components/GameModal";
 import PrivacyModal from "./components/PrivacyModal";
-import SettingsModal from "./components/SettingsModal";
+import { useState } from "react";
+import SettingsModal, { type SettingsSectionId } from "./components/SettingsModal";
 import type { ChangeEvent } from "react";
 import { Shield, X } from "lucide-react";
 import { GalleryModal, MuteModal, NewChatModal, PollModal } from "./components/Modals";
@@ -27,6 +28,7 @@ import { CallOverlay } from "./components/CallOverlay";
 import ShortcutHelp from "./components/ShortcutHelp";
 
 export default function App() {
+  const [settingsSection, setSettingsSection] = useState<SettingsSectionId | null>(null);
   const {
     about,
     accountId,
@@ -68,6 +70,7 @@ export default function App() {
     chooseMention,
     clearCache,
     clearHistory,
+    deleteChat,
     clearNotice,
     clearingCache,
     confirmDeleteAccount,
@@ -264,13 +267,18 @@ export default function App() {
         }}
         onOpenSettings={() => {
           setActiveNav("Настройки");
+          setSettingsSection(null);
           setProfileOpen(true);
         }}
         onOpenGames={() => {
           setActiveNav("Мини-игры");
           openGame("Каталог");
         }}
-        onOpenProfile={() => setProfileOpen(true)}
+        onOpenProfile={() => {
+          // The avatar promises the profile, so it goes straight there.
+          setSettingsSection("profile");
+          setProfileOpen(true);
+        }}
         onToggleNotifications={() => void toggleNotifications()}
         notificationsGranted={typeof Notification !== "undefined" && Notification.permission === "granted"}
       />
@@ -300,6 +308,7 @@ export default function App() {
         onSelectChat={selectChat}
         onTogglePin={toggleChatPin}
         onPickFolders={(chat) => setFolderPickerChat(chat)}
+        onDeleteChat={(chat) => void deleteChat(chat)}
       />
 
       <ConversationPanel
@@ -338,6 +347,10 @@ export default function App() {
         onClearHistory={() => {
           setChatMenuOpen(false);
           clearHistory();
+        }}
+        onDeleteChat={() => {
+          setChatMenuOpen(false);
+          void deleteChat(activeChat);
         }}
         onMute={() => {
           setChatMenuOpen(false);
@@ -470,7 +483,10 @@ export default function App() {
           members={chatMembers}
           myRole={myChatRole}
           onClose={() => setShowProfile(false)}
-          onOpenProfile={() => setProfileOpen(true)}
+          onOpenProfile={() => {
+          setSettingsSection("profile");
+          setProfileOpen(true);
+        }}
           onCreateInvite={() => void createInviteLink()}
           onRotateInvite={() => void rotateInviteLink()}
           onChangeRole={(userId, role) => void changeMemberRole(userId, role)}
@@ -574,6 +590,7 @@ export default function App() {
 
       <SettingsModal
         open={profileOpen}
+        initialSection={settingsSection}
         name={profileName}
         avatar={profileAvatar}
         avatarPhotoUrl={selfAvatarUrl}
@@ -587,7 +604,10 @@ export default function App() {
         theme={theme}
         textSize={textSize}
         onTextSizeChange={setTextSize}
-        onClose={() => setProfileOpen(false)}
+        onClose={() => {
+          setProfileOpen(false);
+          setSettingsSection(null);
+        }}
         onNameChange={setProfileName}
         onAvatarChange={setProfileAvatar}
         onUsernameChange={setUsername}

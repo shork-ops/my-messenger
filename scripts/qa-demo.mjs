@@ -391,6 +391,71 @@ async function expectCount(page, selector, expected, label) {
   await context.close();
 }
 
+// --- settings button, chat deletion, scroll and read receipts ---------------------------
+{
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "ru-RU", isMobile: true, hasTouch: true });
+  const page = await context.newPage();
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(String(e).slice(0, 70)));
+  page.on("dialog", (dialog) => dialog.accept());
+  await page.goto(base + tag(), { waitUntil: "networkidle", timeout: 90000 });
+  await page.waitForSelector(".chat-row", { timeout: 30000 });
+  await page.waitForTimeout(1200);
+
+  // Settings must open on settings. It used to open on the profile, with the rest behind an
+  // arrow that looked like it would close the window.
+  await page.getByLabel("Настройки").click();
+  await page.waitForTimeout(800);
+  const sections = await page.locator(".settings-nav-item").count();
+  record("настройки открываются списком", sections >= 4, `разделов ${sections}`);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(500);
+
+  // Deleting the conversation, from the row itself.
+  const rowsBefore = await page.locator(".chat-row").count();
+  const deletes = await page.locator(".chat-delete-button").count();
+  const firstName = await page.locator(".chat-delete-button").first().getAttribute("aria-label");
+  await page.locator(".chat-delete-button").first().click();
+  await page.waitForTimeout(1200);
+  const rowsAfter = await page.locator(".chat-row").count();
+  record("удаление чата из строки", deletes === rowsBefore && rowsAfter === rowsBefore - 1, `${firstName}: ${rowsBefore} → ${rowsAfter}`);
+
+  // A long conversation opens on its newest message, not at the top.
+  await page.locator(".chat-row").first().click();
+  await page.waitForTimeout(900);
+  const composer = page.locator('.composer input[aria-label="Текст сообщения"]');
+  for (let i = 1; i <= 20; i += 1) {
+    await composer.fill("прокрутка " + i);
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(70);
+  }
+  await page.waitForTimeout(1200);
+  const newestVisible = async () =>
+    page.evaluate(() => {
+      const area = document.querySelector(".messages-area");
+      const rows = [...document.querySelectorAll(".messages-area .message-line")];
+      const last = rows.at(-1);
+      if (!area || !last) return false;
+      const bottom = area.getBoundingClientRect().bottom;
+      return last.getBoundingClientRect().bottom <= bottom + 40;
+    });
+  const beforeLeaving = await newestVisible();
+  await page.getByLabel("Назад к чатам").click();
+  await page.waitForTimeout(700);
+  await page.locator(".chat-row").first().click();
+  await page.waitForTimeout(1500);
+  const afterReturn = await newestVisible();
+  record("чат открывается на новых сообщениях", beforeLeaving && afterReturn, `при возврате ${afterReturn ? "видно" : "не видно"} последнее`);
+
+  // Sitting outside a chat must not claim anything was read.
+  await page.getByLabel("Назад к чатам").click();
+  await page.waitForTimeout(600);
+  const readLabels = await page.locator('[aria-label="Прочитано"]').count();
+  record("вне чата ничего не прочитано", readLabels === 0, `меток «Прочитано» ${readLabels}`);
+  record("ошибок на странице нет (правки)", errors.length === 0, errors.slice(0, 2).join(", "));
+  await context.close();
+}
+
 await browser.close();
 
 const failed = results.filter((r) => !r.ok);

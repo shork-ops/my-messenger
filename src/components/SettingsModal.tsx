@@ -35,6 +35,8 @@ export type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number]["id"];
 
 export type SettingsModalProps = {
   open: boolean;
+  /** A section to land on, for the avatar tap. Omitted, the window shows the list. */
+  initialSection?: SettingsSectionId | null;
   name: string;
   avatar: string;
   avatarPhotoUrl: string | null;
@@ -94,16 +96,13 @@ export default function SettingsModal(props: SettingsModalProps) {
   const [section, setSection] = useState<SettingsSectionId | null>(null);
 
   useEffect(() => {
-    if (!open) {
-      setSection(null);
-      return;
-    }
-    // Narrow screens show one pane; open straight into the profile so the avatar
-    // tap lands where it promised. Wide screens show the list and the pane
-    // together, so no section needs selecting up front.
-    const narrow = typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches;
-    setSection(narrow ? "profile" : null);
-  }, [open]);
+    // Always the list of sections. Opening straight into the profile made the
+    // settings button look like a profile button: the first screen was somebody's
+    // name and photo, and the rest of the settings sat behind an arrow that looked
+    // like it would close the window. The avatar tap still lands on the profile,
+    // because it passes `initialSection`.
+    setSection(props.initialSection ?? null);
+  }, [open, props.initialSection]);
 
   useEffect(() => {
     if (!open) return;

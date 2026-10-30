@@ -492,6 +492,33 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 @media (hover: none) {
   .chat-file-button { opacity: 1; }
 }
+/* Deleting the conversation from its row. Same target size and gutter as the folder
+   button, and it steps that one left so the two do not sit on top of each other. */
+.chat-row-wrap:has(.chat-delete-button) .chat-file-button { right: 48px; }
+.chat-row-wrap:has(.chat-delete-button) .chat-row { padding-right: 96px; }
+.chat-delete-button {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--fg-secondary);
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity 0.12s ease;
+}
+.chat-row-wrap:hover .chat-delete-button,
+.chat-row-wrap:focus-within .chat-delete-button { opacity: 1; }
+.chat-delete-button:hover { color: var(--danger, #ff6b6b); border-color: var(--danger, #ff6b6b); }
+@media (hover: none) {
+  .chat-delete-button { opacity: 1; }
+}
 .pinned-mark { font-size: 12px; }
 .message-action-wrap { position: absolute; top: 0; right: -29px; margin-top: 0; }
 .message-line:not(.mine) .message-content { position: relative; }

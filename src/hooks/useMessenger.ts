@@ -39,7 +39,7 @@ import { analyseWaveform } from "../lib/voice";
 import { GalleryModal, MuteModal, NewChatModal, PollModal } from "../components/Modals";
 import { friends, isDemoMode } from "../lib/constants";
 import { clockTime, numericId } from "../lib/format";
-import { appendMessage, applyReadStamp, mapMessages, markRead, removeMessage, restoreMessage, updateChat } from "../lib/chats";
+import { appendMessage, applyReadStamp, mapMessages, markRead, removeChat, removeMessage, restoreMessage, updateChat } from "../lib/chats";
 import { placeNewMessage } from "../lib/messageOrder";
 import { isTransientError, withRetry } from "../lib/retry";
 import { toggleLocalVote } from "../lib/polls";
@@ -146,6 +146,10 @@ export function useMessenger() {
   // one of them is always showing. On wider screens both are visible and this
   // state is ignored.
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
+  // A tab in the background is not being read. Kept in state rather than read at the moment
+  // of the event so the value the subscription sees is the one the reader last saw.
+  const [documentVisible, setDocumentVisible] = useState(() => typeof document === "undefined" || document.visibilityState === "visible");
+  const [openedChatId, setOpenedChatId] = useState<number | null>(null);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [privacy, setPrivacy] = useState<PrivacyPreferences>(DEFAULT_PRIVACY);
   const [privacySaving, setPrivacySaving] = useState(false);
@@ -228,11 +232,19 @@ export function useMessenger() {
   chatsRef.current = chats;
     const reloadChatsRef = useRef<(() => void) | null>(null);
   useCloudChats({ accountId, profileReady, profileName, notify: action, setChats, setActiveId, reloadRef: reloadChatsRef });
+  const chatOnScreen = openedChatId !== null && openedChatId === activeId;
   useRealtimeChat({
     accountId,
     profileName,
     remoteId: activeChat.remoteId,
     setChats,
+    // Three things have to be true for the reader to have seen a message: the conversation
+    // is the open one, the phone is not parked on the chat list, and the tab is in front.
+    visible: {
+      chatOpen: chatOnScreen,
+      conversationOnScreen: mobileView === "chat",
+      documentVisible,
+    },
     // A message can arrive before the chat list has finished loading. Without
     // this the event was dropped and the message never appeared.
     onMissingChat: async () => reloadChatsRef.current?.(),
@@ -390,9 +402,15 @@ export function useMessenger() {
   const goBackToChats = useCallback(() => {
     if (mobileView !== "chat") return;
     setMobileView("list");
+    setOpenedChatId(null);
     if (window.history.state?.nexusChat) window.history.back();
   }, [mobileView]);
   useBackSwipe({ enabled: mobileView === "chat", onBack: goBackToChats });
+  useEffect(() => {
+    const onVisibility = () => setDocumentVisible(document.visibilityState === "visible");
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
   // TOTP two-factor, verified on the server: the app cannot declare itself verified.
   const twoFactorState = useTwoFactor(supabase, accountId);
   const twoFactor = {
@@ -1291,6 +1309,7 @@ export function useMessenger() {
 
   async function selectChat(chat: Chat) {
     setActiveId(chat.id);
+    setOpenedChatId(chat.id);
     setMobileView("chat");
     if (window.matchMedia("(max-width: 760px)").matches) window.history.pushState({ nexusChat: chat.id }, "");
     setDraft(draftsRef.current[chat.id] ?? "");
@@ -1575,6 +1594,53 @@ export function useMessenger() {
     action("История чата очищена");
   }
 
+  /**
+   * Deletes the conversation itself, not its messages.
+   *
+   * `clearHistory` empties a chat and keeps the row. Someone who wants the conversation
+   * gone had no way to do it, so this leaves the list too. In the cloud the membership is
+   * removed for this account and the chat is deleted only when nobody else is in it -
+   * deleting a shared conversation for everybody would be a different, louder promise.
+   */
+  async function deleteChat(chat: Chat) {
+    if (!window.confirm(`Удалить чат «${chat.name}» целиком? Переписка исчезнет из списка.`)) return;
+    const client = supabase;
+    if (client && accountId && chat.remoteId) {
+      const { error: leaveError } = await client
+        .from("chat_members")
+        .delete()
+        .eq("chat_id", chat.remoteId)
+        .eq("user_id", accountId);
+      if (leaveError) {
+        action("Не удалось удалить чат в облаке");
+        return;
+      }
+      // Only an empty room is removed from the server; a shared one keeps its history for
+      // the people still in it.
+      const { count, error: countError } = await client
+        .from("chat_members")
+        .select("user_id", { count: "exact", head: true })
+        .eq("chat_id", chat.remoteId);
+      if (!countError && count === 0) {
+        await client.from("chats").delete().eq("id", chat.remoteId);
+      }
+    }
+    setChats((current) => {
+      const result = removeChat(current, chat.id, activeId);
+      if (result.nextActiveId !== null) setActiveId(result.nextActiveId);
+      return result.chats;
+    });
+    setDrafts((current) => {
+      const next = { ...current };
+      delete next[chat.id];
+      return next;
+    });
+    setDeletedMessage(null);
+    setChatMenuOpen(false);
+    goBackToChats();
+    action(`Чат «${chat.name}» удалён`);
+  }
+
   function changeDraft(value: string) {
     if (editingMessageId !== null) {
       setEditDraft(value);
@@ -1825,6 +1891,7 @@ export function useMessenger() {
     chooseMention,
     clearCache,
     clearHistory,
+    deleteChat,
     clearNotice,
     clearingCache,
     confirmDeleteAccount,

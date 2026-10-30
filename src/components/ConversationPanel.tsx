@@ -36,6 +36,7 @@ type ConversationPanelProps = {
   onToggleProfile: () => void;
   /** Deletes this conversation's history on this device. */
   onClearHistory: () => void;
+  onDeleteChat: () => void;
   /** Saves the conversation to a file. */
   onExport: () => void;
   /** Opens the folder chooser. */
@@ -102,6 +103,7 @@ export default function ConversationPanel({
   onTogglePin,
   onToggleProfile,
   onClearHistory,
+  onDeleteChat,
   onExport,
   onFolders,
   onMute,
@@ -275,6 +277,9 @@ export default function ConversationPanel({
                 </button>
                 <button type="button" role="menuitem" className="danger" onClick={onClearHistory}>
                   <Trash2 size={18} /> Очистить историю
+                </button>
+                <button type="button" role="menuitem" className="danger" onClick={onDeleteChat}>
+                  <Trash2 size={18} /> Удалить чат
                 </button>
               </div>
             )}

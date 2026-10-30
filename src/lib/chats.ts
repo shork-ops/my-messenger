@@ -62,6 +62,28 @@ export function updateChat(chats: Chat[], chatId: number, updater: (chat: Chat) 
   return chats.map((chat) => (chat.id === chatId ? updater(chat) : chat));
 }
 
+/**
+ * Takes a conversation out of the list.
+ *
+ * Clearing the history empties a chat and leaves its row behind, which is a different
+ * promise: a conversation nobody wants back still sat in the list forever. Removing it
+ * also has to choose what the reader is left looking at, which is why this returns both
+ * the list and the news instead of only a list.
+ */
+export function removeChat(
+  chats: Chat[],
+  chatId: number,
+  activeId: number
+): { chats: Chat[]; nextActiveId: number | null } {
+  const remaining = chats.filter((chat) => chat.id !== chatId);
+  if (chatId !== activeId) return { chats: remaining, nextActiveId: null };
+  // Deleting the conversation you are reading has to leave you somewhere: the next row
+  // that takes its place, or the one above it when it was last.
+  const index = chats.findIndex((chat) => chat.id === chatId);
+  const next = remaining[index] ?? remaining[index - 1] ?? remaining[0] ?? null;
+  return { chats: remaining, nextActiveId: next ? next.id : null };
+}
+
 export function mapMessages(chats: Chat[], chatId: number, updater: (message: Message) => Message): Chat[] {
   return updateChat(chats, chatId, (chat) => ({ ...chat, messages: chat.messages.map(updater) }));
 }
