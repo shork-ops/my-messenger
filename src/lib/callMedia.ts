@@ -28,6 +28,21 @@ export type MediaState = {
   screenSharing: boolean;
 };
 
+/** The publication name that marks a screen track, on both the sending and receiving side. */
+export const SCREEN_TRACK_NAME = "screen";
+
+/**
+ * Which element a remote video track belongs in.
+ *
+ * Camera and screen are both video tracks and were fed to one element, so a shared screen
+ * replaced the peer's face and the receiving side could not tell which it was looking at.
+ * The publisher names the screen track, and that name is the only thing that survives the
+ * trip through the SFU.
+ */
+export function isScreenTrack(name: string | undefined): boolean {
+  return name === SCREEN_TRACK_NAME;
+}
+
 const INITIAL_MEDIA: MediaState = {
   connected: false,
   micEnabled: false,
@@ -52,6 +67,8 @@ function readParticipants(room: Room): RoomParticipant[] {
 type MediaListeners = {
   onState: (state: MediaState) => void;
   onRemoteVideo: (track: Track | null) => void;
+  /** A shared screen, kept apart from the camera so both can be shown at once. */
+  onRemoteScreen: (track: Track | null) => void;
 };
 
 /**
@@ -101,11 +118,20 @@ export class CallSession {
       .on(RoomEvent.ParticipantDisconnected, publishParticipants)
       .on(RoomEvent.TrackMuted, publishParticipants)
       .on(RoomEvent.TrackUnmuted, publishParticipants)
-      .on(RoomEvent.TrackSubscribed, (track) => {
-        if (track.kind === Track.Kind.Video) this.listeners.onRemoteVideo(track);
+      .on(RoomEvent.TrackSubscribed, (track, publication) => {
+        if (track.kind !== Track.Kind.Video) return;
+        // The publisher names the screen track "screen"; a camera track keeps the default
+        // name, so the name is what tells the two apart on the receiving side.
+        if (isScreenTrack(publication?.trackName)) this.listeners.onRemoteScreen(track);
+        else this.listeners.onRemoteVideo(track);
       })
-      .on(RoomEvent.TrackUnsubscribed, (track) => {
-        if (track.kind === Track.Kind.Video) this.listeners.onRemoteVideo(null);
+      .on(RoomEvent.TrackUnsubscribed, (track, publication) => {
+        // Clearing the right element matters more than it looks: a screen track left
+        // attached to its video element freezes on its last frame when the share ends,
+        // which reads as if the other person were still showing their screen.
+        if (track.kind !== Track.Kind.Video) return;
+        if (isScreenTrack(publication?.trackName)) this.listeners.onRemoteScreen(null);
+        else this.listeners.onRemoteVideo(null);
       })
       .on(RoomEvent.Disconnected, () => this.emit({ connected: false, micEnabled: false, cameraEnabled: false, screenSharing: false }));
 
@@ -165,7 +191,7 @@ export class CallSession {
         void room.localParticipant.unpublishTrack(track).catch(() => undefined);
         this.emit({ screenSharing: false });
       });
-      await room.localParticipant.publishTrack(track, { name: "screen" });
+      await room.localParticipant.publishTrack(track, { name: SCREEN_TRACK_NAME });
       this.emit({ screenSharing: true });
       return null;
     } catch (error) {

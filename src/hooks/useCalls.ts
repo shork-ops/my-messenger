@@ -33,6 +33,8 @@ type UseCallsResult = {
   media: MediaState;
   /** Remote participant's video element ref is filled by `attachRemoteVideo`. */
   attachRemoteVideo: (element: HTMLVideoElement | null) => void;
+  /** The shared screen has its own element, so it can be shown beside the camera. */
+  attachRemoteScreen: (element: HTMLVideoElement | null) => void;
   toggleMute: () => Promise<void>;
   toggleCamera: () => Promise<void>;
   toggleScreenShare: () => Promise<void>;
@@ -64,6 +66,8 @@ export function useCalls({ accountId, enabled, notify }: UseCallsOptions): UseCa
   const sessionRef = useRef<CallSession | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteTrackRef = useRef<unknown>(null);
+  const remoteScreenRef = useRef<HTMLVideoElement | null>(null);
+  const remoteScreenTrackRef = useRef<unknown>(null);
   // Realtime callbacks outlive individual renders, so the account id is read
   // through a ref rather than captured.
   const accountRef = useRef(accountId);
@@ -139,6 +143,12 @@ export function useCalls({ accountId, enabled, notify }: UseCallsOptions): UseCa
     if (element && track?.attach) track.attach(element);
   }, []);
 
+  const attachRemoteScreen = useCallback((element: HTMLVideoElement | null) => {
+    remoteScreenRef.current = element;
+    const track = remoteScreenTrackRef.current as { attach?: (el: HTMLVideoElement) => void } | null;
+    if (element && track?.attach) track.attach(element);
+  }, []);
+
   /** Opens the SFU connection for a live call, if it is not open already. */
   const connectMedia = useCallback(
     async (target: ActiveCall) => {
@@ -156,6 +166,22 @@ export function useCalls({ accountId, enabled, notify }: UseCallsOptions): UseCa
             (track as { attach?: (el: HTMLVideoElement) => void }).attach?.(remoteVideoRef.current);
           }
         },
+        onRemoteScreen: (track) => {
+          remoteScreenTrackRef.current = track;
+          // Detaching rather than only clearing the ref: a track left attached keeps
+          // painting its last frame after the other person stops sharing.
+          const element = remoteScreenRef.current;
+          const previous = element ? (track as { detach?: (el: HTMLVideoElement) => void }) : null;
+          if (!track && element) {
+            // Stop the element itself, so no frozen frame is left behind.
+            element.srcObject = null;
+            return;
+          }
+          void previous;
+          if (track && element) {
+            (track as { attach?: (el: HTMLVideoElement) => void }).attach?.(element);
+          }
+        },
       });
       sessionRef.current = session;
       await session.connect(token.data, { video: target.kind === "video" });
@@ -168,6 +194,8 @@ export function useCalls({ accountId, enabled, notify }: UseCallsOptions): UseCa
     const session = sessionRef.current;
     sessionRef.current = null;
     remoteTrackRef.current = null;
+    remoteScreenTrackRef.current = null;
+    if (remoteScreenRef.current) remoteScreenRef.current.srcObject = null;
     if (session) await session.dispose();
     setMedia(INITIAL_MEDIA_STATE);
   }, []);
@@ -241,6 +269,7 @@ export function useCalls({ accountId, enabled, notify }: UseCallsOptions): UseCa
     hangUp,
     media,
     attachRemoteVideo,
+    attachRemoteScreen,
     toggleMute,
     toggleCamera,
     toggleScreenShare,

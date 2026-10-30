@@ -982,6 +982,16 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .call-button.active { background: var(--border); }
 .call-button.accept { background: #1f9d55; border-color: #1f9d55; color: #fff; }
 .call-button.decline { background: #c93a3a; border-color: #c93a3a; color: #fff; }
+/* A shared screen is not cropped to a face-shaped box: the point of showing a screen is
+   to read what is on it, so it keeps its aspect ratio and takes the size it is given. */
+.call-screen-video {
+  width: 100%;
+  max-height: 320px;
+  border-radius: 14px;
+  background: #000;
+  object-fit: contain;
+}
+.call-screen-video:not([src]):empty { display: none; }
 .call-video {
   width: 100%;
   max-height: 240px;

@@ -237,6 +237,7 @@ export default function App() {
     hangUp,
     media: callMedia,
     attachRemoteVideo,
+  attachRemoteScreen,
     toggleMute,
     toggleCamera,
     toggleScreenShare,
@@ -2071,6 +2072,7 @@ export default function App() {
         muted={callMedia.micEnabled === false}
         cameraOff={callMedia.cameraEnabled === false}
         onRemoteVideo={attachRemoteVideo}
+        onRemoteScreen={attachRemoteScreen}
         participants={callMedia.participants}
       />
 

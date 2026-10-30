@@ -28,6 +28,8 @@ type CallOverlayProps = {
   cameraOff: boolean;
   /** Receives the element the remote camera stream is attached to. */
   onRemoteVideo: (element: HTMLVideoElement | null) => void;
+  /** The shared screen has its own element, so it never replaces the camera. */
+  onRemoteScreen?: (element: HTMLVideoElement | null) => void;
   /** Everyone on the call, the local participant included. */
   participants: RoomParticipant[];
 };
@@ -55,6 +57,7 @@ export function CallOverlay({
   muted,
   cameraOff,
   onRemoteVideo,
+  onRemoteScreen,
   participants,
 }: CallOverlayProps) {
   const [now, setNow] = useState(() => Date.now());
@@ -105,6 +108,19 @@ export function CallOverlay({
           autoPlay
           playsInline
           hidden={!isVideo || stage !== "incall" || group}
+        />
+        {/* A screen arriving during an audio call has to be visible, so this element does
+            not depend on the call being a video call. It stays in the layout with no
+            source until a screen track is published, and is emptied when the share ends,
+            otherwise the last frame would sit there looking live. */}
+        <video
+          ref={onRemoteScreen}
+          className="call-screen-video"
+          autoPlay
+          playsInline
+          muted
+          hidden={stage !== "incall" || group}
+          aria-label="Экран собеседника"
         />
         <div className={`call-avatar ${chatColor}`} aria-hidden="true" hidden={(isVideo && stage === "incall") || group}>
           {chatName.slice(0, 1).toUpperCase()}
