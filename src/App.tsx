@@ -138,6 +138,8 @@ export default function App() {
     notice,
     notificationPermission,
     notificationPrefs,
+    setPrivacyPrefs,
+    privacyPrefs,
     openDirectChat,
     openGame,
     openMessageActionsId,
@@ -324,6 +326,7 @@ export default function App() {
         chat={activeChat}
         onBack={goBackToChats}
         isDemoMode={isDemoMode}
+        privacy={privacyPrefs}
         accountId={accountId}
         profileName={profileName}
         searchOpen={messageSearchOpen}
@@ -645,6 +648,8 @@ export default function App() {
           onThemeChange={setTheme}
           onOpenPrivacy={() => setPrivacyOpen(true)}
           prefs={notificationPrefs}
+        privacy={privacyPrefs}
+        onPrivacyChange={setPrivacyPrefs}
           onPrefsChange={setNotificationPrefs}
           permission={notificationPermission}
           onRequestPermission={() => void askForNotifications()}

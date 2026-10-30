@@ -9,10 +9,12 @@ import Composer from "./Composer";
 import MessageBubble from "./MessageBubble";
 import SearchHits from "./SearchHits";
 import { firstUnreadIndex } from "../lib/unread";
+import { seenVisible, type PrivacyPrefs } from "../lib/privacyPrefs";
 import { jumpButton, scrollTarget } from "../lib/jumpToUnread";
 import { dateLabel, lastSeenLabel } from "../lib/format";
 import { messageRuns } from "../lib/messageRuns";
 import { receiptFor } from "../lib/readState";
+import { receiptVisible } from "../lib/privacyPrefs";
 import type { useServerSearch } from "../hooks/useServerSearch";
 import type { Chat, Message, MessageEffect } from "../types";
 
@@ -21,6 +23,8 @@ type ConversationPanelProps = {
   /** Returns from the conversation to the chat list. Phones only. */
   onBack: () => void;
   isDemoMode: boolean;
+  /** What this browser is allowed to draw about the reader and the other side. */
+  privacy: PrivacyPrefs;
   accountId: string | null;
   profileName: string;
   searchOpen: boolean;
@@ -92,6 +96,8 @@ export default function ConversationPanel({
   chat,
   onBack,
   isDemoMode,
+  /** Whether this browser draws read receipts and the other side's last-seen line. */
+  privacy: privacyValue,
   accountId,
   profileName,
   searchOpen,
@@ -288,11 +294,10 @@ export default function ConversationPanel({
       : chat.group
         ? `${chat.members?.length ?? 1} участника(ов)`
         : chat.remoteId
-          ? peerOnline
-            ? "в сети"
-            : peerLastSeenAt
-              ? lastSeenLabel(peerLastSeenAt)
-              : "Облачный диалог"
+          ? seenVisible(
+              peerOnline ? "в сети" : peerLastSeenAt ? lastSeenLabel(peerLastSeenAt) : "Облачный диалог",
+              privacyValue.lastSeen
+            ) ?? "Облачный диалог"
           : "Локальный чат";
   const typingLabel =
     typingNames.length === 0 ? "" : typingNames.length === 1 ? `${typingNames[0]} печатает…` : `${typingNames.join(", ")} печатают…`;
@@ -466,7 +471,7 @@ export default function ConversationPanel({
                 profileName={profileName}
                 actionsOpen={actionsOpenId === message.id}
                 showGamePreview={showGamePreview}
-                receipt={chat.remoteId ? receiptFor(message, chat.memberReadAt ?? {}, accountId) : null}
+                receipt={chat.remoteId ? receiptVisible(receiptFor(message, chat.memberReadAt ?? {}, accountId), privacyValue.readReceipts) : null}
                 onToggleActions={() => onToggleActions(message.id)}
                 onVote={(optionId) => onVote(message.id, optionId)}
                 onToggleReaction={(emoji) => onToggleReaction(message.id, emoji)}

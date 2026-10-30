@@ -14,6 +14,7 @@ import {
 import { ABOUT_MAX, normalizeAbout, shouldShowAboutCounter } from "../lib/about";
 import { TEXT_SIZES } from "../lib/textSize";
 import { formatMinute, parseMinute, type NotificationPrefs } from "../lib/notificationPrefs";
+import type { PrivacyPrefs } from "../lib/privacyPrefs";
 import { plural, storageSummary } from "../lib/storageUsage";
 import { LANGUAGES, type Language } from "../lib/i18n";
 import { type SessionRecord, lastSeenLabel } from "../lib/sessions";
@@ -59,6 +60,9 @@ export type SettingsModalProps = {
   onOpenPrivacy: () => void;
   prefs: NotificationPrefs;
   onPrefsChange: (next: NotificationPrefs) => void;
+  /** What this browser may draw about the reader. */
+  privacy: PrivacyPrefs;
+  onPrivacyChange: (next: PrivacyPrefs) => void;
   /** Current permission state, shown so a blocked browser is not a mystery. */
   permission: NotificationPermission | "unsupported";
   onRequestPermission: () => void;
@@ -193,7 +197,9 @@ export default function SettingsModal(props: SettingsModalProps) {
                 onWallpaperChange={props.onWallpaperChange}
               />
             )}
-            {active === "privacy" && <PrivacySection onOpenPrivacy={props.onOpenPrivacy} />}
+            {active === "privacy" && (
+            <PrivacySection onOpenPrivacy={props.onOpenPrivacy} prefs={props.privacy} onPrefsChange={props.onPrivacyChange} />
+          )}
             {active === "notifications" && (
               <NotificationsSection
                 prefs={props.prefs}
@@ -385,16 +391,52 @@ function AppearanceSection({
   );
 }
 
-function PrivacySection({ onOpenPrivacy }: { onOpenPrivacy: () => void }) {
+function PrivacySection({
+  onOpenPrivacy,
+  prefs,
+  onPrefsChange,
+}: {
+  onOpenPrivacy: () => void;
+  prefs: PrivacyPrefs;
+  onPrefsChange: (next: PrivacyPrefs) => void;
+}) {
+  const set = (patch: Partial<PrivacyPrefs>) => onPrefsChange({ ...prefs, ...patch });
   return (
-    <button type="button" className="settings-link" onClick={onOpenPrivacy}>
-      <ShieldCheck size={20} />
-      <span>
-        <strong>Приватность и блокировки</strong>
-        <small>Кто вас видит, статусы прочтения, удаление аккаунта</small>
-      </span>
-      <ChevronRight size={18} />
-    </button>
+    <>
+      <ToggleRow
+        label="Статусы прочтения"
+        hint="Показывать галочки на ваших сообщениях"
+        checked={prefs.readReceipts}
+        onChange={(checked) => set({ readReceipts: checked })}
+      />
+      <ToggleRow
+        label="Время «был(а) в сети»"
+        hint="Показывать, когда вы были в сети"
+        checked={prefs.lastSeen}
+        onChange={(checked) => set({ lastSeen: checked })}
+      />
+      <ToggleRow
+        label="«Печатает…»"
+        hint="Сообщать собеседнику, что вы печатаете"
+        checked={prefs.typingIndicator}
+        onChange={(checked) => set({ typingIndicator: checked })}
+      />
+      {/* Honesty matters here more than the feature. These switches change what this
+          browser draws; they cannot stop the other side's app from receiving its own
+          events, and a settings screen that implied otherwise would be lying. */}
+      <p className="settings-note">
+        Эти переключатели меняют то, что видите вы. Они не мешают собеседнику получать события
+        доставки на своём устройстве — для этого нужно сквозное шифрование, которого пока нет.
+      </p>
+      <button type="button" className="settings-link" onClick={onOpenPrivacy}>
+        <ShieldCheck size={20} />
+        <span>
+          <strong>Приватность и блокировки</strong>
+          <small>Кто вас видит, удаление аккаунта</small>
+        </span>
+        <ChevronRight size={18} />
+      </button>
+    </>
   );
 }
 

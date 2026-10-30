@@ -58,6 +58,7 @@ import { loadMessagePage } from "../lib/messageLoader";
 import { useHistoryPagination, useInfiniteHistory } from "../hooks/useHistoryPagination";
 import { useUnreadBadge, useMessageNotifications, usePushSubscriptionSync, useNotificationsPrompt, requestNotificationPermission } from "../hooks/useNotifications";
 import { useNotificationPrefs } from "../hooks/useNotificationPrefs";
+import { usePrivacyPrefs } from "../hooks/usePrivacyPrefs";
 import { useLanguage } from "../hooks/useLanguage";
 import { usePasscode } from "../hooks/usePasscode";
 import { useTwoFactor } from "../hooks/useTwoFactor";
@@ -288,6 +289,9 @@ export function useMessenger() {
   // Notification preferences live per device, and the permission state is read
   // once so the settings screen can say plainly whether the browser allows them.
   const { prefs: notificationPrefs, setPrefs: setNotificationPrefs } = useNotificationPrefs();
+  // What this browser draws about read receipts and last-seen. Kept beside the notification
+  // preferences because both describe the device rather than the account.
+  const { prefs: privacyPrefs, setPrefs: setPrivacyPrefs } = usePrivacyPrefs();
   // The language is a device preference, like the theme: a phone in English should
   // not change the laptop.
   const { language, setLanguage, t } = useLanguage();
@@ -1957,6 +1961,7 @@ export function useMessenger() {
     notice,
     notificationPermission,
     notificationPrefs,
+    privacyPrefs,
     openDirectChat,
     openGame,
     openMessageActionsId,
@@ -2021,6 +2026,7 @@ export function useMessenger() {
     setNotificationPrefs,
     setOpenMessageActionsId,
     setPollOpen,
+    setPrivacyPrefs,
     setPollOptions,
     setPollQuestion,
     setPrivacyOpen,
