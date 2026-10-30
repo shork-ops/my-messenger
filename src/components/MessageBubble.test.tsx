@@ -10,8 +10,9 @@
  * properties. What is checked is the decision the component makes - which theme class the
  * time carries - because that decision is exactly what was wrong.
  */
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { VIEW_ONCE_SECONDS } from "../lib/viewOnce";
 import { EFFECTS } from "../lib/effects";
 import MessageBubble from "./MessageBubble";
 import type { Message } from "../types";
@@ -160,5 +161,65 @@ describe("an effect belongs to whoever wrote the message", () => {
     const { container } = renderBubble({ mine: false, effect: "hearts" }, false, { actionsOpen: true });
     expect(container.querySelector(".message-effect-mark")).not.toBeNull();
     expect(container.querySelector('[aria-label="Эффекты"]')).toBeNull();
+  });
+});
+
+describe("a photo that may be opened once", () => {
+  const photo = {
+    name: "фото.jpg",
+    type: "image/jpeg",
+    data: "data:image/jpeg;base64,AAAA",
+    size: 2048,
+    viewOnce: true,
+  };
+
+  it("does not paint the photo until it is opened", () => {
+    // The whole point: the bytes must not be in the document before the decision to look.
+    const { container } = renderBubble({ attachment: photo });
+    expect(container.querySelector(".attachment-image")).toBeNull();
+    expect(container.querySelector(".view-once-warning")?.textContent).toContain(
+      String(VIEW_ONCE_SECONDS)
+    );
+  });
+
+  it("paints it once opened, with a countdown the reader can see", () => {
+    const { container } = renderBubble({ attachment: photo });
+    fireEvent.click(container.querySelector(".view-once-open") as HTMLElement);
+    expect(container.querySelector(".attachment-image")).not.toBeNull();
+    expect(container.querySelector(".view-once-countdown")?.textContent).toContain(
+      String(VIEW_ONCE_SECONDS)
+    );
+  });
+
+  it("withdraws it when the countdown runs out, and does not bring it back", () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = renderBubble({ attachment: photo });
+      fireEvent.click(container.querySelector(".view-once-open") as HTMLElement);
+      expect(container.querySelector(".attachment-image")).not.toBeNull();
+
+      act(() => {
+        vi.advanceTimersByTime((VIEW_ONCE_SECONDS + 1) * 1000);
+      });
+
+      expect(container.querySelector(".attachment-image")).toBeNull();
+      expect(container.querySelector(".view-once-spent")?.textContent).toContain("больше нельзя");
+      // Nothing offers to open it again.
+      expect(container.querySelector(".view-once-open")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("leaves an ordinary photo alone", () => {
+    const { container } = renderBubble({ attachment: { ...photo, viewOnce: false } });
+    expect(container.querySelector(".view-once-card")).toBeNull();
+  });
+
+  it("draws an album picture separately - a single-view photo is never one of many", () => {
+    // Marking one picture of an album would be a promise the grid cannot keep: the whole album
+    // is sent at once and the other pictures stay.
+    const { container } = renderBubble({ attachment: photo });
+    expect(container.querySelector(".album-grid")).toBeNull();
   });
 });

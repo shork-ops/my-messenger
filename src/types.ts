@@ -33,6 +33,11 @@ export type Attachment = {
    * data URLs and for local chats, which never expire.
    */
   expiresAt?: number;
+  /**
+   * Media the sender meant to be looked at once. Kept on the attachment rather than in a new
+   * table so it travels with the message through every path that already handles attachments.
+   */
+  viewOnce?: boolean;
 };
 
 export type ReplyPreview = { author: string; text: string };

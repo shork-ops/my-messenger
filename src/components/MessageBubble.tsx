@@ -13,6 +13,18 @@ import { useLinkCard } from "../hooks/useLinkCard";
 import LinkPreview from "./LinkPreview";
 import AlbumGrid from "./AlbumGrid";
 import { formatBytes } from "../lib/media";
+import {
+  VIEW_ONCE_SECONDS,
+  isSpent,
+  isViewOnce,
+  markSpent,
+  nextViewOnceState,
+  remainingSeconds,
+  viewOnceSpentLabel,
+  viewOnceVisible,
+  viewOnceWarning,
+  type ViewOnceState,
+} from "../lib/viewOnce";
 import type { Message, MessageEffect, Poll } from "../types";
 
 type VoteHandler = (optionId: string) => void;
@@ -57,16 +69,94 @@ function PollCard({ poll, accountId, profileName, onVote }: { poll: Poll; accoun
   );
 }
 
+/**
+ * Single-view media.
+ *
+ * The image is not painted until the receiver opens it, and after the countdown it is not
+ * painted again - not on re-render, not on reopening the conversation. What the interface
+ * promises is exactly that: it cannot be looked at twice. It does not promise a screenshot
+ * alarm, because a browser cannot reliably give one.
+ */
+function ViewOnceCard({
+  attachment,
+  messageKey,
+}: {
+  attachment: NonNullable<Message["attachment"]>;
+  /** Identifies this piece of media across unmounts, so "already opened" survives them. */
+  messageKey: string;
+}) {
+  // The initial state is read from storage rather than assumed: coming back to a conversation
+  // must not offer a photo that has already been opened.
+  const [state, setState] = useState<ViewOnceState>(() => (isSpent(messageKey) ? "spent" : "closed"));
+  const [left, setLeft] = useState(VIEW_ONCE_SECONDS);
+  const [startedAt, setStartedAt] = useState(0);
+
+  useEffect(() => {
+    if (state !== "open") return;
+    const started = Date.now();
+    setStartedAt(started);
+    setLeft(VIEW_ONCE_SECONDS);
+    const tick = window.setInterval(() => {
+      const remaining = remainingSeconds(started, Date.now());
+      setLeft(remaining);
+      if (remaining === 0) {
+        window.clearInterval(tick);
+        markSpent(messageKey);
+        setState(nextViewOnceState("open"));
+      }
+    }, 250);
+    return () => window.clearInterval(tick);
+  }, [state, messageKey]);
+
+  if (state === "spent") {
+    return (
+      <div className="view-once-card is-spent" role="status">
+        <span className="view-once-spent">{viewOnceSpentLabel()}</span>
+      </div>
+    );
+  }
+
+  if (state === "open" && viewOnceVisible("open")) {
+    return (
+      <div className="view-once-card is-open">
+        <img className="attachment-image" src={attachment.thumbnail || attachment.data} alt={attachment.name} />
+        <span className="view-once-countdown" role="timer" aria-live="polite">
+          Осталось {left} с
+        </span>
+        <span className="view-once-hint" data-started={startedAt}>
+          Чтобы закрыть раньше, нажмите
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="view-once-card is-closed">
+      <p className="view-once-warning">{viewOnceWarning()}</p>
+      <button type="button" className="view-once-open" onClick={() => setState(nextViewOnceState("closed"))}>
+        1 раз · Открыть фото
+      </button>
+    </div>
+  );
+}
+
 function AttachmentCard({
   attachment,
   autoload,
+  messageKey,
 }: {
   attachment: NonNullable<Message["attachment"]>;
   /** False when the download policy says this picture waits for a tap. */
   autoload: boolean;
+  /** Identifies the message, so "already opened" is remembered per message, not per file. */
+  messageKey: string;
 }) {
   const [revealed, setRevealed] = useState(false);
   const show = autoload || revealed;
+
+  if (isViewOnce({ viewOnce: attachment.viewOnce })) {
+    return <ViewOnceCard attachment={attachment} messageKey={messageKey} />;
+  }
 
   return (
     <div className="attachment-card">
@@ -301,7 +391,11 @@ export default function MessageBubble({
           ) : message.album && message.album.length > 0 ? (
             <AlbumGrid items={message.album} autoload={autoloadMedia} />
           ) : message.attachment ? (
-            <AttachmentCard attachment={message.attachment} autoload={autoloadMedia} />
+            <AttachmentCard
+              attachment={message.attachment}
+              autoload={autoloadMedia}
+              messageKey={message.remoteId || String(message.id)}
+            />
           ) : (
             <MessageBody text={forwardRelease.label ? forwardRelease.body : message.text} />
           )}

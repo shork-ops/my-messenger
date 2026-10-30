@@ -39,6 +39,34 @@ export function createDemoSeedChats(now: number = Date.now()): Chat[] {
       lastReadAt: now - 600_000,
     },
     {
+      id: 9,
+      name: "Фото на один раз",
+      avatar: "Ф",
+      color: "violet",
+      preview: "Это фото можно открыть один раз",
+      time: "12:45",
+      messages: [
+        { id: 90_001, author: "Лиза", text: "Держи, но только на 10 секунд 🙂", time: "12:44", createdAt: now - 120_000 },
+        {
+          id: 90_002,
+          author: "Лиза",
+          text: "секрет.png",
+          time: "12:45",
+          createdAt: now - 60_000,
+          // Seeded so the single-view rule can be checked in a browser: the picture must not
+          // be in the document until someone decides to open it.
+          attachment: {
+            name: "секрет.png",
+            type: "image/png",
+            size: 4096,
+            viewOnce: true,
+            data: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+          },
+        },
+      ],
+      lastReadAt: now,
+    },
+    {
       id: 2,
       name: "Игорь",
       avatar: "И",

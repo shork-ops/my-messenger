@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent, MutableRefObject } from "react";
-import { CheckCheck, Clock, Image, Mic, Paperclip, Plus, Send, Smile, Sticker, Users, Video, X } from "lucide-react";
+import { CheckCheck, Clock, EyeOff, Image, Mic, Paperclip, Plus, Send, Smile, Sticker, Users, Video, X } from "lucide-react";
 import type { Message } from "../types";
 
 type ComposerProps = {
@@ -27,6 +27,8 @@ type ComposerProps = {
   onOpenPoll: () => void;
   /** Offers the moments to send at, when the draft is ready. */
   onSchedule: () => void;
+  /** Picks a photo to be looked at once, rather than to be sent as an ordinary picture. */
+  onViewOnce: () => void;
 };
 
 export default function Composer({
@@ -52,6 +54,7 @@ export default function Composer({
   onOpenGallery,
   onOpenPoll,
   onSchedule,
+  onViewOnce,
 }: ComposerProps) {
   const value = editing ? editDraft : draft;
   const [attachOpen, setAttachOpen] = useState(false);
@@ -134,6 +137,9 @@ export default function Composer({
               </button>
               {/* Scheduling needs something to send; offering it on an empty input would
                   open a menu that can only be cancelled. */}
+              <button type="button" role="menuitem" onClick={() => runFromMenu(onViewOnce)}>
+                <EyeOff size={18} /> Посмотреть один раз
+              </button>
               <button
                 type="button"
                 role="menuitem"

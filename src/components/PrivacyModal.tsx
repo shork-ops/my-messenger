@@ -1,4 +1,4 @@
-import { Ban, ShieldCheck, Trash2, X } from "lucide-react";
+import { Ban, Download, Lock, ShieldCheck, Trash2, X } from "lucide-react";
 import type { PrivacyPreferences } from "../lib/privacy";
 import {
   MESSAGE_POLICY,
@@ -20,6 +20,8 @@ type PrivacyModalProps = {
   onVisibilityChange: (next: VisibilitySettings) => void;
   onUnblock: (userId: string) => void;
   onDeleteAccount: () => void;
+  /** Writes the whole account to a file, next to the deletion rather than in a corner. */
+  onExportAll: () => void;
   onClose: () => void;
 };
 
@@ -40,6 +42,7 @@ export default function PrivacyModal({
   onVisibilityChange,
   onUnblock,
   onDeleteAccount,
+  onExportAll,
   onClose,
 }: PrivacyModalProps) {
   if (!open) return null;
@@ -53,6 +56,25 @@ export default function PrivacyModal({
             <X size={18} />
           </button>
         </header>
+
+        {/* The honest answer to "who can read my messages", in the place where someone looks
+            for it. The product decision was to leave end-to-end encryption for later, and a
+            deferred promise read as a kept one is worse than either. The wording says what is
+            true: the transport and the storage are protected, and the server holds the key. */}
+        <div className="privacy-section encryption-note">
+          <div className="privacy-heading">
+            <Lock size={15} /> <span>Кто может прочитать переписку</span>
+          </div>
+          <p className="modal-help">
+            Сообщения передаются по защищённому соединению и хранятся на сервере. Сквозного
+            шифрования пока нет: ключ есть у сервера, поэтому в теории администратор сервера
+            может прочитать переписку.
+          </p>
+          <p className="modal-help">
+            Посторонний человек прочитать её не сможет — доступ к сообщениям закрыт на уровне
+            базы данных, каждый видит только свои чаты.
+          </p>
+        </div>
 
         <label className="privacy-row">
           <span>
@@ -150,6 +172,21 @@ export default function PrivacyModal({
               })}
             </ul>
           )}
+        </div>
+
+        {/* Taking the data away and destroying it are the two halves of the same decision, so
+            they sit together: nobody should have to delete an account to find out what it held. */}
+        <div className="privacy-section">
+          <div className="privacy-heading">
+            <Download size={15} /> <span>Мои данные</span>
+          </div>
+          <p className="modal-help">
+            Все чаты, сообщения, настройки и папки одним файлом. Вложения в архив не входят — они
+            остаются на сервере.
+          </p>
+          <button type="button" className="archive-button" onClick={onExportAll}>
+            <Download size={14} /> Скачать архив
+          </button>
         </div>
 
         <div className="privacy-section danger-zone">

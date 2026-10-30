@@ -106,6 +106,7 @@ export default function App() {
     setScheduleOpen,
     setStickerOpen,
     exportChat,
+    exportEverything,
     fileInputRef,
     folderChats,
     folderPickerChat,
@@ -449,6 +450,14 @@ export default function App() {
         },
           onChooseMention: chooseMention,
           onAttachment: (event) => void handleAttachment(event),
+          onViewOnce: () => {
+            // The same file picker, with the flag the sender chose. A separate input would
+            // duplicate the accept list and the change handler, and they would drift.
+            const input = fileInputRef.current;
+            if (!input) return;
+            input.dataset.viewOnce = "true";
+            input.click();
+          },
           onOpenGallery: () => setGalleryOpen(true),
           onOpenPoll: () => setPollOpen(true),
         }}
@@ -637,6 +646,7 @@ export default function App() {
           onVisibilityChange={(next) => void changeVisibility(next)}
           onUnblock={(userId) => void unblockPerson(userId)}
           onDeleteAccount={() => void confirmDeleteAccount()}
+          onExportAll={exportEverything}
           onClose={() => setPrivacyOpen(false)}
         />
       )}

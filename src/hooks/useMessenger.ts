@@ -72,6 +72,7 @@ import { useBackSwipe } from "../hooks/useBackSwipe";
 import ShortcutHelp from "../components/ShortcutHelp";
 import type { Shortcut } from "../lib/shortcuts";
 import { exportAsText, exportFileName, pluralMessages } from "../lib/exportChat";
+import { archiveFileName, archiveSummary, buildArchive } from "../lib/archive";
 import { useChatFolders } from "../hooks/useChatFolders";
 import { chatsInFolder } from "../lib/chatFolders";
 import FolderPicker from "../components/FolderPicker";
@@ -410,6 +411,62 @@ export function useMessenger() {
     action(`Переписка выгружена: ${pluralMessages(messages.length)}`);
   }
 
+  /**
+   * The whole account in one file.
+   *
+   * Different from `exportChat` in what it promises: this is what a person takes away on the
+   * way out, so it asks each part of the app for its data instead of listing them here. A new
+   * kind of data missing from the archive would be a silent loss, which is the one failure a
+   * backup cannot afford.
+   */
+  function exportEverything() {
+    const everything = chats
+      .filter((chat) => chat.messages.length > 0 || chat.remoteId)
+      .map((chat) => ({
+        name: chat.name,
+        kind: chat.channel ? ("channel" as const) : chat.group ? ("group" as const) : ("chat" as const),
+        pinned: chat.pinned,
+        unread: chat.unread,
+        messages: chat.messages
+          .filter((message) => message.id > 0)
+          .map((message) => ({
+            author: message.author,
+            text: message.text,
+            createdAt: message.createdAt ? new Date(message.createdAt).toISOString() : null,
+            attachment: message.attachment
+              ? { name: message.attachment.name, type: message.attachment.type, size: message.attachment.size }
+              : null,
+            ...(message.attachment?.viewOnce ? { viewOnce: true } : {}),
+          })),
+      }));
+
+    const parts = {
+      profile: { name: profileName, username: null },
+      chats: everything,
+      // Passed through rather than reinterpreted: the archive is a copy, not a translation.
+      settings: {
+        theme: typeof window !== "undefined" ? window.localStorage.getItem("nexus-theme") : null,
+        language: typeof window !== "undefined" ? window.localStorage.getItem("nexus-language") : null,
+        wallpaper: typeof window !== "undefined" ? window.localStorage.getItem("nexus-wallpaper") : null,
+        privacy: privacyPrefs,
+        notifications: notificationPrefs,
+        folders,
+      },
+    };
+
+    const text = buildArchive(parts, Date.now());
+    const blob = new Blob([text], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = archiveFileName(Date.now());
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    action(
+      `Архив выгружен: ${archiveSummary(parts)}, ${Math.round(text.length / 1024)} КБ`
+    );
+  }
+
   const goBackToChats = useCallback(() => {
     if (mobileView !== "chat") return;
     setMobileView("list");
@@ -545,6 +602,7 @@ export function useMessenger() {
     file: File,
     percentFrom: number,
     percentTo: number,
+    viewOnce = false,
   ): Promise<{ meta: Attachment; path: string } | null> {
     let payload: Blob = file;
     let uploadName = file.name;
@@ -577,11 +635,26 @@ export function useMessenger() {
       await client.storage.from("chat-media").remove([path]);
       return null;
     }
-    return { meta: { ...meta, path, data: signed.data.signedUrl, expiresAt: Date.now() + SIGNED_URL_TTL_SECONDS * 1000 }, path };
+    return {
+      meta: {
+        ...meta,
+        path,
+        data: signed.data.signedUrl,
+        expiresAt: Date.now() + SIGNED_URL_TTL_SECONDS * 1000,
+        // The marker rides along with the attachment, so it survives every path that already
+        // knows how to store one and needs no migration.
+        ...(viewOnce ? { viewOnce: true } : {}),
+      },
+      path,
+    };
   }
 
-  async function handleAttachment(event: ChangeEvent<HTMLInputElement>) {
+  async function handleAttachment(event: ChangeEvent<HTMLInputElement>, options: { viewOnce?: boolean } = {}) {
     const chosen = Array.from(event.target.files ?? []);
+    // The composer sets this just before opening the picker for "look once"; reading it from the
+    // input keeps one file picker rather than two that drift apart.
+    const viewOnce = options.viewOnce ?? event.target.dataset.viewOnce === "true";
+    delete event.target.dataset.viewOnce;
     event.target.value = "";
     if (chosen.length === 0) return;
     const chat = chats.find((item) => item.id === activeId);
@@ -604,7 +677,12 @@ export function useMessenger() {
       }
     }
 
-    const albums = splitIntoAlbums(chosen);
+    // A photo meant to be seen once is one photo, never part of an album: the promise is about
+    // that picture, and an album of nine others would leave the rest readable.
+    const albums = viewOnce ? [chosen.slice(0, 1)] : splitIntoAlbums(chosen);
+    if (viewOnce && chosen.length > 1) {
+      action("Для фото «посмотреть один раз» можно выбрать одно фото");
+    }
     let sent = 0;
     for (const group of albums) {
       const pictures: Attachment[] = [];
@@ -614,7 +692,7 @@ export function useMessenger() {
       for (const [index, file] of group.entries()) {
         const from = 10 + Math.round((index / group.length) * 70);
         const to = 10 + Math.round(((index + 1) / group.length) * 70);
-        const uploaded = await uploadPicture(client, chat.remoteId, accountId, file, from, to);
+        const uploaded = await uploadPicture(client, chat.remoteId, accountId, file, from, to, viewOnce);
         if (!uploaded) {
           failed = true;
           break;
@@ -2112,6 +2190,7 @@ export function useMessenger() {
     stickerOpen,
     scheduleOpen,
     exportChat,
+    exportEverything,
     fileInputRef,
     folderChats,
     folderPickerChat,

@@ -556,6 +556,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 /* Privacy is opened from Settings and must cover it; the call overlay still
    wins over both. */
 .modal-backdrop.privacy-layer { z-index: 60; }
+.modal-backdrop { overflow-y: auto; overscroll-behavior: contain; }
+/* A dialog taller than the screen must be reachable to its last row. Centre-only placement
+   pushed the bottom of the privacy dialog - the archive and the account deletion - below the
+   viewport with no way to scroll to it. */
+.modal-backdrop > .settings-modal,
+.modal-backdrop > .privacy-modal { max-height: calc(100vh - 36px); margin: auto; }
 /* Profile photo inside the existing avatar circle. */
 .avatar-photo { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; display: block; }
 /* Reachable by keyboard and screen readers, invisible on screen. */
@@ -865,6 +871,13 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .privacy-row small { color: var(--fg-muted); font-size: 12px; line-height: 1.45; }
 .privacy-row input { flex: 0 0 auto; width: 18px; height: 18px; accent-color: var(--yellow); cursor: pointer; }
 .privacy-section { margin-top: 16px; }
+/* The encryption answer is information, not a control: it is quieter than the switches and
+   set apart so it is not mistaken for a setting that can be turned on. */
+.encryption-note { padding: 10px 12px; border: 1px solid var(--border); border-left: 3px solid var(--fg-muted); border-radius: 9px; background: #121317; }
+.encryption-note .modal-help { margin: 0 0 6px; }
+.encryption-note .modal-help:last-child { margin-bottom: 0; }
+.archive-button { display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 9px; background: #121317; color: var(--fg); font-size: 13px; cursor: pointer; }
+.archive-button:hover { border-color: var(--yellow); color: var(--yellow); }
 .privacy-heading { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; color: var(--fg-secondary); font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; }
 .privacy-heading b { padding: 1px 7px; border: 1px solid var(--border); border-radius: 10px; color: var(--yellow); font-size: 12px; }
 .blocked-list { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
@@ -920,6 +933,17 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 /* Local file and image attachments. */
 .hidden-file-input { display: none; }
 .attachment-card { display: flex; flex-direction: column; gap: 6px; min-width: 150px; max-width: min(320px, 100%); }
+/* Single-view media. The closed state has to look deliberate rather than broken: it is a card
+   with a warning and a button, not an empty frame where a photo failed to load. */
+.view-once-card { display: flex; flex-direction: column; gap: 8px; min-width: 190px; max-width: min(320px, 100%); padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: #16171c; }
+.view-once-warning { margin: 0; color: var(--fg-secondary); font-size: 12px; line-height: 1.5; }
+.view-once-open { padding: 8px 12px; border: 1px solid var(--yellow); border-radius: 9px; background: transparent; color: var(--yellow); font-size: 13px; font-weight: 600; cursor: pointer; }
+.view-once-open:hover { background: rgba(240, 180, 41, 0.12); }
+.view-once-card.is-open { position: relative; padding: 0; border: none; background: transparent; }
+.view-once-countdown { position: absolute; top: 8px; left: 8px; padding: 3px 9px; border-radius: 10px; background: rgba(0, 0, 0, 0.62); color: #fff; font-size: 12px; font-variant-numeric: tabular-nums; }
+.view-once-hint { color: var(--fg-muted); font-size: 11px; }
+.view-once-card.is-spent { align-items: flex-start; }
+.view-once-spent { color: var(--fg-muted); font-size: 12px; font-style: italic; }
 .attachment-image { display: block; max-width: 100%; max-height: 260px; object-fit: contain; border-radius: 9px; }
 .attachment-caption { overflow: hidden; max-width: 100%; color: inherit; font-size: 12px; opacity: .8; text-overflow: ellipsis; white-space: nowrap; }
 .attachment-file { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px; border: 1px solid #ffffff25; border-radius: 10px; color: inherit; text-decoration: none; }

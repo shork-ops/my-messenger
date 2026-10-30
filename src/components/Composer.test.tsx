@@ -47,6 +47,7 @@ const renderComposer = () =>
       onChangeText={noop}
       onEmoji={noop}
       onSchedule={noop}
+      onViewOnce={noop}
       onStickers={noop}
       onVideoNote={noop}
       onToggleVoice={noop}
