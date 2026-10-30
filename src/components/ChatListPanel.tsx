@@ -30,6 +30,8 @@ type ChatListPanelProps = {
   onSelectFolder: (id: string | null) => void;
   onCreateFolder: (name: string) => void;
   onDeleteFolder: (id: string) => void;
+  onRenameFolder: (id: string, name: string) => void;
+  onMoveFolder: (id: string, direction: "up" | "down") => void;
   chats: Chat[];
   /** Every chat, unfiltered: the archive tab is offered based on this, not on the rows. */
   allChats: Chat[];
@@ -52,6 +54,8 @@ export default function ChatListPanel({
   onSelectFolder,
   onCreateFolder,
   onDeleteFolder,
+  onRenameFolder,
+  onMoveFolder,
   chats,
   allChats,
   hasVisibleChats,
@@ -104,6 +108,8 @@ export default function ChatListPanel({
         onSelect={onSelectFolder}
         onCreate={onCreateFolder}
         onDelete={onDeleteFolder}
+        onRename={onRenameFolder}
+        onMove={onMoveFolder}
       />
 
       <div className="chat-filters">

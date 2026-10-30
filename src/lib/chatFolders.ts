@@ -94,3 +94,35 @@ export function folderIdsForChat(folders: Folder[], chatId: string | number): st
   const id = String(chatId);
   return folders.filter((folder) => folder.chatIds.includes(id)).map((folder) => folder.id);
 }
+
+/**
+ * Renames a folder, leaving everything else about it alone.
+ *
+ * The new name goes through the same normalisation as a new folder, so a name that is
+ * acceptable at creation is acceptable here and a name that is not is refused the same
+ * way. The folder being renamed does not count as taking its own name.
+ */
+export function renameFolder(folders: Folder[], id: string, name: string): Folder[] {
+  const clean = normalizeFolderName(name);
+  if (!clean) return folders;
+  const clash = folders.some((folder) => folder.id !== id && folder.name.toLowerCase() === clean.toLowerCase());
+  if (clash) return folders;
+  return folders.map((folder) => (folder.id === id ? { ...folder, name: clean } : folder));
+}
+
+/**
+ * Moves a folder one place earlier or later.
+ *
+ * The order is the order of the list, so moving is a swap with the neighbour. At either
+ * end the list comes back unchanged rather than wrapping, because a folder that jumps from
+ * first to last when nudged looks like a bug.
+ */
+export function moveFolder(folders: Folder[], id: string, direction: "up" | "down"): Folder[] {
+  const index = folders.findIndex((folder) => folder.id === id);
+  if (index < 0) return folders;
+  const target = direction === "up" ? index - 1 : index + 1;
+  if (target < 0 || target >= folders.length) return folders;
+  const next = [...folders];
+  [next[index], next[target]] = [next[target], next[index]];
+  return next;
+}

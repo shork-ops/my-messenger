@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { FOLDERS_STORAGE_KEY, MAX_FOLDERS, parseFolders, serializeFolders, type Folder } from "../lib/chatFolders";
+import {
+  FOLDERS_STORAGE_KEY,
+  MAX_FOLDERS,
+  moveFolder as moveFolderIn,
+  parseFolders,
+  renameFolder as renameFolderIn,
+  serializeFolders,
+  type Folder,
+} from "../lib/chatFolders";
 
 /**
  * The folder list, kept in local storage.
@@ -37,8 +45,14 @@ export function useChatFolders() {
     setFolders((current) => current.filter((folder) => folder.id !== id));
   }, []);
 
+  // The rules for a name live in one place, so renaming cannot accept something that
+  // creating would have refused.
   const renameFolder = useCallback((id: string, name: string) => {
-    setFolders((current) => current.map((folder) => (folder.id === id ? { ...folder, name } : folder)));
+    setFolders((current) => renameFolderIn(current, id, name));
+  }, []);
+
+  const moveFolder = useCallback((id: string, direction: "up" | "down") => {
+    setFolders((current) => moveFolderIn(current, id, direction));
   }, []);
 
   const toggleChat = useCallback((id: string, chatId: string | number) => {
@@ -57,5 +71,5 @@ export function useChatFolders() {
     );
   }, []);
 
-  return { folders, createFolder, deleteFolder, renameFolder, toggleChat };
+  return { folders, createFolder, deleteFolder, renameFolder, moveFolder, toggleChat };
 }

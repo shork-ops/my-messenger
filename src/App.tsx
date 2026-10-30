@@ -195,7 +195,14 @@ export default function App() {
 
   // A folder narrows the list rather than replacing it: search and the unread filter
   // still apply inside the folder, because those are what the reader is looking with.
-  const { folders, createFolder, deleteFolder, toggleChat: toggleChatFolder } = useChatFolders();
+  const {
+    folders,
+    createFolder,
+    deleteFolder,
+    renameFolder: renameChatFolder,
+    moveFolder: moveChatFolder,
+    toggleChat: toggleChatFolder,
+  } = useChatFolders();
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [folderPickerChat, setFolderPickerChat] = useState<Chat | null>(null);
 
@@ -1798,6 +1805,8 @@ export default function App() {
         activeFolderId={activeFolderId}
         onSelectFolder={setActiveFolderId}
         onCreateFolder={createFolder}
+        onRenameFolder={renameChatFolder}
+        onMoveFolder={moveChatFolder}
         onDeleteFolder={(id) => {
           deleteFolder(id);
           if (activeFolderId === id) setActiveFolderId(null);

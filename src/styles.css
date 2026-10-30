@@ -564,6 +564,20 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .folder-chip > button:first-child { padding: 5px 4px 5px 11px; border: 0; background: transparent; color: var(--fg-secondary); font: inherit; font-size: 12px; cursor: pointer; }
 .folder-chip.active > button:first-child { color: var(--fg); }
 .folder-chip b { margin-left: 3px; color: var(--fg-muted); font-weight: 600; }
+.folder-move, .folder-rename { display: grid; place-items: center; width: 20px; height: 22px; padding: 0; border: 0; background: transparent; color: var(--fg-muted); }
+.folder-move:disabled { opacity: 0.25; cursor: default; }
+.folder-move:not(:disabled):hover, .folder-rename:hover { color: var(--fg); }
+@media (hover: hover) {
+  .folder-move, .folder-rename { opacity: 0; }
+  .folder-chip:hover .folder-move, .folder-chip:hover .folder-rename,
+  .folder-chip:focus-within .folder-move, .folder-chip:focus-within .folder-rename { opacity: 1; }
+  .folder-move:disabled { opacity: 0; }
+}
+/* A touch screen has no hover, so the controls are always visible there. */
+@media (hover: none) {
+  .folder-move, .folder-rename { opacity: 1; }
+}
+
 .folder-remove { display: grid; place-items: center; width: 20px; height: 22px; padding: 0 6px 0 2px; border: 0; background: transparent; color: var(--fg-muted); cursor: pointer; }
 .folder-remove:hover { color: var(--fg); }
 .folder-add { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border: 1px dashed var(--border-strong); border-radius: 999px; background: transparent; color: var(--fg-muted); font: inherit; font-size: 12px; cursor: pointer; }
