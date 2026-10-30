@@ -613,6 +613,50 @@ async function expectCount(page, selector, expected, label) {
   await context.close();
 }
 
+// --- a long conversation opens at its newest message, on either screen -------------------
+{
+  for (const [label, viewport, mobile] of [
+    ["на компьютере", { width: 1440, height: 900 }, false],
+    ["на телефоне", { width: 390, height: 844 }, true],
+  ]) {
+    const context = await browser.newContext({ viewport, locale: "ru-RU", isMobile: mobile, hasTouch: mobile });
+    const page = await context.newPage();
+    await page.goto(base + tag(), { waitUntil: "networkidle", timeout: 90000 });
+    await page.waitForSelector(".chat-row", { timeout: 30000 });
+    await page.waitForTimeout(1200);
+    await page.locator(".chat-row").filter({ hasText: "Команда" }).first().click();
+    await page.waitForTimeout(700);
+    const composer = page.locator('.composer input[aria-label="Текст сообщения"]');
+    for (let i = 1; i <= 40; i += 1) {
+      await composer.fill("раскатка " + i);
+      await page.keyboard.press("Enter");
+      await page.waitForTimeout(40);
+    }
+    await page.waitForTimeout(1500);
+    const fromBottom = () =>
+      page.evaluate(() => {
+        const area = document.querySelector(".messages-area");
+        return Math.round(area.scrollHeight - area.clientHeight - area.scrollTop);
+      });
+    // Leave the chat and come back: the list is rebuilt with a long history to land on.
+    // On a phone the chat fills the screen, so leaving is its own button.
+    if (mobile) await page.getByLabel("Назад к чатам").click();
+    else await page.locator(".chat-row").filter({ hasText: "Максим" }).first().click();
+    await page.waitForTimeout(400);
+    await page.locator(".chat-row").filter({ hasText: "Команда" }).first().click();
+    await page.waitForTimeout(1600);
+    const reopened = await fromBottom();
+    record(`длинный чат открывается в конце ${label}`, reopened === 0, `${reopened} px до конца`);
+
+    // A window that changes size changes what the bottom means.
+    await page.setViewportSize({ width: viewport.width, height: Math.round(viewport.height * 0.6) });
+    await page.waitForTimeout(900);
+    const resized = await fromBottom();
+    record(`окно изменило размер ${label}`, resized === 0, `${resized} px до конца`);
+    await context.close();
+  }
+}
+
 await browser.close();
 
 const failed = results.filter((r) => !r.ok);

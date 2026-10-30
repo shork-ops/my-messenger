@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import type { MutableRefObject } from "react";
 
 /**
@@ -8,23 +8,21 @@ import type { MutableRefObject } from "react";
  * first unread message - where jumping to the bottom would undo something more
  * useful than it achieves.
  *
- * Two things here were learned the hard way.
+ * The hard part is not the jump; it is knowing when to stop jumping.
  *
- * `scrollIntoView` is not reliable for this. It scrolls every scrollable ancestor, and it
- * leaves the list short of the bottom while the browser is still deciding how tall the
- * content is. Setting `scrollTop` on the list itself has one meaning and cannot be
- * re-interpreted by an ancestor.
+ * A conversation is not one render. It is a first paint with nothing to show, a fetch, a
+ * second paint with fifty messages, then avatars and pictures resolving one by one, each
+ * changing the height of what is already on screen. A jump measured at any single moment
+ * lands correctly for that moment and is wrong a frame later. So the list is held at the
+ * bottom for as long as its content keeps changing, and released only when the reader
+ * scrolls - which is the one event that says they are reading something else.
  *
- * The jump also has to survive messages arriving afterwards. A conversation loaded from
- * the cloud renders its first frames empty or short: the list is already at the bottom of
- * nothing, and when the messages land the list grows downwards, leaving the reader at the
- * top. That is exactly the report "it opens at the beginning of the conversation". So the
- * landing is repeated while the content keeps growing.
+ * `useLayoutEffect` rather than `useEffect`: the jump happens before the browser paints, so
+ * a long conversation never flashes its beginning first.
  *
- * A reader who scrolls up has taken the list over, and is left alone. Telling the two
- * apart is the delicate part: our own jump also fires a `scroll` event, so a programmatic
- * move is marked before it happens and the mark is cleared on the next frame - otherwise
- * the first landing switched the whole thing off and the list never moved again.
+ * `scrollIntoView` is not used. It scrolls every scrollable ancestor and leaves the list
+ * short of the bottom while the browser is still deciding how tall the content is. Setting
+ * `scrollTop` on the list has one meaning.
  */
 export function useAutoScroll(
   containerRef: MutableRefObject<HTMLElement | null>,
@@ -33,110 +31,133 @@ export function useAutoScroll(
 ) {
   const holdRef = useRef<number | null>(null);
   holdRef.current = holdUntil ?? null;
-  const landedRef = useRef(false);
   const stateRef = useRef({
-    lastHeight: 0,
-    timer: 0,
-    userScrolled: false,
+    /** The reader has scrolled away; leave them where they are. */
+    released: false,
+    /** A scroll event we caused ourselves, not the reader. */
     selfScrolling: false,
+    /** Last known content height, so a change can be told from a steady list. */
+    lastHeight: -1,
+    frame: 0,
     observer: null as ResizeObserver | null,
   });
 
   const chatKey = dependencies[0];
 
-  useEffect(() => {
+  /** Put the list at the bottom, without letting that count as the reader scrolling. */
+  const pin = (container: HTMLElement) => {
     const state = stateRef.current;
-    state.userScrolled = false;
-    state.lastHeight = 0;
-    landedRef.current = false;
-    window.clearInterval(state.timer);
-    state.timer = 0;
+    const top = Math.max(0, container.scrollHeight - container.clientHeight);
+    if (Math.abs(container.scrollTop - top) < 1) return;
+    state.selfScrolling = true;
+    container.scrollTop = top;
+    // Cleared after the browser has delivered the scroll event this caused.
+    if (state.frame) cancelAnimationFrame(state.frame);
+    state.frame = requestAnimationFrame(() => {
+      state.frame = requestAnimationFrame(() => {
+        state.selfScrolling = false;
+      });
+    });
+  };
+
+  // One chat: attach the guard and the observer, and hold the bottom until released.
+  useLayoutEffect(() => {
+    const state = stateRef.current;
+    state.released = false;
+    state.lastHeight = -1;
+    state.selfScrolling = false;
+    if (state.frame) cancelAnimationFrame(state.frame);
+    state.frame = 0;
+    state.observer?.disconnect();
+    state.observer = null;
     if (chatKey === undefined || chatKey === null) return;
 
-    const jump = (container: HTMLElement, smooth: boolean) => {
-      const top = container.scrollHeight;
-      state.lastHeight = top;
-      state.selfScrolling = true;
-      container.scrollTop = top;
-      // Cleared after the browser has applied it, so our own scroll is not mistaken for
-      // the reader's.
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => {
-          state.selfScrolling = false;
-        });
-      });
-    };
-
-    const settle = () => {
-      const container = containerRef.current;
-      if (!container) return;
-      // A chat that opened at the unread divider stays there: jumping to the bottom would
-      // throw away the one piece of information the reader came for.
-      if (holdRef.current !== null) return;
-      if (state.userScrolled) return;
-      if (container.scrollHeight === state.lastHeight && landedRef.current) return;
-      const smooth = landedRef.current;
-      landedRef.current = true;
-      jump(container, smooth);
-    };
-
-    // Once now, then for as long as the conversation keeps arriving. Watching the element
-    // catches every growth; a fixed interval guessed at how long a fetch takes and gave up
-    // before the messages landed.
     const container = containerRef.current;
-    settle();
-    const observer =
-      typeof ResizeObserver === "undefined"
-        ? null
-        : new ResizeObserver(() => settle());
-    if (container) observer?.observe(container);
-    state.observer = observer;
-    // A backstop for content that grows without changing the element's box.
-    state.timer = window.setInterval(settle, 120) as unknown as number;
-    const stop = window.setTimeout(() => {
-      window.clearInterval(state.timer);
-      state.timer = 0;
-    }, 8000);
+    if (!container) return;
+
+    // Hold while the conversation is still arriving. Every growth of the content is a
+    // reason to land again; a scroll the reader caused is a reason to stop for good.
+    const hold = () => {
+      if (state.released) return;
+      if (holdRef.current !== null) return;
+      const list = containerRef.current;
+      if (!list) return;
+      pin(list);
+      state.lastHeight = list.scrollHeight;
+    };
+
+    hold();
 
     const onScroll = () => {
       if (state.selfScrolling) return;
       const list = containerRef.current;
       if (!list) return;
-      // Landing at the bottom is not the reader scrolling away from it.
-      const atBottom = list.scrollHeight - list.clientHeight - list.scrollTop < 24;
-      if (!atBottom) state.userScrolled = true;
+      // Our own pin lands on the bottom; anything clearly above it is the reader.
+      const distance = list.scrollHeight - list.clientHeight - list.scrollTop;
+      if (distance > 24) {
+        state.released = true;
+      } else if (state.released) {
+        // Scrolling back to the newest message is a request to follow it again. Without
+        // this, a reader who glanced up once would never see a new message arrive.
+        state.released = false;
+        hold();
+      }
     };
-    container?.addEventListener("scroll", onScroll, { passive: true });
+    container.addEventListener("scroll", onScroll, { passive: true });
+
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(() => hold());
+    if (observer) {
+      // The list's own box changes when the window resizes; the content inside it changes
+      // when a message, an avatar or a picture arrives. Both mean "land again".
+      observer.observe(container);
+      for (const child of Array.from(container.children)) observer.observe(child);
+    }
+    state.observer = observer;
+
+    // A backstop for content that changes without resizing anything observable.
+    const timer = window.setInterval(hold, 150);
+    const stop = window.setTimeout(() => window.clearInterval(timer), 10000);
 
     return () => {
-      window.clearInterval(state.timer);
+      window.clearInterval(timer);
       window.clearTimeout(stop);
-      state.timer = 0;
-      state.observer?.disconnect();
+      observer?.disconnect();
       state.observer = null;
-      container?.removeEventListener("scroll", onScroll);
+      container.removeEventListener("scroll", onScroll);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatKey]);
 
-  // A new message, or anything else that makes the list taller, lands again.
-  useEffect(() => {
+  // Anything that changes the conversation after it opened: a new message, an older page,
+  // an image finishing. Repeated here because the effect above only runs per chat.
+  useLayoutEffect(() => {
     if (holdRef.current !== null) return;
     const state = stateRef.current;
-    if (state.userScrolled) return;
+    if (state.released) return;
     const container = containerRef.current;
     if (!container) return;
-    const smooth = landedRef.current;
-    landedRef.current = true;
-    const top = container.scrollHeight;
-    state.lastHeight = top;
-    state.selfScrolling = true;
-    container.scrollTop = top;
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        state.selfScrolling = false;
-      });
-    });
+    pin(container);
+    state.lastHeight = container.scrollHeight;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...dependencies, holdUntil]);
+
+  // A window that changes size changes what "the bottom" means.
+  useLayoutEffect(() => {
+    const onResize = () => {
+      const state = stateRef.current;
+      if (state.released || holdRef.current !== null) return;
+      const container = containerRef.current;
+      if (!container) return;
+      pin(container);
+    };
+    window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
+    };
+  }, [containerRef]);
 }
