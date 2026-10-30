@@ -40,6 +40,10 @@ export default defineConfig(({ mode }) => ({
     // Logic tests run on Node, where there is no DOM at all; a component test declares
     // its own environment in a docblock comment at the top of the file instead.
     environment: "node",
+    // The demo chats exist only in the demo build. Tests that drive the messenger against
+    // real conversations need them, and the flag is read at import time, so it is set here
+    // rather than in a test file where it would arrive too late.
+    env: { VITE_DEMO_MODE: "true", VITE_DEMO_SEED: "true" },
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
   },
 }));
