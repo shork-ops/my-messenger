@@ -227,6 +227,7 @@ export default function MessageBubble({
   const forwardRelease = splitForward(message.text);
   return (
     <div
+      data-remote-id={message.remoteId ?? undefined}
       className={`message-line ${message.mine ? "mine" : ""}`}
       onPointerDown={startPress}
       onPointerUp={clearPress}

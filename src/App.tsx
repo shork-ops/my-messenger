@@ -262,6 +262,8 @@ export default function App() {
   const { passcode: lockCode, unlocked: lockUnlocked, setCode, unlock } = usePasscode();
   const { wallpaper, setWallpaper } = useWallpaper();
   const [emojiOpen, setEmojiOpen] = useState(false);
+  // The message a search result points at. Cleared once the highlight has been shown.
+  const [revealMessageId, setRevealMessageId] = useState<string | null>(null);
   const [noteOpen, setNoteOpen] = useState(false);
   const { policy: mediaPolicy, setPolicy: setMediaPolicy, network: networkKind } = useMediaPolicy();
   const autoloadMedia = shouldAutoload(mediaPolicy, networkKind);
@@ -1005,7 +1007,7 @@ export default function App() {
    * A hit may live further back than the loaded page, so pages are pulled in
    * until the message is on screen or history runs out.
    */
-  async function openSearchHit(hitCreatedAt: string) {
+  async function openSearchHit(hitCreatedAt: string, hitRemoteId?: string) {
     const target = new Date(hitCreatedAt).getTime();
     if (Number.isNaN(target)) return;
     setMessageSearchOpen(false);
@@ -1024,6 +1026,10 @@ export default function App() {
       if (updated.messages.length === current.messages.length) break;
       if (updated.historyExhausted) break;
     }
+
+    // The pages are in; now put the message on screen and make it obvious which one it
+    // is. Finding a message without showing where it lives only proves it exists.
+    setRevealMessageId(hitRemoteId ?? null);
   }
 
   async function sendMessage(event: FormEvent) {
@@ -1795,7 +1801,7 @@ export default function App() {
         searchHits={serverSearch}
         searchAuthor={searchAuthor}
         searchTime={searchTime}
-        onOpenSearchHit={(createdAt) => void openSearchHit(createdAt)}
+        onOpenSearchHit={(createdAt, remoteId) => void openSearchHit(createdAt, remoteId)}
         onCall={() => void startCallNow("audio")}
         onVideo={() => void startCallNow("video")}
         onTogglePin={() => toggleChatPin(activeChat)}
@@ -1859,6 +1865,8 @@ export default function App() {
         peerLastSeenAt={peerLastSeenAt}
         endRef={messagesEndRef}
         messagesRef={messagesAreaRef}
+        revealMessageId={revealMessageId}
+        onRevealed={() => setRevealMessageId(null)}
         loadingHistory={Boolean(activeChat.remoteId && loadingChatIds.includes(activeChat.remoteId))}
         historyExhausted={Boolean(activeChat.historyExhausted)}
         onLoadOlder={() => void loadOlder(activeChat)}

@@ -29,7 +29,7 @@ type ConversationPanelProps = {
   searchHits: ReturnType<typeof useServerSearch>;
   searchAuthor: (userId: string) => string;
   searchTime: (iso: string) => string;
-  onOpenSearchHit: (createdAt: string) => void;
+  onOpenSearchHit: (createdAt: string, remoteId?: string) => void;
   onCall: () => void;
   onVideo: () => void;
   onTogglePin: () => void;
@@ -72,6 +72,10 @@ type ConversationPanelProps = {
   peerLastSeenAt: number | null;
   endRef: MutableRefObject<HTMLDivElement | null>;
   messagesRef: MutableRefObject<HTMLDivElement | null>;
+  /** Remote id of a message a search result pointed at, to scroll to and highlight. */
+  revealMessageId?: string | null;
+  /** Called once the highlight has been shown, so it is not repeated. */
+  onRevealed?: () => void;
   loadingHistory: boolean;
   historyExhausted: boolean;
   onLoadOlder: () => void;
@@ -129,6 +133,10 @@ export default function ConversationPanel({
   peerLastSeenAt,
   endRef,
   messagesRef,
+  /** Remote id of a message a search result pointed at, to scroll to and highlight. */
+  revealMessageId,
+  /** Called once the highlight has been shown, so it is not repeated. */
+  onRevealed,
   loadingHistory,
   historyExhausted,
   onLoadOlder,
@@ -136,6 +144,31 @@ export default function ConversationPanel({
 }: ConversationPanelProps) {
   const menuRef = useRef<HTMLDivElement | null>(null);
   const unreadDividerRef = useRef<HTMLDivElement | null>(null);
+
+  // A search result names a message; this puts it where the eye already is. The scroll
+  // happens after the browser has laid out the newly loaded pages, and the mark is left
+  // on for a moment because a jump with no target to look at is disorienting on its own.
+  useEffect(() => {
+    if (!revealMessageId) return;
+    const area = messagesRef.current;
+    if (!area) return;
+    const selector = `[data-remote-id="${revealMessageId}"]`;
+    const target = area.querySelector<HTMLElement>(selector);
+    if (!target) {
+      return;
+    }
+    const areaTop = area.getBoundingClientRect().top;
+    const targetTop = target.getBoundingClientRect().top;
+    // A third of the panel above the message, so the surrounding conversation is read
+    // as context rather than as a single orphaned line.
+    area.scrollTop = Math.max(0, targetTop - areaTop + area.scrollTop - area.clientHeight / 3);
+    target.classList.add("message-revealed");
+    const timer = window.setTimeout(() => {
+      target.classList.remove("message-revealed");
+    }, 2200);
+    onRevealed?.();
+    return () => window.clearTimeout(timer);
+  }, [revealMessageId, messagesRef, onRevealed]);
 
   // Opening a chat with unread messages should land on the first of them rather
   // than at the bottom, or the unread state is decoration instead of a place.
@@ -268,7 +301,7 @@ export default function ConversationPanel({
           error={searchHits.error}
           authorOf={searchAuthor}
           timeOf={searchTime}
-          onOpen={(hit) => onOpenSearchHit(hit.createdAt)}
+          onOpen={(hit) => onOpenSearchHit(hit.createdAt, hit.id)}
           onLoadMore={() => void searchHits.loadMore()}
         />
       )}

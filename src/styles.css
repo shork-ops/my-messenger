@@ -326,6 +326,17 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .message-menu-toggle:hover, .message-menu-toggle:focus-visible { border-color: #38393f; background: var(--surface-2); color: var(--yellow); }
 /* A fixed-width grid keeps the menu inside the panel no matter how many
    actions exist; a single row would overflow once real labels are added. */
+/* A search result jumps here, so the row is marked while the eye catches up. */
+.message-line.message-revealed { animation: reveal-message 2.2s ease-out; }
+@keyframes reveal-message {
+  0%,
+  55% { background: color-mix(in srgb, var(--yellow) 22%, transparent); }
+  100% { background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .message-line.message-revealed { animation: none; outline: 2px solid var(--yellow); outline-offset: 2px; }
+}
+
 .message-actions { position: absolute; z-index: 5; right: 0; bottom: 27px; display: grid; grid-template-columns: repeat(2, minmax(120px, 1fr)); gap: 4px; width: max-content; max-width: min(280px, 78vw); padding: 6px; border: 1px solid var(--border-strong); border-radius: 11px; background: var(--surface-1); box-shadow: 0 8px 24px #0009; }
 /* Opened below the toggle when there is no room above it, which is the case for every
    message except the last few in a thread. */
