@@ -8,6 +8,9 @@ import { splitForward } from "../lib/messageActions";
 import MessageBody from "./MessageBody";
 import { EFFECTS, effectByKey } from "../lib/effects";
 import { stickerById } from "../lib/stickers";
+import { firstLink } from "../lib/links";
+import { useLinkCard } from "../hooks/useLinkCard";
+import LinkPreview from "./LinkPreview";
 import { formatBytes } from "../lib/media";
 import type { Message, MessageEffect, Poll } from "../types";
 
@@ -242,6 +245,10 @@ export default function MessageBubble({
   // its text rather than rendering an empty bubble.
   const sticker = message.stickerId ? stickerById(message.stickerId) : undefined;
   const pendingSend = message.sendAt !== undefined && message.sendAt > Date.now();
+  // One card per message, for the first link. Two cards for two links in one sentence turn a
+  // message into a feed.
+  const cardUrl = !message.poll && !message.attachment && !message.stickerId ? firstLink(message.text) : null;
+  const linkCard = useLinkCard(cardUrl, Boolean(cardUrl));
   return (
     <div
       data-remote-id={message.remoteId ?? undefined}
@@ -295,6 +302,7 @@ export default function MessageBubble({
           ) : (
             <MessageBody text={forwardRelease.label ? forwardRelease.body : message.text} />
           )}
+          {linkCard.status === "ready" && <LinkPreview card={linkCard.card} />}
           <span className="message-time">
             {/* A pending message says when it will go, not when it was typed: the time it
                 was typed is of no interest to the person waiting for it. */}

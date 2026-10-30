@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { formatMarkup, type MarkupSegment } from "../lib/markup";
+import { linkifySegments } from "../lib/links";
 
 /**
  * Renders a message body with its markup and its @mentions.
@@ -64,7 +65,7 @@ function Spoiler({ children }: { children: ReactNode }) {
 export default function MessageBody({ text }: Props) {
   return (
     <>
-      {formatMarkup(text).map((segment, index) => {
+      {linkifySegments(formatMarkup(text)).map((segment, index) => {
         const key = `s${index}`;
         if (segment.kind === "spoiler") {
           return <Spoiler key={key}>{withMentions(segment.text, key)}</Spoiler>;
@@ -74,6 +75,22 @@ export default function MessageBody({ text }: Props) {
             <pre className="markup-pre" key={key} data-language={segment.language}>
               <code>{segment.text}</code>
             </pre>
+          );
+        }
+        if (segment.kind === "link") {
+          return (
+            <a
+              className="message-link"
+              key={key}
+              href={segment.href}
+              target="_blank"
+              // noreferrer as well as noopener: the receiving site has no business knowing
+              // which conversation the link came from.
+              rel="noopener noreferrer"
+              onClick={(event) => event.stopPropagation()}
+            >
+              {segment.text}
+            </a>
           );
         }
         if (segment.kind === "code") {

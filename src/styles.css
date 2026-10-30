@@ -1294,3 +1294,60 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 }
 .schedule-choice:hover { background: rgba(0, 0, 0, .04); }
 .schedule-choice small { color: var(--muted, #6b7280); }
+
+/* Links inside a message: underlined so they read as links at a glance, since colour alone
+   fails for anyone who cannot distinguish it from the text. */
+.message-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+.mine-bubble .message-link { text-decoration-color: rgba(0, 0, 0, .45); }
+.message-link:hover { text-decoration-thickness: 2px; }
+.message-link:focus-visible { outline: 2px solid var(--accent, #f0b429); outline-offset: 2px; border-radius: 3px; }
+
+/* A preview card under the text. It is quiet: the message is still the message, and the card
+   only says where the link goes before the reader commits to leaving. */
+.link-card {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, .05);
+  max-width: 340px;
+  overflow: hidden;
+}
+.link-card-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.link-card-site {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  text-transform: lowercase;
+  color: var(--muted, #6b7280);
+}
+.link-card-title { font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
+.link-card-description {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted, #6b7280);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.link-card-image {
+  width: 88px;
+  height: 66px;
+  object-fit: cover;
+  border-radius: 7px;
+  flex: none;
+  background: rgba(0, 0, 0, .06);
+}
+
+@media (max-width: 480px) {
+  .link-card { max-width: 100%; }
+  .link-card-image { width: 72px; height: 58px; }
+}
