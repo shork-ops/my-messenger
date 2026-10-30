@@ -129,6 +129,8 @@ export default function App() {
   const [membersRefreshKey, setMembersRefreshKey] = useState(0);
   const [pinnedMessageIds, setPinnedMessageIds] = useState<Set<number>>(() => new Set());
   const [uploadProgress, setUploadProgress] = useState<{ name: string; percent: number; stage: string } | null>(null);
+  // A reply target is a message, so it can only be restored once the chats are known.
+  // It starts empty and the restore pass below fills it from the stored draft.
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   // On a phone the chat list and the conversation cannot share the screen, so
@@ -187,7 +189,7 @@ export default function App() {
     submitBaldaWord,
     answerChess,
   } = useGames();
-  const { chats, setChats, activeId, setActiveId, drafts, setDrafts, activeChat, displayChats, visibleMessages, galleryImages, unreadTotal, toggleChatPin } =
+  const { chats, setChats, activeId, setActiveId, drafts, setDrafts, replyDrafts, setReplyDrafts, activeChat, displayChats, visibleMessages, galleryImages, unreadTotal, toggleChatPin } =
     useChatCollection({ search, chatFilter, messageSearch, notify: action });
   const { foundUsers, userSearchLoading } = useUserSearch({ search, accountId });
 
@@ -1121,6 +1123,7 @@ export default function App() {
     );
     setDraft("");
     setDrafts((current) => ({ ...current, [activeId]: "" }));
+    setReplyDrafts((current) => ({ ...current, [activeId]: { author: "", text: "" } }));
     setReplyTarget(null);
   }
 
@@ -1248,6 +1251,16 @@ export default function App() {
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
+
+  // The draft for the chat that opens on load, which selectChat would have filled if the
+  // user had chosen it. Without this the text is stored and never shown.
+  const restoredDraftFor = useRef<number | null>(null);
+  useEffect(() => {
+    if (restoredDraftFor.current === activeId) return;
+    restoredDraftFor.current = activeId;
+    const stored = drafts[activeId];
+    if (stored) setDraft(stored);
+  }, [activeId, drafts]);
 
   async function selectChat(chat: Chat) {
     setActiveId(chat.id);
@@ -1560,8 +1573,21 @@ export default function App() {
     setOpenMessageActionsId(null);
   }
 
+  // A reply that outlives a reload, the same way the text of a draft does. The stored
+  // draft names the message by author and quoted text rather than by id, because a local
+  // message id is not stable across a reload and the quote is what the reader sees.
+  const restoredReplyFor = useRef<number | null>(null);
+  useEffect(() => {
+    if (restoredReplyFor.current === activeId) return;
+    restoredReplyFor.current = activeId;
+    const stored = replyDrafts[activeId];
+    if (!stored?.text) return;
+    setReplyTarget({ id: -1, author: stored.author, text: stored.text, time: "", createdAt: 0, mine: false });
+  }, [activeId, replyDrafts]);
+
   function replyToMessage(message: Message) {
     setReplyTarget(message);
+    setReplyDrafts((current) => ({ ...current, [activeId]: { author: message.author, text: message.text } }));
     setOpenMessageActionsId(null);
   }
 
@@ -1889,7 +1915,10 @@ export default function App() {
             setEditingMessageId(null);
             setEditDraft("");
           },
-          onCancelReply: () => setReplyTarget(null),
+          onCancelReply: () => {
+          setReplyTarget(null);
+          setReplyDrafts((current) => ({ ...current, [activeId]: { author: "", text: "" } }));
+        },
           onChooseMention: chooseMention,
           onAttachment: (event) => void handleAttachment(event),
           onOpenGallery: () => setGalleryOpen(true),

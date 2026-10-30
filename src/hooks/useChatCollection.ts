@@ -66,6 +66,24 @@ export function useChatCollection({ search, chatFilter, messageSearch, notify }:
     writeItem("nexus-drafts-v1", JSON.stringify(drafts));
   }, [drafts]);
 
+  // The message a draft is answering. Kept beside the drafts because the two are read and
+  // written together: a reply target without its text, or text without its target, is a
+  // state the composer cannot show.
+  const [replyDrafts, setReplyDrafts] = useState<Record<number, { author: string; text: string }>>(() => {
+    try {
+      const parsed: unknown = JSON.parse(readItem("nexus-reply-drafts-v1") || "{}");
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as Record<number, { author: string; text: string }>)
+        : {};
+    } catch {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    writeItem("nexus-reply-drafts-v1", JSON.stringify(replyDrafts));
+  }, [replyDrafts]);
+
   useEffect(() => {
     writeItem("nexus-chats-v1", JSON.stringify(chats));
   }, [chats]);
@@ -110,6 +128,8 @@ export function useChatCollection({ search, chatFilter, messageSearch, notify }:
     setActiveId,
     drafts,
     setDrafts,
+    replyDrafts,
+    setReplyDrafts,
     activeChat,
     displayChats,
     visibleMessages,
