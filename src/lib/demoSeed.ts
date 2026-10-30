@@ -63,6 +63,24 @@ export function createDemoSeedChats(now: number = Date.now()): Chat[] {
       ],
     },
     {
+      id: 5,
+      name: "Длинный чат",
+      avatar: "Д",
+      color: "violet",
+      preview: "Сообщение 60 из 60",
+      time: "08:00",
+      // Sixty messages guarantee the conversation is taller than any viewport the suite
+      // uses, so "opens at the bottom" is a claim a test can actually measure.
+      messages: Array.from({ length: 60 }, (_, index) => ({
+        id: 1000 + index,
+        author: index % 3 === 0 ? "Я" : "Максим",
+        mine: index % 3 === 0,
+        text: `Длинный чат, сообщение ${index + 1}`,
+        time: "08:00",
+        createdAt: now - (60 - index) * 60_000,
+      })),
+    },
+    {
       id: 4,
       name: "Команда",
       avatar: "К",
