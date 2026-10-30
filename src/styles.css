@@ -1081,3 +1081,54 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
   background: #000;
   object-fit: cover;
 }
+
+/* Message markup. Kept small on purpose: the text is the message, not a document, so
+   code blocks get a quiet background instead of a syntax theme and spoilers get a cover
+   that reads as deliberate rather than as a rendering fault. */
+.markup-bold { font-weight: 700; }
+.markup-italic { font-style: italic; }
+.markup-strike { text-decoration: line-through; }
+
+.markup-code {
+  font-family: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, monospace;
+  font-size: 0.92em;
+  padding: 1px 4px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.07);
+}
+.mine-bubble .markup-code { background: rgba(0, 0, 0, 0.1); }
+
+.markup-pre {
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.07);
+  font-family: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, monospace;
+  font-size: 0.88em;
+  line-height: 1.45;
+  overflow-x: auto;
+  white-space: pre;
+  max-width: 100%;
+}
+.mine-bubble .markup-pre { background: rgba(0, 0, 0, 0.1); }
+.markup-pre code { font: inherit; }
+
+/* A spoiler is a button so it is reachable by keyboard and screen reader; it should not
+   look like one. */
+.markup-spoiler {
+  border: none;
+  padding: 0 1px;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 4px;
+  background: currentColor;
+  text-align: left;
+}
+.markup-spoiler > *,
+.markup-spoiler { color: transparent; }
+.markup-spoiler.revealed { background: transparent; }
+.markup-spoiler.revealed,
+.markup-spoiler.revealed > * { color: inherit; }
+.markup-spoiler:focus-visible { outline: 2px solid var(--accent, #f0b429); outline-offset: 2px; }

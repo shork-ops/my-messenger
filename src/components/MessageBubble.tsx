@@ -5,6 +5,7 @@ import VoicePlayer from "./VoicePlayer";
 import { friends } from "../lib/constants";
 import { hasUserVoted, pollPercent, pollTotal } from "../lib/polls";
 import { splitForward } from "../lib/messageActions";
+import MessageBody from "./MessageBody";
 import { formatBytes } from "../lib/media";
 import type { Message, MessageEffect, Poll } from "../types";
 
@@ -279,15 +280,7 @@ export default function MessageBubble({
           ) : message.attachment ? (
             <AttachmentCard attachment={message.attachment} autoload={autoloadMedia} />
           ) : (
-            <>{(forwardRelease.label ? forwardRelease.body : message.text).split(/(@[\p{L}\p{N}_]+)/gu).map((part, partIndex) =>
-              part.startsWith("@") ? (
-                <strong className="message-mention" key={partIndex}>
-                  {part}
-                </strong>
-              ) : (
-                part
-              )
-            )}</>
+            <MessageBody text={forwardRelease.label ? forwardRelease.body : message.text} />
           )}
           <span className="message-time">
             {message.edited ? "изменено · " : ""}
