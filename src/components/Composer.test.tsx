@@ -7,8 +7,8 @@
  * announces "button" and stops. The composer's attachment input was exactly that.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
-import { createRef } from "react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { createRef, type ComponentProps } from "react";
 import Composer from "./Composer";
 
 beforeEach(() => {
@@ -28,11 +28,11 @@ beforeEach(() => {
   });
 });
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 const noop = () => {};
 
-const renderComposer = () =>
+const renderComposer = (overrides: Partial<ComponentProps<typeof Composer>> = {}) =>
   render(
     <Composer
       draft=""
@@ -58,10 +58,37 @@ const renderComposer = () =>
       onAttachment={noop}
       onOpenGallery={noop}
       onOpenPoll={noop}
+      {...overrides}
     />
   );
 
 describe("composer controls", () => {
+  it("keeps Return for a new line on a phone", () => {
+    vi.mocked(window.matchMedia).mockReturnValue({ matches: true } as MediaQueryList);
+    const { container } = renderComposer({ draft: "Привет" });
+    const submit = vi.spyOn(container.querySelector("form")!, "requestSubmit").mockImplementation(noop);
+    fireEvent.keyDown(screen.getByLabelText("Текст сообщения"), { key: "Enter" });
+    expect(submit).not.toHaveBeenCalled();
+  });
+  it("sends on Enter but preserves Shift+Enter and IME confirmation", () => {
+    const { container } = renderComposer({ draft: "Привет" });
+    const submit = vi.spyOn(container.querySelector("form")!, "requestSubmit").mockImplementation(noop);
+    const field = screen.getByLabelText("Текст сообщения");
+    fireEvent.keyDown(field, { key: "Enter", shiftKey: true });
+    fireEvent.keyDown(field, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(field, { key: "Enter", keyCode: 229 });
+    expect(submit).not.toHaveBeenCalled();
+    fireEvent.keyDown(field, { key: "Enter" });
+    expect(submit).toHaveBeenCalledOnce();
+  });
+
+  it("does not submit whitespace with Enter", () => {
+    const { container } = renderComposer({ draft: " \n " });
+    const submit = vi.spyOn(container.querySelector("form")!, "requestSubmit").mockImplementation(noop);
+    fireEvent.keyDown(screen.getByLabelText("Текст сообщения"), { key: "Enter" });
+    expect(submit).not.toHaveBeenCalled();
+  });
+
   it("gives the hidden file input a name, because nothing on screen shows it lacks one", () => {
     const { container } = renderComposer();
     const input = container.querySelector('input[type="file"]');

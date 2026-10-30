@@ -26,7 +26,7 @@ const noop = () => {};
 function renderBubble(
   overrides: Partial<Message> = {},
   showAuthor = false,
-  runs: { continuesRun?: boolean; endsRun?: boolean; actionsOpen?: boolean } = {}
+  runs: { continuesRun?: boolean; endsRun?: boolean; actionsOpen?: boolean; onReply?: () => void } = {}
 ) {
   return render(
     <MessageBubble
@@ -43,7 +43,7 @@ function renderBubble(
       onToggleActions={noop}
       onVote={noop}
       onToggleReaction={noop}
-      onReply={noop}
+      onReply={runs.onReply ?? noop}
       onCopy={noop}
       onForward={noop}
       onFavourite={noop}
@@ -61,6 +61,17 @@ function renderBubble(
 afterEach(cleanup);
 
 describe("MessageBubble", () => {
+  it("replies to a horizontal swipe but leaves vertical scrolling alone", () => {
+    const reply = vi.fn();
+    const { container } = renderBubble({}, false, { onReply: reply });
+    const row = container.querySelector(".message-line")!;
+    fireEvent.touchStart(row, { touches: [{ clientX: 100, clientY: 100 }] });
+    fireEvent.touchEnd(row, { changedTouches: [{ clientX: 110, clientY: 240 }] });
+    expect(reply).not.toHaveBeenCalled();
+    fireEvent.touchStart(row, { touches: [{ clientX: 100, clientY: 100 }] });
+    fireEvent.touchEnd(row, { changedTouches: [{ clientX: 180, clientY: 105 }] });
+    expect(reply).toHaveBeenCalledOnce();
+  });
   it("shows the text and the time", () => {
     const { container } = renderBubble({ text: "проверка" });
     expect(container.textContent).toContain("проверка");

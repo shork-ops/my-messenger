@@ -303,6 +303,7 @@ export default function MessageBubble({
 
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressed = useRef(false);
+  const touchStart = useRef<{ x: number; y: number; time: number } | null>(null);
 
   function clearPress() {
     if (pressTimer.current) {
@@ -344,7 +345,36 @@ export default function MessageBubble({
     <div
       data-remote-id={message.remoteId ?? undefined}
       className={`message-line ${message.mine ? "mine" : ""} ${continuesRun ? "continues-run" : "starts-run"} ${endsRun ? "ends-run" : "mid-run"}`}
-      onPointerDown={startPress}
+      onTouchStart={(event) => {
+        const target = event.target as HTMLElement;
+        const touch = event.touches[0];
+        if (event.touches.length !== 1 || !touch || target.closest("button, a, input, textarea") || touch.clientX < 32) {
+          touchStart.current = null;
+          return;
+        }
+        touchStart.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+      }}
+      onTouchMove={(event) => {
+        const from = touchStart.current;
+        const touch = event.touches[0];
+        if (!from || !touch) return;
+        if (Math.abs(touch.clientX - from.x) > 10 || Math.abs(touch.clientY - from.y) > 10) clearPress();
+        if (event.touches.length !== 1) touchStart.current = null;
+      }}
+      onTouchCancel={() => { touchStart.current = null; clearPress(); }}
+      onTouchEnd={(event) => {
+        const from = touchStart.current;
+        touchStart.current = null;
+        const touch = event.changedTouches[0];
+        if (!from || !touch || longPressed.current) return;
+        if (touch.clientX - from.x >= 64 && Math.abs(touch.clientY - from.y) < 35 && Date.now() - from.time < 700) {
+          longPressed.current = true;
+          onReply();
+        }
+      }}
+      onPointerDown={(event) => {
+        if (!(event.target as HTMLElement).closest("button, a, input, textarea")) startPress();
+      }}
       onPointerUp={clearPress}
       onPointerLeave={clearPress}
       onPointerCancel={clearPress}
@@ -397,7 +427,9 @@ export default function MessageBubble({
               messageKey={message.remoteId || String(message.id)}
             />
           ) : (
-            <MessageBody text={forwardRelease.label ? forwardRelease.body : message.text} />
+            <div className="message-body">
+              <MessageBody text={forwardRelease.label ? forwardRelease.body : message.text} />
+            </div>
           )}
           {linkCard.status === "ready" && <LinkPreview card={linkCard.card} />}
           <span className="message-time">

@@ -412,7 +412,7 @@ export default function ConversationPanel({
         ) : (
           <Avatar color={chat.color}>{chat.avatar}</Avatar>
         )}
-        <div className="conversation-title">
+        <button type="button" className="conversation-title" onClick={onToggleProfile} aria-label={`Профиль чата «${chat.name}»`}>
           <strong>
             {chat.name}
             {chat.channel && (
@@ -422,7 +422,7 @@ export default function ConversationPanel({
             )}
           </strong>
           <small>{subtitle}</small>
-        </div>
+        </button>
         <div className="conversation-tools">
           <button onClick={onToggleSearch} aria-label="Поиск по переписке" title="Поиск по переписке">
             <Search />
@@ -430,7 +430,7 @@ export default function ConversationPanel({
           <button onClick={onCall} aria-label="Позвонить">
             <Phone />
           </button>
-          <button onClick={onVideo} aria-label="Видеозвонок">
+          <button className="header-video-call" onClick={onVideo} aria-label="Видеозвонок">
             <Video />
           </button>
           <button onClick={onTogglePin} aria-label={chat.pinned ? "Открепить чат" : "Закрепить чат"} title={chat.pinned ? "Открепить чат" : "Закрепить чат"}>
@@ -442,6 +442,8 @@ export default function ConversationPanel({
             </button>
             {chatMenuOpen && (
               <div className="chat-menu" role="menu">
+                <button className="mobile-video-action" type="button" role="menuitem" onClick={() => { onToggleChatMenu(); onVideo(); }}><Video size={18} /> Видеозвонок</button>
+                <button className="mobile-video-action" type="button" role="menuitem" onClick={() => { onToggleChatMenu(); onToggleSearch(); }}><Search size={18} /> Поиск по переписке</button>
                 <button type="button" role="menuitem" onClick={onToggleProfile}>
                   <UserRound size={18} /> Профиль чата
                 </button>

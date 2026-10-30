@@ -58,6 +58,44 @@ export default function Composer({
 }: ComposerProps) {
   const value = editing ? editDraft : draft;
   const [attachOpen, setAttachOpen] = useState(false);
+  const [expressionOpen, setExpressionOpen] = useState(false);
+  const expressionRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    const resize = () => {
+      input.style.height = "auto";
+      const maxHeight = parseFloat(getComputedStyle(input).lineHeight) * 5 + 24;
+      input.style.height = `${Math.min(input.scrollHeight, maxHeight)}px`;
+      input.style.overflowY = input.scrollHeight > maxHeight ? "auto" : "hidden";
+    };
+    resize();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(resize);
+    observer.observe(input.parentElement!);
+    return () => observer.disconnect();
+  }, [value]);
+
+  useEffect(() => {
+    if (!expressionOpen) return;
+    const close = (event: MouseEvent) => {
+      if (!expressionRef.current?.contains(event.target as Node)) setExpressionOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setExpressionOpen(false);
+        expressionRef.current?.querySelector("button")?.focus();
+      }
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [expressionOpen]);
   const attachRef = useRef<HTMLDivElement | null>(null);
 
   // Close the attachment menu on an outside click or Escape, like any popover.
@@ -67,7 +105,10 @@ export default function Composer({
       if (!attachRef.current?.contains(event.target as Node)) setAttachOpen(false);
     }
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") setAttachOpen(false);
+      if (event.key === "Escape") {
+        setAttachOpen(false);
+        attachRef.current?.querySelector("button")?.focus();
+      }
     }
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
@@ -117,7 +158,7 @@ export default function Composer({
           <button
             type="button"
             className={`attach-button ${attachOpen ? "open" : ""}`}
-            onClick={() => setAttachOpen((open) => !open)}
+            onClick={() => { setExpressionOpen(false); setAttachOpen((open) => !open); }}
             aria-label="Прикрепить"
             aria-expanded={attachOpen}
             title="Прикрепить"
@@ -134,6 +175,9 @@ export default function Composer({
               </button>
               <button type="button" role="menuitem" onClick={() => runFromMenu(onOpenPoll)}>
                 <Users size={18} /> Опрос
+              </button>
+              <button type="button" role="menuitem" aria-label="Записать видеозаметку" onClick={() => runFromMenu(onVideoNote)}>
+                <Video size={18} /> Видеозаметка
               </button>
               {/* Scheduling needs something to send; offering it on an empty input would
                   open a menu that can only be cancelled. */}
@@ -152,10 +196,22 @@ export default function Composer({
           )}
         </div>
         <div className="composer-input-wrap">
-          <input
+          <textarea
+            ref={inputRef}
+            rows={1}
+            enterKeyHint="enter"
             value={value}
+            onKeyDown={(event) => {
+              // Phone keyboards keep Return for a new line; sending stays an explicit tap.
+              if (window.matchMedia("(max-width: 760px)").matches) return;
+              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) {
+                event.preventDefault();
+                if (value.trim()) event.currentTarget.form?.requestSubmit();
+              }
+            }}
+            title="На компьютере: Enter — отправить, Shift+Enter — новая строка"
             onChange={(event) => onChangeText(event.target.value)}
-            placeholder={editing ? "Изменить сообщение..." : "Написать сообщение..."}
+            placeholder={editing ? "Изменить…" : "Текст…"}
             aria-label="Текст сообщения"
           />
           {mentionOpen && mentionMatches.length > 0 && (
@@ -168,16 +224,18 @@ export default function Composer({
             </div>
           )}
         </div>
-        <button type="button" className="emoji-button" onClick={onEmoji} aria-label="Добавить эмодзи">
-          <Smile size={20} />
-        </button>
-        <button type="button" className="emoji-button sticker-button" onClick={onStickers} aria-label="Стикеры" title="Стикеры">
-          <Sticker size={20} />
-        </button>
-        <button type="button" className="attach-button note-button" onClick={onVideoNote} aria-label="Записать видеозаметку" title="Видеозаметка">
-          <Video size={20} />
-        </button>
-        <button
+        <div className="attach-menu-wrap expression-menu-wrap" ref={expressionRef}>
+          <button type="button" className="emoji-button" onClick={() => { setAttachOpen(false); setExpressionOpen((open) => !open); }} aria-label="Эмодзи и стикеры" aria-expanded={expressionOpen}>
+            <Smile size={20} />
+          </button>
+          {expressionOpen && (
+            <div className="attach-menu expression-menu" role="group" aria-label="Эмодзи и стикеры">
+              <button type="button" aria-label="Добавить эмодзи" onClick={() => { setExpressionOpen(false); onEmoji(); }}><Smile size={18} /> Эмодзи</button>
+              <button type="button" aria-label="Стикеры" onClick={() => { setExpressionOpen(false); onStickers(); }}><Sticker size={18} /> Стикеры</button>
+            </div>
+          )}
+        </div>
+        {(!value.trim() || recording) && <button
           type="button"
           className={`attach-button voice-button ${recording ? "recording" : ""}`}
           onClick={onToggleVoice}
@@ -186,15 +244,15 @@ export default function Composer({
         >
           <Mic size={20} />
           {recording && <span>{recordingSeconds}s</span>}
-        </button>
-        <button
+        </button>}
+        {(value.trim() || editing) && <button
           type="submit"
           className="send-button"
           aria-label={editing ? "Сохранить изменения" : "Отправить сообщение"}
           disabled={!value.trim()}
         >
           {editing ? <CheckCheck size={20} /> : <Send size={20} />}
-        </button>
+        </button>}
       </form>
     </>
   );

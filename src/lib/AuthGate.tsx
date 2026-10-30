@@ -92,7 +92,7 @@ export default function AuthGate({ children }: AuthGateProps) {
           {signingIn ? "Переходим к Google…" : "Продолжить с Google"}
         </button>
         {error && <p role="alert" style={styles.error}>{error}</p>}
-        <p style={styles.footnote}>Авторизация защищена Supabase. Пароль от Google не передаётся приложению.</p>
+        <p style={styles.footnote}>Пароль Google остаётся у Google. Выберите аккаунт, чтобы войти или зарегистрироваться.</p>
       </section>
     </main>
   );
@@ -151,5 +151,5 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
   },
   error: { marginTop: 16, color: "#ff8585", fontSize: 12, overflowWrap: "anywhere" },
-  footnote: { margin: "24px 0 0", color: "#777981", fontSize: 11, lineHeight: 1.6 },
+  footnote: { margin: "24px 0 0", color: "#a6a7ae", fontSize: 12, lineHeight: 1.6 },
 };

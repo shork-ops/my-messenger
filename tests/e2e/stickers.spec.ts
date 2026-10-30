@@ -15,7 +15,8 @@ test.describe("stickers", () => {
   });
 
   test("the picker offers the whole pack and narrows by search", async ({ page }) => {
-    await page.getByLabel("Стикеры").click();
+    await page.getByLabel("Эмодзи и стикеры", { exact: true }).click();
+    await page.getByLabel("Стикеры", { exact: true }).click();
     const picker = page.getByRole("dialog", { name: "Стикеры" });
     await expect(picker).toBeVisible();
 
@@ -32,7 +33,8 @@ test.describe("stickers", () => {
   });
 
   test("sending a sticker puts the sticker in the conversation, not its id", async ({ page }) => {
-    await page.getByLabel("Стикеры").click();
+    await page.getByLabel("Эмодзи и стикеры", { exact: true }).click();
+    await page.getByLabel("Стикеры", { exact: true }).click();
     const picker = page.getByRole("dialog", { name: "Стикеры" });
     await picker.locator(".sticker-item").first().click();
 
@@ -45,7 +47,8 @@ test.describe("stickers", () => {
   });
 
   test("a sticker is announced rather than shown as a bare glyph", async ({ page }) => {
-    await page.getByLabel("Стикеры").click();
+    await page.getByLabel("Эмодзи и стикеры", { exact: true }).click();
+    await page.getByLabel("Стикеры", { exact: true }).click();
     await page.getByRole("dialog", { name: "Стикеры" }).locator(".sticker-item").first().click();
 
     const sticker = page.locator(".message-line").last().locator(".message-sticker");
@@ -54,7 +57,8 @@ test.describe("stickers", () => {
   });
 
   test("the picker closes on Escape", async ({ page }) => {
-    await page.getByLabel("Стикеры").click();
+    await page.getByLabel("Эмодзи и стикеры", { exact: true }).click();
+    await page.getByLabel("Стикеры", { exact: true }).click();
     await expect(page.getByRole("dialog", { name: "Стикеры" })).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog", { name: "Стикеры" })).toBeHidden();

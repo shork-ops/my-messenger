@@ -25,6 +25,7 @@ import { useMessenger } from "./hooks/useMessenger";
 import { useCallRecording } from "./hooks/useCallRecording";
 import { useAccounts } from "./hooks/useAccounts";
 import "./styles.css";
+import { useMobileViewport } from "./hooks/useMobileViewport";
 
 // Everything below opens on a press: settings, a game, a call, the camera, a dialog.
 // Each is its own chunk, so the first screen does not download what it may never open.
@@ -272,6 +273,7 @@ export default function App() {
 
   // Recording belongs to the call surface, but the chat name - which names the saved file - is
   // known here. The accounts list describes this browser, so it lives beside the call.
+  useMobileViewport();
   const callRecording = useCallRecording(activeChat.name);
   const accounts = useAccounts();
 
@@ -292,6 +294,10 @@ export default function App() {
 
   return (
     <main className={`app-shell ${mobileView === "chat" ? "mobile-chat" : "mobile-list"}`}>
+      <header className="mobile-list-header">
+        <strong><span>N</span> Nexus</strong>
+        <button type="button" onClick={() => { setSettingsSection("profile"); setProfileOpen(true); }} aria-label="Мой профиль">{profileName || "Мой профиль"}</button>
+      </header>
       <Rail
         t={t}
         activeNav={activeNav}
@@ -345,6 +351,15 @@ export default function App() {
         activeId={activeId}
         onSelectChat={selectChat}
         onTogglePin={toggleChatPin}
+        onMuteChat={(chat) => {
+          if (chat.mutedUntil && chat.mutedUntil > Date.now()) {
+            void saveChatSettings(chat.id, { mutedUntil: null }).then((ok) => ok && action("Звук включён"));
+          } else setMuteChatId(chat.id);
+        }}
+        onArchiveChat={(chat) => {
+          const next = !chat.archived;
+          void saveChatSettings(chat.id, { archived: next }).then((ok) => ok && action(next ? "Чат в архиве" : "Чат возвращён из архива"));
+        }}
         onPickFolders={(chat) => setFolderPickerChat(chat)}
         onDeleteChat={(chat) => void deleteChat(chat)}
       />

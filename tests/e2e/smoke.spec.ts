@@ -159,7 +159,7 @@ test.describe("Nexus messenger smoke", () => {
   test("keeps a draft when the chat is left and comes back", async ({ page }) => {
     // A draft that vanishes on a chat switch is worse than no draft: it teaches people
     // not to trust the box.
-    const composer = page.locator('.composer input[aria-label="Текст сообщения"]');
+    const composer = page.getByLabel("Текст сообщения");
     const rows = page.locator(".chat-row");
     const openIndex = await rows.evaluateAll((els) => els.findIndex((el) => el.classList.contains("selected")));
     expect(openIndex, "no conversation is open").toBeGreaterThanOrEqual(0);
@@ -182,7 +182,7 @@ test.describe("Nexus messenger smoke", () => {
   test("keeps a draft across a reload", async ({ page }) => {
     // The draft was written to storage but only read when a chat was chosen, so after a
     // reload the box was empty while the text sat in storage. This is that bug, in a test.
-    const composer = page.locator('.composer input[aria-label="Текст сообщения"]');
+    const composer = page.getByLabel("Текст сообщения");
     await composer.fill("переживёт перезагрузку");
     await expect
       .poll(() => page.evaluate(() => window.localStorage.getItem("nexus-drafts-v1") ?? ""))
@@ -220,17 +220,18 @@ test.describe("Nexus messenger smoke", () => {
   test("puts a chat in a folder and keeps it there after a reload", async ({ page }) => {
     // Filing a chat into a folder had no way in at all: the picker existed, was styled and
     // was covered by the hook's tests, and nothing in the interface opened it.
-    await expect(page.locator(".chat-file-button"), "offered with no folder to file into").toHaveCount(0);
+    await page.locator(".chat-menu-button").first().click();
+    await expect(page.getByRole("button", { name: "Разложить по папкам", exact: true })).toHaveCount(0);
+    await page.keyboard.press("Escape");
 
     await page.getByLabel("Создать папку").click();
     await page.getByLabel("Название папки").fill("Работа");
     await page.keyboard.press("Enter");
-    await expect(page.locator(".chat-file-button").first()).toBeAttached();
 
     const row = page.locator(".chat-row").first();
     const name = ((await row.textContent()) ?? "").slice(0, 4);
-    await row.hover();
-    await page.locator(".chat-file-button").first().click();
+    await page.locator(".chat-menu-button").first().click();
+    await page.getByRole("button", { name: "Разложить по папкам", exact: true }).click();
     await expect(page.locator(".folder-picker")).toBeVisible();
     await page.locator(".folder-option", { hasText: "Работа" }).click();
     await expect(page.locator(".folder-option").first()).toHaveAttribute("aria-pressed", "true");

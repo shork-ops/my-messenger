@@ -34,10 +34,14 @@ export default function Rail({
   onToggleNotifications,
   t,
 }: RailProps) {
+  const notificationLabel = notificationsGranted
+    ? t("nav.checkNotifications", { "nav.checkNotifications": "Проверить уведомления" })
+    : t("nav.enableNotifications", { "nav.enableNotifications": "Включить уведомления" });
   return (
+    <>
     <aside className="rail">
       <button className="brand" onClick={() => onNavigate("Чаты")} aria-label="Nexus — главная">
-        <span className="brand-mark">M</span>
+        <span className="brand-mark">N</span>
         <span className="brand-name">Nexus</span>
       </button>
 
@@ -66,11 +70,11 @@ export default function Rail({
         <button
           className={`nav-link ${notificationsGranted ? "notifications-on" : ""}`}
           onClick={onToggleNotifications}
-          title={notificationsGranted ? "Уведомления включены" : "Включить уведомления"}
-          aria-label={notificationsGranted ? "Уведомления включены" : "Включить уведомления"}
+          title={notificationLabel}
+          aria-label={notificationLabel}
         >
           <Bell size={22} />
-          <span>{t("nav.notifications", { "nav.notifications": "Уведомления" })}</span>
+          <span>{notificationLabel}</span>
         </button>
         <div className="nav-divider" />
         <button
@@ -94,5 +98,13 @@ export default function Rail({
         <Settings size={18} className="self-settings" />
       </button>
     </aside>
+    <nav className="mobile-bottom-nav" aria-label="Основная навигация">
+      <button type="button" className={activeNav === "Чаты" ? "active" : ""} onClick={() => onNavigate("Чаты")} aria-label="Чаты" aria-current={activeNav === "Чаты" ? "page" : undefined}>
+        <MessageCircle size={22} /><span>Чаты</span>{unreadTotal > 0 && <b>{badgeText(unreadTotal)}</b>}
+      </button>
+      <button type="button" onClick={onOpenGames}><Gamepad2 size={22} /><span>Игры</span></button>
+      <button type="button" onClick={onOpenSettings}><Settings size={22} /><span>Настройки</span></button>
+    </nav>
+    </>
   );
 }

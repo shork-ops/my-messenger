@@ -1,4 +1,5 @@
-import { FolderInput, Megaphone, PencilLine, Search, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Archive, Bell, BellOff, FolderInput, Megaphone, MoreHorizontal, PencilLine, Pin, Search, Trash2 } from "lucide-react";
 import Avatar from "./Avatar";
 import UserAvatar from "./UserAvatar";
 import type { Chat, ChatFilter, UserSearchResult } from "../types";
@@ -42,6 +43,8 @@ type ChatListPanelProps = {
   /** Opens the folder chooser for one conversation. */
   onPickFolders?: (chat: Chat) => void;
   onDeleteChat?: (chat: Chat) => void;
+  onMuteChat?: (chat: Chat) => void;
+  onArchiveChat?: (chat: Chat) => void;
 };
 
 export default function ChatListPanel({
@@ -67,7 +70,37 @@ export default function ChatListPanel({
   onTogglePin,
   onPickFolders,
   onDeleteChat,
+  onMuteChat,
+  onArchiveChat,
 }: ChatListPanelProps) {
+  const [menuId, setMenuId] = useState<number | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuTrigger = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (menuId === null) return;
+    menuRef.current?.querySelector("button")?.focus();
+    const close = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!menuRef.current?.contains(target) && !menuTrigger.current?.contains(target)) setMenuId(null);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMenuId(null);
+        menuTrigger.current?.focus();
+      }
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [menuId]);
+  function runAction(action: () => void) {
+    setMenuId(null);
+    menuTrigger.current?.focus();
+    action();
+  }
   // One clock for the whole list, so every row agrees on what "muted" means right now.
   const now = new Date();
   const query = search.trim().replace(/^@/, "");
@@ -119,7 +152,7 @@ export default function ChatListPanel({
 
       <div className="chat-filters">
         {FILTERS.map((item) => (
-          <button key={item.id} className={filter === item.id ? "active" : ""} onClick={() => onFilterChange(item.id)}>
+          <button key={item.id} className={`${filter === item.id ? "active" : ""} filter-${item.id}`} onClick={() => onFilterChange(item.id)}>
             {item.label}
           </button>
         ))}
@@ -138,9 +171,10 @@ export default function ChatListPanel({
             className={`chat-row ${chat.id === activeId ? "selected" : ""}`}
             onContextMenu={(event) => {
               event.preventDefault();
-              onTogglePin(chat);
+              menuTrigger.current = event.currentTarget;
+              setMenuId(chat.id);
             }}
-            onClick={() => onSelectChat(chat)}
+            onClick={() => { setMenuId(null); onSelectChat(chat); }}
           >
             {chat.avatarPath ? (
               <UserAvatar name={chat.name} letter={chat.avatar} avatarPath={chat.avatarPath} color={chat.color} />
@@ -173,36 +207,37 @@ export default function ChatListPanel({
               {chat.unread ? <b>{chat.unread}</b> : null}
             </span>
           </button>
-          {/* Filing a chat into a folder had no way in: the picker existed and nothing
-              opened it. It is offered only once there is a folder to file into. */}
-          {onPickFolders && folders.length > 0 ? (
-            <button
-              type="button"
-              className="chat-file-button"
-              aria-label={`Разложить чат «${chat.name}» по папкам`}
-              title="Разложить по папкам"
-              onClick={() => onPickFolders(chat)}
-            >
-              <FolderInput size={14} />
-            </button>
-          ) : null}
-          {/* Deleting the conversation, from the row rather than only from inside it: a chat
-              nobody wants back should not have to be opened to be got rid of. It confirms
-              first, because the next tap on that spot would otherwise land on whatever moved up. */}
-          {onDeleteChat ? (
-            <button
-              type="button"
-              className="chat-delete-button"
-              aria-label={`Удалить чат «${chat.name}»`}
-              title="Удалить чат"
-              onClick={() => onDeleteChat(chat)}
-            >
-              <Trash2 size={14} />
-            </button>
-          ) : null}
+          <button
+            type="button"
+            className="chat-menu-button"
+            aria-label={`Действия с чатом «${chat.name}»`}
+            aria-expanded={menuId === chat.id}
+            onClick={(event) => {
+              menuTrigger.current = event.currentTarget;
+              setMenuId(menuId === chat.id ? null : chat.id);
+            }}
+          ><MoreHorizontal size={20} /></button>
+          {menuId === chat.id && (
+            <div className="chat-row-menu" role="group" aria-label={`Действия с чатом «${chat.name}»`} ref={menuRef}>
+              <button type="button" onClick={() => runAction(() => onTogglePin(chat))}><Pin size={16} />{chat.pinned ? "Открепить" : "Закрепить"}</button>
+              {onMuteChat && <button type="button" onClick={() => runAction(() => onMuteChat(chat))}>{muteLabel(chat.mutedUntil ?? null, now) ? <Bell size={16} /> : <BellOff size={16} />}{muteLabel(chat.mutedUntil ?? null, now) ? "Включить звук" : "Отключить звук"}</button>}
+              {onArchiveChat && <button type="button" onClick={() => runAction(() => onArchiveChat(chat))}><Archive size={16} />{chat.archived ? "Вернуть из архива" : "В архив"}</button>}
+              {onPickFolders && folders.length > 0 && <button type="button" onClick={() => runAction(() => onPickFolders(chat))}><FolderInput size={16} />Разложить по папкам</button>}
+              {onDeleteChat && <button type="button" className="danger-action" onClick={() => runAction(() => onDeleteChat(chat))}><Trash2 size={16} />Удалить чат</button>}
+            </div>
+          )}
           </div>
         ))}
-        {!hasVisibleChats && <div className="empty-search">По этим фильтрам чатов нет</div>}
+        {!hasVisibleChats && (
+          allChats.length === 0 && !query && filter === "all" && activeFolderId === null ? (
+            <div className="chat-welcome">
+              <PencilLine size={28} aria-hidden="true" />
+              <h2>Начните первый разговор</h2>
+              <p>Найдите человека по @username или создайте новый чат.</p>
+              <button type="button" onClick={onNewChat}>Новый чат</button>
+            </div>
+          ) : <div className="empty-search">{query ? "Чаты не найдены. Попробуйте другое имя." : filter === "unread" ? "Нет непрочитанных чатов" : "По этим фильтрам чатов нет"}</div>
+        )}
       </div>
     </section>
   );
