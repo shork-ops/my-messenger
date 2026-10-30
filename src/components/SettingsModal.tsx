@@ -4,6 +4,7 @@ import {
   Camera,
   ChevronLeft,
   ChevronRight,
+  CircleUser,
   Database,
   Palette,
   ShieldCheck,
@@ -22,10 +23,12 @@ import { avatarFallback } from "../lib/avatar";
 import TwoFactorPanel from "./TwoFactorPanel";
 import { WALLPAPERS, type WallpaperId, wallpaperBackground, wallpaperSize } from "../lib/wallpaper";
 import { MEDIA_POLICIES, type MediaPolicy } from "../lib/mediaPolicy";
+import { accountLabel, canAddAccount, type SavedAccount } from "../lib/accounts";
 
 /** Sections in the order a person tends to look for them. */
 export const SETTINGS_SECTIONS = [
   { id: "profile", label: "Профиль", hint: "Имя, фото, о себе", icon: UserRound },
+  { id: "accounts", label: "Аккаунты", hint: "Переключение между ними", icon: CircleUser },
   { id: "appearance", label: "Оформление", hint: "Тема и размер текста", icon: Palette },
   { id: "privacy", label: "Приватность", hint: "Кто вас видит", icon: ShieldCheck },
   { id: "notifications", label: "Уведомления", hint: "Звук и тихие часы", icon: BellRing },
@@ -82,6 +85,13 @@ export type SettingsModalProps = {
   passcode: string | null;
   onPasscodeChange: (code: string | null) => void;
   twoFactor: TwoFactorState;
+  /** Accounts saved in this browser, most recently used first. */
+  savedAccounts: SavedAccount[];
+  activeAccountSlot: string;
+  onSwitchAccount: (slot: string) => void;
+  onAddAccount: () => void;
+  onForgetAccount: (slot: string) => void;
+  accountsSwitching: boolean;
   mediaPolicy: MediaPolicy;
   onMediaPolicyChange: (value: MediaPolicy) => void;
 };
@@ -183,6 +193,16 @@ export default function SettingsModal(props: SettingsModalProps) {
                 about={props.about}
                 onAboutSave={props.onAboutSave}
                 onNameChange={props.onNameChange}
+              />
+            )}
+            {active === "accounts" && (
+              <AccountsSection
+                saved={props.savedAccounts}
+                activeSlot={props.activeAccountSlot}
+                onSwitch={props.onSwitchAccount}
+                onAdd={props.onAddAccount}
+                onForget={props.onForgetAccount}
+                switching={props.accountsSwitching}
               />
             )}
             {active === "appearance" && (
@@ -299,6 +319,87 @@ function ProfileSection({
       </button>
       <AboutField value={about} onSave={onAboutSave} />
     </>
+  );
+}
+
+/**
+ * Several accounts on one device.
+ *
+ * The limit is said plainly rather than discovered: a saved account is a session in this
+ * browser's storage, so anyone who can open this browser profile can use it. That is worth one
+ * sentence next to the list, not a paragraph in a help page nobody opens.
+ */
+function AccountsSection({
+  saved,
+  activeSlot,
+  onSwitch,
+  onAdd,
+  onForget,
+  switching,
+}: {
+  saved: SavedAccount[];
+  activeSlot: string;
+  onSwitch: (slot: string) => void;
+  onAdd: () => void;
+  onForget: (slot: string) => void;
+  switching: boolean;
+}) {
+  return (
+    <div className="settings-section">
+      {saved.length === 0 ? (
+        <p className="modal-help">
+          Здесь появятся аккаунты, которыми вы пользуетесь в этом браузере. Добавьте второй —
+          и переключаться между работой и личным станет нажатие, а не выход и новый вход.
+        </p>
+      ) : (
+        <ul className="account-list" role="list">
+          {saved.map((account) => {
+            const current = account.slot === activeSlot;
+            return (
+              <li key={account.slot} className={`account-row${current ? " active" : ""}`}>
+                <span className={`account-dot ${account.color}`} aria-hidden="true">
+                  {account.name.slice(0, 1).toUpperCase()}
+                </span>
+                <span className="account-name">
+                  <strong>{accountLabel(account.name, account.email)}</strong>
+                  {current ? <small>Текущий аккаунт</small> : null}
+                </span>
+                {!current ? (
+                  <button
+                    type="button"
+                    className="account-switch"
+                    onClick={() => onSwitch(account.slot)}
+                    disabled={switching}
+                  >
+                    Переключиться
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="account-forget"
+                  onClick={() => onForget(account.slot)}
+                  disabled={switching}
+                  aria-label={`Убрать аккаунт ${account.name} с этого устройства`}
+                  title="Убрать с этого устройства"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {canAddAccount(saved) ? (
+        <button type="button" className="settings-action" onClick={onAdd} disabled={switching}>
+          {switching ? "Переключаю…" : "Добавить аккаунт"}
+        </button>
+      ) : null}
+      <p className="modal-help account-note">
+        Аккаунты хранятся в этом браузере. Кто откроет профиль браузера на этом устройстве, тот
+        сможет войти в каждый из них — поэтому на чужом компьютере аккаунт лучше убрать кнопкой
+        корзины.
+      </p>
+    </div>
   );
 }
 

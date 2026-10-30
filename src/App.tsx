@@ -5,7 +5,7 @@
  * nothing else. It was two thousand lines of both, which made every change a change to
  * three things at once.
  */
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import { Shield, X } from "lucide-react";
 import PasscodeLock from "./components/PasscodeLock";
@@ -22,6 +22,8 @@ import type { SettingsSectionId } from "./components/SettingsModal";
 import { formatNoteTime } from "./lib/videoNote";
 import { isDemoMode } from "./lib/constants";
 import { useMessenger } from "./hooks/useMessenger";
+import { useCallRecording } from "./hooks/useCallRecording";
+import { useAccounts } from "./hooks/useAccounts";
 import "./styles.css";
 
 // Everything below opens on a press: settings, a game, a call, the camera, a dialog.
@@ -267,6 +269,22 @@ export default function App() {
     wallpaper,
     wideLayout,
   } = useMessenger();
+
+  // Recording belongs to the call surface, but the chat name - which names the saved file - is
+  // known here. The accounts list describes this browser, so it lives beside the call.
+  const callRecording = useCallRecording(activeChat.name);
+  const accounts = useAccounts();
+
+  // The list of accounts is filled from the session that is actually signed in, not from
+  // whatever the switcher believes: a slot with no session behind it is a row that does
+  // nothing when pressed. Demo mode has no session, so it writes nothing.
+  const rememberedSlot = useRef<string | null>(null);
+  useEffect(() => {
+    if (!accountId || !accounts.ready || accounts.switching) return;
+    if (rememberedSlot.current === accounts.activeSlot) return;
+    rememberedSlot.current = accounts.activeSlot;
+    accounts.remember({ name: profileName || "Аккаунт", email: null });
+  }, [accountId, accounts, profileName]);
 
   if (lockCode && !lockUnlocked) {
     return <PasscodeLock passcode={lockCode} onUnlock={unlock} />;
@@ -631,6 +649,14 @@ export default function App() {
           onRemoteVideo={attachRemoteVideo}
           onRemoteScreen={attachRemoteScreen}
           participants={callMedia.participants}
+          recording={{
+            active: callRecording.recording,
+            seconds: callRecording.seconds,
+            error: callRecording.error,
+            unsupported: callRecording.unsupported,
+            onStart: () => void callRecording.start(),
+            onStop: callRecording.stop,
+          }}
         />
       )}
 
@@ -702,6 +728,14 @@ export default function App() {
           onWallpaperChange={setWallpaper}
           mediaPolicy={mediaPolicy}
           onMediaPolicyChange={setMediaPolicy}
+        savedAccounts={accounts.saved}
+        activeAccountSlot={accounts.activeSlot}
+        onSwitchAccount={accounts.switchTo}
+        onAddAccount={() => {
+          if (!accounts.startNew()) action("Больше четырёх аккаунтов на одном устройстве не поддерживается");
+        }}
+        onForgetAccount={accounts.forget}
+        accountsSwitching={accounts.switching}
         />
       )}
       </Suspense>

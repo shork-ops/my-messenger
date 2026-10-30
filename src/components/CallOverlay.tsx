@@ -1,6 +1,8 @@
 ﻿import { useEffect, useState } from "react";
-import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, ScreenShare, ScreenShareOff } from "lucide-react";
+import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, ScreenShare, ScreenShareOff, Circle, Square } from "lucide-react";
 import { formatCallDuration, presentCall, type ActiveCall } from "../lib/calls";
+import { formatRecordingSize, recordingLabel, recordingNotice } from "../lib/callRecording";
+import { freePlanNote } from "../lib/callPlan";
 import {
   isGroupCall,
   participantInitial,
@@ -32,6 +34,15 @@ type CallOverlayProps = {
   onRemoteScreen?: (element: HTMLVideoElement | null) => void;
   /** Everyone on the call, the local participant included. */
   participants: RoomParticipant[];
+  /** Call recording, which happens on this device and nowhere else. */
+  recording: {
+    active: boolean;
+    seconds: number;
+    error: string | null;
+    unsupported: boolean;
+    onStart: () => void;
+    onStop: () => void;
+  };
 };
 
 /**
@@ -59,6 +70,7 @@ export function CallOverlay({
   onRemoteVideo,
   onRemoteScreen,
   participants,
+  recording,
 }: CallOverlayProps) {
   const [now, setNow] = useState(() => Date.now());
   const stage = presentCall(call);
@@ -138,11 +150,21 @@ export function CallOverlay({
             ))}
           </div>
         ) : null}
+        {group && stage === "incall" && freePlanNote() ? (
+          <p className="call-plan-note">{freePlanNote()}</p>
+        ) : null}
         <div className="call-title">{title}</div>
         <div className="call-subtitle">
           {group && stage === "incall" ? pluralParticipants(participants.length) : subtitle}
         </div>
         {error ? <div className="call-error">{error}</div> : null}
+        {recording.active ? (
+          <div className="call-recording" role="status" aria-live="polite">
+            <span className="call-recording-dot" aria-hidden="true" />
+            {recordingLabel(recording.seconds)} · {formatRecordingSize(recording.seconds * 32_000)}
+          </div>
+        ) : null}
+        {recording.error ? <div className="call-error">{recording.error}</div> : null}
 
         {stage === "incoming" ? (
           <div className="call-actions">
@@ -182,6 +204,17 @@ export function CallOverlay({
               >
                 {screenSharing ? <ScreenShareOff size={22} /> : <ScreenShare size={22} />}
               </button>
+              {stage === "incall" && !recording.unsupported ? (
+                <button
+                  className={`call-button ${recording.active ? "active" : ""}`}
+                  onClick={recording.active ? recording.onStop : recording.onStart}
+                  aria-label={recording.active ? "Остановить запись" : "Записать звонок"}
+                  aria-pressed={recording.active}
+                  title={recordingNotice()}
+                >
+                  {recording.active ? <Square size={20} /> : <Circle size={20} />}
+                </button>
+              ) : null}
               <button className="call-button decline" onClick={onHangUp} aria-label="Завершить">
                 <PhoneOff size={22} />
               </button>

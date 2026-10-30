@@ -878,6 +878,33 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .encryption-note .modal-help:last-child { margin-bottom: 0; }
 .archive-button { display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 9px; background: #121317; color: var(--fg); font-size: 13px; cursor: pointer; }
 .archive-button:hover { border-color: var(--yellow); color: var(--yellow); }
+/* Several accounts in one browser. Each row has to be identifiable at a glance: the colour
+   and the first letter, then the name, then the action. */
+.account-list { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.account-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: #121317; }
+.account-row.active { border-color: var(--yellow); }
+.account-dot { display: grid; place-items: center; width: 34px; height: 34px; flex: none; border-radius: 50%; background: var(--avatar-blue, #3b6fb6); color: #fff; font-weight: 700; }
+.account-dot.blue { background: #3b6fb6; }
+.account-dot.violet { background: #7a5bd0; }
+.account-dot.olive { background: #6b7f3a; }
+.account-dot.orange { background: #c9762c; }
+.account-name { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.account-name strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.account-name small { color: var(--fg-muted); font-size: 11px; }
+.account-switch { padding: 6px 11px; border: 1px solid var(--border-strong); border-radius: 8px; background: transparent; color: var(--fg); font-size: 12px; cursor: pointer; }
+.account-switch:hover { border-color: var(--yellow); color: var(--yellow); }
+.account-forget { display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 8px; background: transparent; color: var(--fg-muted); cursor: pointer; }
+.account-forget:hover { background: rgba(229, 72, 77, 0.14); color: #e5484d; }
+.account-note { margin-top: 12px; }
+/* The recording indicator has to be visible from across a room: someone on a screen share
+   must be able to see that a call is being recorded. */
+.call-recording { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; border-radius: 999px; background: rgba(214, 48, 49, 0.18); border: 1px solid rgba(214, 48, 49, 0.55); color: #ff8a80; font-size: 12px; font-variant-numeric: tabular-nums; }
+.call-recording-dot { width: 9px; height: 9px; border-radius: 50%; background: #e5484d; animation: recording-pulse 1.6s ease-in-out infinite; }
+@keyframes recording-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .call-recording-dot { animation: none; } }
+/* Said on a group call, before anything goes wrong: the free plan has a cap, and a person told
+   in advance reads the refusal as a plan limit rather than a broken app. */
+.call-plan-note { max-width: 340px; margin: 0; padding: 6px 12px; border-radius: 9px; background: rgba(255, 255, 255, 0.06); color: var(--fg-muted); font-size: 11px; line-height: 1.45; text-align: center; }
 .privacy-heading { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; color: var(--fg-secondary); font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; }
 .privacy-heading b { padding: 1px 7px; border: 1px solid var(--border); border-radius: 10px; color: var(--yellow); font-size: 12px; }
 .blocked-list { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }

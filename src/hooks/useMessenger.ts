@@ -73,6 +73,7 @@ import ShortcutHelp from "../components/ShortcutHelp";
 import type { Shortcut } from "../lib/shortcuts";
 import { exportAsText, exportFileName, pluralMessages } from "../lib/exportChat";
 import { archiveFileName, archiveSummary, buildArchive } from "../lib/archive";
+import { FREE_PLAN_MAX_PARTICIPANTS, minutesWarning, participantLimitNotice } from "../lib/callPlan";
 import { useChatFolders } from "../hooks/useChatFolders";
 import { chatsInFolder } from "../lib/chatFolders";
 import FolderPicker from "../components/FolderPicker";
@@ -278,6 +279,19 @@ export function useMessenger() {
       action("Звонки доступны в облачных чатах");
       return;
     }
+    // The free plan is named *before* the call, not discovered during it: a person who hears
+    // "соединение потеряно" mid-conversation concludes the messenger is broken. A group call is
+    // where the cap can actually be reached, so that is where the count is checked.
+    const callMembers = activeChat.members?.length ?? 0;
+    if (callMembers >= FREE_PLAN_MAX_PARTICIPANTS) {
+      const notice = participantLimitNotice(callMembers);
+      if (notice) {
+        action(notice);
+        return;
+      }
+    }
+    const planWarning = minutesWarning(null);
+    if (planWarning) action(planWarning);
     const result = await startCall(activeChat.remoteId, kind);
     if (result.error) setCallError(describeCallError(result.error));
   };
