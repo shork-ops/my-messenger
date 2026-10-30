@@ -1,4 +1,14 @@
-export type MessageEffect = "sparkle" | "hearts" | "fireworks" | "glow";
+export type MessageEffect =
+  | "sparkle"
+  | "hearts"
+  | "fireworks"
+  | "glow"
+  | "confetti"
+  | "snow"
+  | "fire"
+  | "rainbow"
+  | "bounce"
+  | "shadow";
 
 export type PollOption = { id: string; text: string; votes: string[] };
 

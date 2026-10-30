@@ -12,6 +12,7 @@
  */
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render } from "@testing-library/react";
+import { EFFECTS } from "../lib/effects";
 import MessageBubble from "./MessageBubble";
 import type { Message } from "../types";
 
@@ -141,7 +142,9 @@ describe("an effect belongs to whoever wrote the message", () => {
   it("offers the effect stickers on the reader's own message", () => {
     const { container } = renderBubble({ mine: true }, false, { actionsOpen: true });
     expect(container.querySelector('[aria-label="Эффекты"]')).not.toBeNull();
-    expect(container.querySelectorAll(".effect-action")).toHaveLength(4);
+    // The count comes from the effect list, so adding an effect does not require editing a
+    // test that is only interested in whether the menu is there.
+    expect(container.querySelectorAll(".effect-action")).toHaveLength(EFFECTS.length);
   });
 
   it("keeps the effect stickers out of the menu on someone else's message", () => {

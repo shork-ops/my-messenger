@@ -985,9 +985,17 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .effect-mark-fireworks { color: #d2b9ff; animation: nexus-mark-pop .7s ease-out both; }
 .effect-mark-glow { color: var(--yellow); box-shadow: 0 0 18px color-mix(in srgb, var(--yellow) 28%, transparent); }
 .message-actions .effect-action { min-width: 29px; justify-content: center; padding-inline: 7px; font-size: 15px; }
-.message-actions .effect-action:nth-of-type(3) { color: #f2d68a; }
-.message-actions .effect-action:nth-of-type(4) { color: #ff9bb8; }
-.message-actions .effect-action:nth-of-type(5) { color: #d2b9ff; }
+.effect-tone-sparkle { color: #f2d68a; }
+.effect-tone-hearts { color: #ff9bb8; }
+.effect-tone-fireworks { color: #d2b9ff; }
+.effect-tone-glow { color: var(--yellow, #f0b429); }
+.effect-tone-confetti { color: #7bc4a4; }
+.effect-tone-snow { color: #8fb8dd; }
+.effect-tone-fire { color: #f0885a; }
+.effect-tone-rainbow { color: #c58ae0; }
+.effect-tone-bounce { color: #63b8c6; }
+.effect-tone-shadow { color: #9aa0aa; }
+.effect-action[aria-pressed="true"] { background: color-mix(in srgb, currentColor 22%, transparent); border-radius: 8px; }
 @keyframes nexus-effect-arrive { 0% { transform: translateY(3px) scale(.97); filter: brightness(1.25); } 100% { transform: translateY(0) scale(1); filter: brightness(1); } }
 @keyframes nexus-heart-arrive { 0% { transform: scale(.96); } 45% { transform: scale(1.025); } 100% { transform: scale(1); } }
 @keyframes nexus-mark-pop { 0% { transform: scale(.2) rotate(-35deg); opacity: 0; } 65% { transform: scale(1.15) rotate(8deg); opacity: 1; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
@@ -1161,4 +1169,52 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 
 @media (max-width: 767px) {
   .jump-button { bottom: 72px; right: 12px; }
+}
+
+/* Six newer effects, same two-part shape as the first four: a bubble treatment and a mark
+   in the corner. Each stays quiet enough to read the message through it. */
+.message-effect-confetti { box-shadow: 0 0 0 1px #7bc4a455, 0 0 22px #7bc4a422; animation: nexus-effect-arrive .5s ease-out both; }
+.message-effect-snow { box-shadow: 0 0 0 1px #8fb8dd55, 0 0 24px #8fb8dd22; animation: nexus-effect-arrive .6s ease-out both; }
+.message-effect-fire { box-shadow: 0 0 0 1px #f0885a55, 0 0 26px #f0885a2b; animation: nexus-effect-arrive .5s ease-out both; }
+.message-effect-rainbow { box-shadow: 0 0 0 1px #c58ae055, 0 0 24px #c58ae026; animation: nexus-rainbow-drift 6s linear infinite; }
+.message-effect-bounce { box-shadow: 0 0 0 1px #63b8c655, 0 0 22px #63b8c622; animation: nexus-bubble-bob 3.6s ease-in-out infinite; }
+.message-effect-shadow { box-shadow: 0 14px 26px rgba(0, 0, 0, .22); animation: nexus-effect-arrive .5s ease-out both; }
+
+.effect-mark-confetti { color: #7bc4a4; animation: nexus-mark-pop .7s ease-out both; }
+.effect-mark-snow { color: #8fb8dd; animation: nexus-mark-drift 3.4s ease-in-out infinite; }
+.effect-mark-fire { color: #f0885a; animation: nexus-mark-flicker 1.4s ease-in-out infinite; }
+.effect-mark-rainbow { color: #c58ae0; animation: nexus-hue-shift 4s linear infinite; }
+.effect-mark-bounce { color: #63b8c6; animation: nexus-heart-float 2.6s ease-in-out infinite; }
+.effect-mark-shadow { color: #9aa0aa; animation: nexus-mark-pop .7s ease-out both; }
+
+@keyframes nexus-rainbow-drift {
+  0% { box-shadow: 0 0 0 1px #c58ae055, 0 0 24px #c58ae026; }
+  33% { box-shadow: 0 0 0 1px #7bc4a455, 0 0 24px #7bc4a426; }
+  66% { box-shadow: 0 0 0 1px #8fb8dd55, 0 0 24px #8fb8dd26; }
+  100% { box-shadow: 0 0 0 1px #c58ae055, 0 0 24px #c58ae026; }
+}
+@keyframes nexus-bubble-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+@keyframes nexus-mark-drift {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50% { transform: translateY(3px) rotate(4deg); }
+}
+@keyframes nexus-mark-flicker {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .75; transform: scale(1.06); }
+}
+@keyframes nexus-hue-shift {
+  0% { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+
+/* An endless animation is a motion problem, not a decoration, for anyone who asked the
+   system to reduce motion. */
+@media (prefers-reduced-motion: reduce) {
+  .message-effect-rainbow, .message-effect-bounce,
+  .effect-mark-snow, .effect-mark-fire, .effect-mark-rainbow, .effect-mark-bounce {
+    animation: none;
+  }
 }

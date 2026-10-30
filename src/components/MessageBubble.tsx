@@ -6,6 +6,7 @@ import { friends } from "../lib/constants";
 import { hasUserVoted, pollPercent, pollTotal } from "../lib/polls";
 import { splitForward } from "../lib/messageActions";
 import MessageBody from "./MessageBody";
+import { EFFECTS, effectByKey } from "../lib/effects";
 import { formatBytes } from "../lib/media";
 import type { Message, MessageEffect, Poll } from "../types";
 
@@ -112,12 +113,10 @@ function AttachmentCard({
   );
 }
 
-const EFFECT_MARKS: Record<MessageEffect, string> = {
-  sparkle: "✦",
-  hearts: "♥",
-  fireworks: "✧",
-  glow: "✺",
-};
+/** The mark drawn on a message that carries an effect: the same symbol the menu shows. */
+function effectMark(effect: MessageEffect): string {
+  return effectByKey(effect)?.symbol ?? "";
+}
 
 type MessageBubbleProps = {
   message: Message;
@@ -293,7 +292,7 @@ export default function MessageBubble({
           </span>
           {message.effect && (
             <span className={`message-effect-mark effect-mark-${message.effect}`} aria-hidden="true">
-              {EFFECT_MARKS[message.effect]}
+              {effectMark(message.effect)}
             </span>
           )}
         </div>
@@ -348,19 +347,22 @@ export default function MessageBubble({
                   wrote it. Offering the stickers on someone else's message invited a choice
                   the server then refused, and the refusal was silent. */}
               {message.mine && (
-                <span className="message-actions-group" role="group" aria-label="Эффекты">
-                  <button type="button" className="effect-action" onClick={() => onEffect("sparkle")} title="Эффект: искры" aria-label="Эффект: искры">
-                    ✦
-                  </button>
-                  <button type="button" className="effect-action" onClick={() => onEffect("hearts")} title="Эффект: сердечки" aria-label="Эффект: сердечки">
-                    ♥
-                  </button>
-                  <button type="button" className="effect-action" onClick={() => onEffect("fireworks")} title="Эффект: салют" aria-label="Эффект: салют">
-                    ✧
-                  </button>
-                  <button type="button" className="effect-action" onClick={() => onEffect("glow")} title="Эффект: сияние" aria-label="Эффект: сияние">
-                    ✺
-                  </button>
+                <span className="message-actions-group effect-group" role="group" aria-label="Эффекты">
+                  {EFFECTS.map((effect) => (
+                    <button
+                      key={effect.key}
+                      type="button"
+                      className={`effect-action effect-tone-${effect.tone}`}
+                      onClick={() => onEffect(effect.key)}
+                      title={`Эффект: ${effect.label}`}
+                      aria-label={`Эффект: ${effect.label}`}
+                      // The current effect is marked so the menu answers "which one is on"
+                      // rather than making the reader recall the colour.
+                      aria-pressed={message.effect === effect.key}
+                    >
+                      {effect.symbol}
+                    </button>
+                  ))}
                 </span>
               )}
               {message.mine && (
