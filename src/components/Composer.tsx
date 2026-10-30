@@ -101,6 +101,7 @@ export default function Composer({
           type="file"
           className="hidden-file-input"
           accept="image/*,video/*,audio/*,.pdf,.txt,.doc,.docx,.zip,.csv"
+          aria-label="Прикрепить файл"
           onChange={onAttachment}
         />
         <div className="attach-menu-wrap" ref={attachRef}>
