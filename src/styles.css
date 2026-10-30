@@ -133,6 +133,21 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .message-author { display: block; margin: 0 0 7px; color: var(--yellow); font-size: var(--text-meta); font-weight: 600; }
 .bubble { position: relative; padding: 13px 15px 25px; border: 1px solid var(--border); border-radius: 4px 17px 17px; background: linear-gradient(135deg, var(--border), var(--surface-2)); color: var(--fg); font-size: var(--text-body); line-height: 1.55; overflow-wrap: anywhere; }
 .bubble.mine-bubble { border-color: var(--yellow-soft); border-radius: 17px 4px 17px 17px; background: linear-gradient(120deg, var(--yellow-soft), #ffd000); color: var(--surface-1); }
+/* A run of messages from one person reads as one block, the way a chat groups them: the
+   bubbles are pulled together, and only the first and last keep the familiar corner.
+   A name at the top of the run is what tells the reader whose block it is. */
+.message-line.starts-run { margin-top: 6px; }
+.message-line.starts-run:first-child { margin-top: 0; }
+.message-line.mid-run, .message-line.ends-run { margin-top: 0; }
+/* The list spaces its rows with row-gap, which a margin cannot override, so a run closes up
+   by cancelling that gap rather than by asking for no margin. */
+.message-line.continues-run { margin-top: -20px; }
+.message-line.mid-run .avatar, .message-line.ends-run .avatar { visibility: hidden; }
+.bubble.bubble-mid { border-radius: 17px; }
+.message-line:not(.mine) .bubble.bubble-continues { border-top-left-radius: 4px; border-bottom-left-radius: 4px; }
+.message-line.mine .bubble.bubble-continues { border-top-right-radius: 4px; border-bottom-right-radius: 4px; }
+.message-line:not(.mine) .bubble:not(.bubble-ends) { border-bottom-left-radius: 4px; }
+.message-line.mine .bubble:not(.bubble-ends) { border-bottom-right-radius: 4px; }
 .message-time { position: absolute; right: 12px; bottom: 6px; color: var(--fg-muted); font-size: 12px; white-space: nowrap; }
 .mine-bubble .message-time { color: #5a4400; }
 /* The accent themes repaint this bubble, so its time follows the bubble's own label

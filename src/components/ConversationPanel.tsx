@@ -10,6 +10,7 @@ import MessageBubble from "./MessageBubble";
 import SearchHits from "./SearchHits";
 import { firstUnreadIndex } from "../lib/unread";
 import { dateLabel, lastSeenLabel } from "../lib/format";
+import { messageRuns } from "../lib/messageRuns";
 import { receiptFor } from "../lib/readState";
 import type { useServerSearch } from "../hooks/useServerSearch";
 import type { Chat, Message, MessageEffect } from "../types";
@@ -228,6 +229,9 @@ export default function ConversationPanel({
   const typingLabel =
     typingNames.length === 0 ? "" : typingNames.length === 1 ? `${typingNames[0]} печатает…` : `${typingNames.join(", ")} печатают…`;
 
+  // Consecutive messages from one person are named once, at the top of the run.
+  const runs = messageRuns(visibleMessages);
+
   return (
     <section className="conversation-panel">
       <header className="conversation-header">
@@ -368,6 +372,10 @@ export default function ConversationPanel({
             (index === 0 || !previous?.createdAt || dateLabel(message.createdAt!) !== dateLabel(previous.createdAt!));
           const showGamePreview =
             isDemoMode && chat.id === 1 && index === chat.messages.length - 1 && !message.mine;
+          // In a group the speaker is named once per run of their messages, not on every line.
+          const run = runs.startsRun[index] !== undefined
+            ? { startsRun: runs.startsRun[index], endsRun: runs.endsRun[index], continues: runs.continues[index] }
+            : null;
           return (
             <Fragment key={message.id}>
               {showDivider && (
@@ -382,7 +390,10 @@ export default function ConversationPanel({
               )}
               <MessageBubble
                 message={message}
-                showAuthor={Boolean(chat.group)}
+                showAuthor={Boolean(chat.group) && (run?.startsRun ?? true)}
+                groupContext={Boolean(chat.group)}
+                continuesRun={run?.continues ?? false}
+                endsRun={run?.endsRun ?? true}
                 autoloadMedia={autoloadMedia}
                 accountId={accountId}
                 profileName={profileName}

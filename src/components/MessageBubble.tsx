@@ -120,8 +120,14 @@ const EFFECT_MARKS: Record<MessageEffect, string> = {
 
 type MessageBubbleProps = {
   message: Message;
-  /** Whether to show who spoke: true in a group, false in a one-to-one chat. */
+  /** Whether to show who spoke: the first message of a run in a group. */
   showAuthor: boolean;
+  /** Whether the conversation is a group, where each message carries a face. */
+  groupContext: boolean;
+  /** Whether this message continues the one above it from the same person. */
+  continuesRun: boolean;
+  /** Whether this is the last message of its run. */
+  endsRun: boolean;
   /** Whether pictures in this conversation load without a tap. */
   autoloadMedia: boolean;
   accountId: string | null;
@@ -150,6 +156,9 @@ type MessageBubbleProps = {
 export default function MessageBubble({
   message,
   showAuthor,
+  groupContext,
+  continuesRun,
+  endsRun,
   autoloadMedia,
   accountId,
   profileName,
@@ -231,7 +240,7 @@ export default function MessageBubble({
   return (
     <div
       data-remote-id={message.remoteId ?? undefined}
-      className={`message-line ${message.mine ? "mine" : ""}`}
+      className={`message-line ${message.mine ? "mine" : ""} ${continuesRun ? "continues-run" : "starts-run"} ${endsRun ? "ends-run" : "mid-run"}`}
       onPointerDown={startPress}
       onPointerUp={clearPress}
       onPointerLeave={clearPress}
@@ -245,14 +254,14 @@ export default function MessageBubble({
       {/* In a one-to-one chat there is only one other person, so a face and a name on every
           line say nothing that the header has not already said. In a group they are the whole
           point: they are how a reader tells who spoke. */}
-      {showAuthor && !message.mine && (
+      {!message.mine && groupContext && (
         <Avatar color={friends.find((friend) => friend.name === message.author)?.color ?? "blue"} small>
           {message.author.slice(0, 1)}
         </Avatar>
       )}
       <div className="message-content">
         {showAuthor && !message.mine && <strong className="message-author">{message.author}</strong>}
-        <div className={`bubble ${message.mine ? "mine-bubble" : ""} ${message.effect ? `message-effect-${message.effect}` : ""}`}>
+        <div className={`bubble ${message.mine ? "mine-bubble" : ""} ${continuesRun ? "bubble-continues" : ""} ${endsRun ? "bubble-ends" : "bubble-mid"} ${message.effect ? `message-effect-${message.effect}` : ""}`}>
           {message.replyTo && (
             <div className="reply-quote">
               <strong>{message.replyTo.author}</strong>

@@ -21,11 +21,14 @@ function message(overrides: Partial<Message> = {}): Message {
 
 const noop = () => {};
 
-function renderBubble(overrides: Partial<Message> = {}, showAuthor = false) {
+function renderBubble(overrides: Partial<Message> = {}, showAuthor = false, runs: { continuesRun?: boolean; endsRun?: boolean } = {}) {
   return render(
     <MessageBubble
       message={message(overrides)}
       showAuthor={showAuthor}
+      groupContext={showAuthor}
+      continuesRun={runs.continuesRun ?? false}
+      endsRun={runs.endsRun ?? true}
       autoloadMedia={false}
       accountId={null}
       profileName="Алексей"

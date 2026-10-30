@@ -578,6 +578,41 @@ async function expectCount(page, selector, expected, label) {
   await context.close();
 }
 
+// --- consecutive messages from one person are grouped ------------------------------------
+{
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "ru-RU", isMobile: true, hasTouch: true });
+  const page = await context.newPage();
+  await page.goto(base + tag(), { waitUntil: "networkidle", timeout: 90000 });
+  await page.waitForSelector(".chat-row", { timeout: 30000 });
+  await page.waitForTimeout(1200);
+  await page.locator(".chat-row").filter({ hasText: "Команда" }).first().click();
+  await page.waitForTimeout(1000);
+  const composer = page.locator('.composer input[aria-label="Текст сообщения"]');
+  for (const text of ["серия один", "серия два", "серия три"]) {
+    await composer.fill(text);
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(200);
+  }
+  await page.waitForTimeout(900);
+  const grouped = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll(".messages-area .message-line")];
+    const mine = rows.filter((row) => row.className.includes("mine"));
+    const others = rows.filter((row) => !row.className.includes("mine"));
+    const gap = (a, b) => Math.round(b.getBoundingClientRect().top - a.getBoundingClientRect().bottom);
+    return {
+      own: mine.length,
+      starts: mine.filter((row) => row.className.includes("starts-run")).length,
+      ownLabels: document.querySelectorAll(".message-line.mine .message-author").length,
+      withinRun: mine.length > 1 ? gap(mine[0], mine[1]) : null,
+      betweenAuthors: others.length && mine.length ? gap(others[others.length - 1], mine[0]) : null,
+    };
+  });
+  // One name for the run, and the messages sit together instead of being spaced apart.
+  record("серия подписывается один раз", grouped.starts === 1 && grouped.ownLabels === 0, `${grouped.own} сообщения, ${grouped.starts} начало серии, ${grouped.ownLabels} подписей`);
+  record("серия собрана в блок", grouped.withinRun === 0 && (grouped.betweenAuthors ?? 0) > 0, `внутри ${grouped.withinRun} px, между авторами ${grouped.betweenAuthors} px`);
+  await context.close();
+}
+
 await browser.close();
 
 const failed = results.filter((r) => !r.ok);
