@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { ComponentProps, MutableRefObject } from "react";
 import { type WallpaperId, wallpaperBackground, wallpaperSize } from "../lib/wallpaper";
-import { ArrowDown, ChevronsUp, Download, FolderPlus } from "lucide-react";
+import { ArrowDown, ChevronsUp, Download, FolderPlus, Megaphone } from "lucide-react";
+import { canPostToChannel, channelSubtitle } from "../lib/channels";
 import { Archive, BellOff, BellRing, ChevronLeft, MoreVertical, Phone, Pin, Search, Trash2, UserRound, Video, X } from "lucide-react";
 import Avatar from "./Avatar";
 import UserAvatar from "./UserAvatar";
@@ -291,7 +292,11 @@ export default function ConversationPanel({
   const subtitle =
     chat.id === 0
       ? "Создай чат, чтобы начать"
-      : chat.group
+      : chat.channel
+        // A channel has no presence to report: nobody is "online" on behalf of it, and its
+        // subscriber count is the number a reader wants.
+        ? channelSubtitle(chat.members?.length ?? 0, chat.unread ?? 0, chat.description)
+        : chat.group
         ? `${chat.members?.length ?? 1} участника(ов)`
         : chat.remoteId
           ? seenVisible(
@@ -301,6 +306,10 @@ export default function ConversationPanel({
           : "Локальный чат";
   const typingLabel =
     typingNames.length === 0 ? "" : typingNames.length === 1 ? `${typingNames[0]} печатает…` : `${typingNames.join(", ")} печатают…`;
+
+  // Whether this account may write here. An ordinary chat always may; a channel depends on
+  // the standing this account has in it.
+  const canPost = chat.channel ? canPostToChannel(chat.channelRole) : true;
 
   // Consecutive messages from one person are named once, at the top of the run.
   const runs = messageRuns(visibleMessages);
@@ -319,7 +328,14 @@ export default function ConversationPanel({
           <Avatar color={chat.color}>{chat.avatar}</Avatar>
         )}
         <div className="conversation-title">
-          <strong>{chat.name}</strong>
+          <strong>
+            {chat.name}
+            {chat.channel && (
+              <span className="channel-badge" title="Канал">
+                <Megaphone size={12} />
+              </span>
+            )}
+          </strong>
           <small>{subtitle}</small>
         </div>
         <div className="conversation-tools">
@@ -523,7 +539,14 @@ export default function ConversationPanel({
           {typingLabel}
         </div>
       )}
-      <Composer {...composer} />
+      {canPost ? (
+        <Composer {...composer} />
+      ) : (
+        <div className="channel-readonly" role="note">
+          <Megaphone size={16} />
+          <span>Вы читаете канал. Писать могут только его авторы.</span>
+        </div>
+      )}
     </section>
   );
 }

@@ -104,6 +104,38 @@ export function createDemoSeedChats(now: number = Date.now()): Chat[] {
       })),
     },
     {
+      // A channel the reader only reads. It exists so the demo can show what a channel looks
+      // like from the subscriber's side, which is the side most people will see.
+      id: 7,
+      name: "Заметки о походах",
+      avatar: "З",
+      color: "teal",
+      preview: "Маршрут на выходные",
+      time: "12:00",
+      channel: true,
+      channelRole: "subscriber",
+      handle: "hikes",
+      description: "Маршруты, снаряжение и честные отчёты о погоде",
+      channelDesign: { accent: "#2f9e8f", cover: null, pinned: 3000 },
+      members: ["Ольга"],
+      messages: [
+        {
+          id: 3000,
+          author: "Ольга",
+          text: "**Маршрут на выходные**: озеро Светлое, 14 км, набор 400 м. Воды брать не меньше полутора литров — на подъёме ни ручья, ни тени.",
+          time: "12:00",
+          createdAt: now - 20 * 60_000,
+        },
+        {
+          id: 3001,
+          author: "Ольга",
+          text: "Отчёт по прошлой неделе ||перевал закрыт до июня||, так что идём в обход по восточному склону.",
+          time: "12:01",
+          createdAt: now - 19 * 60_000,
+        },
+      ],
+    },
+    {
       id: 4,
       name: "Команда",
       avatar: "К",

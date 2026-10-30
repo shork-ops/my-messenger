@@ -75,6 +75,8 @@ export type Message = {
   pinned?: boolean;
 };
 
+import type { ChannelDesign, ChannelRole } from "./lib/channels";
+
 export type Chat = {
   id: number;
   remoteId?: string;
@@ -99,6 +101,21 @@ export type Chat = {
   mutedUntil?: number | null;
   /** True when this account moved the chat out of the main list. */
   archived?: boolean;
+  /**
+   * A channel: the owner and its authors write, everyone else reads. Subscribers see no
+   * composer at all, because a channel that answers a tap with "you cannot post here" has
+   * already asked the wrong question.
+   */
+  channel?: boolean;
+  /** This account's standing in a channel. Absent for ordinary chats. */
+  channelRole?: ChannelRole;
+  /** Read-only summary of the channel's look, already validated by parseChannelDesign. */
+  channelDesign?: ChannelDesign;
+  /** What the channel says about itself; shown instead of the subscriber count. */
+  description?: string;
+  /** The handle a channel can be found and joined by. */
+  handle?: string;
+  /** Silenced on arrival, as a channel should be: the reader chose to follow, not to be nagged. */
   messages: Message[];
 };
 

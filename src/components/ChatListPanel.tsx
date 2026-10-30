@@ -1,4 +1,4 @@
-import { FolderInput, PencilLine, Search, Trash2 } from "lucide-react";
+import { FolderInput, Megaphone, PencilLine, Search, Trash2 } from "lucide-react";
 import Avatar from "./Avatar";
 import UserAvatar from "./UserAvatar";
 import type { Chat, ChatFilter, UserSearchResult } from "../types";
@@ -151,6 +151,13 @@ export default function ChatListPanel({
               <strong>
                 {chat.pinned && <span className="pinned-mark">📌 </span>}
                 {chat.name}
+                {/* A channel says so in the list, before it is opened: the reader should
+                    know a conversation there is one-sided without having to try. */}
+                {chat.channel && (
+                  <span className="channel-badge chat-channel-mark" title="Канал" aria-label="Канал">
+                    <Megaphone size={11} />
+                  </span>
+                )}
               </strong>
               <small>
                 {muteLabel(chat.mutedUntil ?? null, now) && (
