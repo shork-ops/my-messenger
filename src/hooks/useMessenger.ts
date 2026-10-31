@@ -17,6 +17,7 @@ import { useAttachmentSender } from "./useAttachmentSender";
 import { useMessageActions } from "./useMessageActions";
 import { useComposer } from "./useComposer";
 import { useChatSelection } from "./useChatSelection";
+import { useGroupAdmin } from "./useGroupAdmin";
 import {
   DEFAULT_PRIVACY,
   blockUser,
@@ -845,83 +846,9 @@ export function useMessenger() {
     action("Аккаунт удалён");
   }
 
-  async function createInviteLink() {
-    if (!activeChat.group) {
-      action("Приглашения доступны для групповых чатов");
-      return;
-    }
-    if (!activeChat.remoteId || !activeChat.inviteCode) {
-      action("Для этой группы нет облачной ссылки. Создай облачную группу заново.");
-      return;
-    }
-    const link = `${window.location.origin}${window.location.pathname}?join=${activeChat.inviteCode}`;
-    try {
-      await navigator.clipboard.writeText(link);
-      action("Ссылка-приглашение скопирована");
-    } catch {
-      action(`Ссылка: ${link}`);
-    }
-  }
 
-  /** Issues a new invite code, which immediately invalidates the previous link. */
-  async function rotateInviteLink() {
-    const client = supabase;
-    if (!client || !activeChat.remoteId) {
-      action("Обновление ссылки доступно только для облачных групп");
-      return;
-    }
-    const result = await rotateInvite(client, activeChat.remoteId);
-    if (!result.ok) {
-      action(result.message);
-      return;
-    }
-    setChats((current) =>
-      current.map((chat) => (chat.id === activeId ? { ...chat, inviteCode: result.data } : chat))
-    );
-    const link = `${window.location.origin}${window.location.pathname}?join=${result.data}`;
-    try {
-      await navigator.clipboard.writeText(link);
-      action("Новая ссылка-приглашение создана и скопирована");
-    } catch {
-      action(`Новая ссылка: ${link}`);
-    }
-  }
 
-  async function changeMemberRole(userId: string, role: "admin" | "member") {
-    const client = supabase;
-    if (!client || !activeChat.remoteId) return;
-    const result = await setMemberRole(client, activeChat.remoteId, userId, role);
-    if (!result.ok) {
-      action(result.message);
-      return;
-    }
-    action(role === "admin" ? "Участник назначен администратором" : "Администратор снят");
-    setMembersRefreshKey((key) => key + 1);
-  }
 
-  async function kickMember(userId: string) {
-    const client = supabase;
-    if (!client || !activeChat.remoteId) return;
-    const result = await removeMember(client, activeChat.remoteId, userId);
-    if (!result.ok) {
-      action(result.message);
-      return;
-    }
-    action("Участник удалён из группы");
-    setMembersRefreshKey((key) => key + 1);
-  }
-
-  async function leaveGroup() {
-    const client = supabase;
-    if (!client || !activeChat.remoteId || !accountId) return;
-    const result = await removeMember(client, activeChat.remoteId, accountId);
-    if (!result.ok) {
-      action(result.message);
-      return;
-    }
-    action("Ты покинул группу");
-    setChats((current) => current.filter((chat) => chat.id !== activeId));
-  }
 
   function searchAuthor(userId: string): string {
     const member = chatMembers.find((item) => item.user_id === userId);
@@ -1455,6 +1382,15 @@ export function useMessenger() {
     setDraft,
     setMessageSearch,
     draftsRef,
+  });
+
+  const { createInviteLink, rotateInviteLink, changeMemberRole, kickMember, leaveGroup } = useGroupAdmin({
+    accountId: accountId ?? null,
+    activeChat,
+    activeId,
+    setChats,
+    notify: action,
+    setMembersRefreshKey,
   });
 
   return {
