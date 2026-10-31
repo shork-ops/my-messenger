@@ -266,6 +266,7 @@ export function useMessenger() {
     handleAttachment,
     dismissFailedUpload,
     retryFailedUpload,
+    sendVoiceMessage,
   } = useAttachmentSender({
     accountId: accountId ?? null,
     profileName,
@@ -273,6 +274,8 @@ export function useMessenger() {
     chats,
     notify: action,
     setChats,
+    recordingStartedRef,
+    setRecordingSeconds,
   });
 
   useAttachmentRefresh({ chats, enabled: Boolean(accountId), setChats });
@@ -800,110 +803,6 @@ export function useMessenger() {
    * inline meant the recipient never received it, because the message row was
    * only ever written to local state.
    */
-  async function sendVoiceMessage(blob: Blob) {
-    const duration = Math.max(1, Math.round((Date.now() - (recordingStartedRef.current || Date.now())) / 1000));
-    const time = clockTime();
-    const createdAt = Date.now();
-    const extension = blob.type.includes("ogg") ? "ogg" : blob.type.includes("mp4") ? "m4a" : "webm";
-    const fileName = `voice-${createdAt}.${extension}`;
-    const chat = chats.find((item) => item.id === activeId);
-    const client = supabase;
-
-    // A local-only chat has nowhere to upload to; keep an inline copy so the
-    // bubble still plays back in this session.
-    if (!chat?.remoteId || !client || !accountId) {
-      const data = await blobToDataUrl(blob);
-      const message: Message = {
-        id: createdAt,
-        author: profileName,
-        text: `Голосовое сообщение · ${duration} сек.`,
-        time,
-        mine: true,
-        createdAt,
-        attachment: { name: fileName, type: blob.type || "audio/webm", data, size: blob.size, duration },
-      };
-      setChats((current) => appendMessage(current, activeId, message, "🎤 Голосовое сообщение", time));
-      setRecordingSeconds(0);
-      action("Голосовое сообщение добавлено в этот браузер");
-      return;
-    }
-
-    setUploadProgress({ name: fileName, percent: 30, stage: "Отправляю голосовое…" });
-    const path = buildStoragePath(chat.remoteId, accountId, fileName, crypto.randomUUID());
-    const uploaded = await client.storage.from("chat-media").upload(path, blob, { contentType: blob.type || "audio/webm" });
-    if (uploaded.error) {
-      setUploadProgress(null);
-      action("Не удалось загрузить голосовое сообщение");
-      return;
-    }
-
-    const waveform = await analyseWaveform(blob);
-    setUploadProgress({ name: fileName, percent: 70, stage: "Публикую сообщение…" });
-    const signed = await client.storage.from("chat-media").createSignedUrl(path, 3600);
-    const meta = {
-      name: fileName,
-      type: blob.type || "audio/webm",
-      size: blob.size,
-      path,
-      duration,
-      waveform,
-    };
-    const inserted = await client
-      .from("messages")
-      .insert({ chat_id: chat.remoteId, sender_id: accountId, body: `Голосовое сообщение · ${duration} сек.`, attachment: meta })
-      .select("id, created_at")
-      .single();
-    if (inserted.error || !inserted.data) {
-      await client.storage.from("chat-media").remove([path]);
-      setUploadProgress(null);
-      action("Не удалось отправить голосовое сообщение");
-      return;
-    }
-
-    const row = inserted.data;
-    const created = new Date(row.created_at);
-    const message: Message = {
-      id: numericId(row.id),
-      remoteId: row.id,
-      author: profileName,
-      text: `Голосовое сообщение · ${duration} сек.`,
-      time: clockTime(created),
-      mine: true,
-      createdAt: created.getTime(),
-      attachment: {
-        ...meta,
-        data: signed.data?.signedUrl ?? "",
-        expiresAt: Date.now() + SIGNED_URL_TTL_SECONDS * 1000,
-      },
-    };
-    setChats((current) => appendMessage(current, activeId, message, "🎤 Голосовое сообщение", message.time));
-    setUploadProgress(null);
-    setRecordingSeconds(0);
-    action("Голосовое сообщение отправлено");
-  }
-
-  /** Loads the stored preferences and the block list once the account is known. */
-  useEffect(() => {
-    const client = supabase;
-    if (!client || !accountId) return;
-    let active = true;
-    void (async () => {
-      const stored = await fetchPrivacyPreferences(client, accountId);
-      if (active) setPrivacy(stored);
-      const blocked = await fetchBlockedIds(client);
-      if (!active || blocked.length === 0) {
-        if (active) setBlockedEntries([]);
-        return;
-      }
-      // Resolve names once, so the modal can list "id:name" pairs.
-      const { data } = await client.from("profiles").select("id, display_name").in("id", blocked);
-      const names = new Map((data ?? []).map((row) => [row.id as string, row.display_name as string]));
-      if (active) setBlockedEntries(blocked.map((id) => `${id}:${names.get(id) ?? "Пользователь"}`));
-    })();
-    return () => {
-      active = false;
-    };
-  }, [accountId]);
 
   async function changePrivacy(next: PrivacyPreferences) {
     const client = supabase;

@@ -27,6 +27,8 @@ import { addPending, removePending, type PendingAttachment } from "../lib/retryQ
 import { appendMessage } from "../lib/chats";
 import { clockTime, numericId } from "../lib/format";
 import { viewOnceReady } from "../lib/viewOnceCloud";
+import { analyseWaveform } from "../lib/voice";
+import { blobToDataUrl } from "../lib/media";
 import { SIGNED_URL_TTL_SECONDS } from "../lib/messageSync";
 
 export type UploadProgress = { name: string; percent: number; stage: string };
@@ -38,6 +40,8 @@ export function useAttachmentSender(deps: {
   chats: Chat[];
   notify: (text: string) => void;
   setChats: React.Dispatch<React.SetStateAction<Chat[]>>;
+  recordingStartedRef: { current: number | null };
+  setRecordingSeconds: (value: number) => void;
 }) {
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [failedUploads, setFailedUploads] = useState<PendingAttachment[]>([]);
@@ -63,7 +67,7 @@ export function useAttachmentSender(deps: {
     await handleAttachment({ target: input } as unknown as ChangeEvent<HTMLInputElement>, {
       viewOnce: entry.viewOnce,
     });
-  }
+  }
 
   async function uploadPicture(
     client: NonNullable<typeof supabase>,
@@ -244,5 +248,87 @@ export function useAttachmentSender(deps: {
     deps.notify(sent === 1 ? "Вложение отправлено" : `Отправлено: ${sent}`);
   }
 
-  return { uploadProgress, setUploadProgress, failedUploads, fileInputRef, handleAttachment, dismissFailedUpload, retryFailedUpload };
+  async function sendVoiceMessage(blob: Blob) {
+    const duration = Math.max(1, Math.round((Date.now() - (deps.recordingStartedRef.current || Date.now())) / 1000));
+    const time = clockTime();
+    const createdAt = Date.now();
+    const extension = blob.type.includes("ogg") ? "ogg" : blob.type.includes("mp4") ? "m4a" : "webm";
+    const fileName = `voice-${createdAt}.${extension}`;
+    const chat = deps.chats.find((item) => item.id === deps.activeChatId);
+    const client = supabase;
+
+    // A local-only chat has nowhere to upload to; keep an inline copy so the
+    // bubble still plays back in this session.
+    if (!chat?.remoteId || !client || !deps.accountId) {
+      const data = await blobToDataUrl(blob);
+      const message: Message = {
+        id: createdAt,
+        author: deps.profileName,
+        text: `Голосовое сообщение · ${duration} сек.`,
+        time,
+        mine: true,
+        createdAt,
+        attachment: { name: fileName, type: blob.type || "audio/webm", data, size: blob.size, duration },
+      };
+      deps.setChats((current) => appendMessage(current, deps.activeChatId, message, "🎤 Голосовое сообщение", time));
+      deps.setRecordingSeconds(0);
+      deps.notify("Голосовое сообщение добавлено в этот браузер");
+      return;
+    }
+
+    setUploadProgress({ name: fileName, percent: 30, stage: "Отправляю голосовое…" });
+    const path = buildStoragePath(chat.remoteId, deps.accountId, fileName, crypto.randomUUID());
+    const uploaded = await client.storage.from("chat-media").upload(path, blob, { contentType: blob.type || "audio/webm" });
+    if (uploaded.error) {
+      setUploadProgress(null);
+      deps.notify("Не удалось загрузить голосовое сообщение");
+      return;
+    }
+
+    const waveform = await analyseWaveform(blob);
+    setUploadProgress({ name: fileName, percent: 70, stage: "Публикую сообщение…" });
+    const signed = await client.storage.from("chat-media").createSignedUrl(path, 3600);
+    const meta = {
+      name: fileName,
+      type: blob.type || "audio/webm",
+      size: blob.size,
+      path,
+      duration,
+      waveform,
+    };
+    const inserted = await client
+      .from("messages")
+      .insert({ chat_id: chat.remoteId, sender_id: deps.accountId, body: `Голосовое сообщение · ${duration} сек.`, attachment: meta })
+      .select("id, created_at")
+      .single();
+    if (inserted.error || !inserted.data) {
+      await client.storage.from("chat-media").remove([path]);
+      setUploadProgress(null);
+      deps.notify("Не удалось отправить голосовое сообщение");
+      return;
+    }
+
+    const row = inserted.data;
+    const created = new Date(row.created_at);
+    const message: Message = {
+      id: numericId(row.id),
+      remoteId: row.id,
+      author: deps.profileName,
+      text: `Голосовое сообщение · ${duration} сек.`,
+      time: clockTime(created),
+      mine: true,
+      createdAt: created.getTime(),
+      attachment: {
+        ...meta,
+        data: signed.data?.signedUrl ?? "",
+        expiresAt: Date.now() + SIGNED_URL_TTL_SECONDS * 1000,
+      },
+    };
+    deps.setChats((current) => appendMessage(current, deps.activeChatId, message, "🎤 Голосовое сообщение", message.time));
+    setUploadProgress(null);
+    deps.setRecordingSeconds(0);
+    deps.notify("Голосовое сообщение отправлено");
+  }
+
+  return { uploadProgress, setUploadProgress, failedUploads, fileInputRef, handleAttachment, dismissFailedUpload, retryFailedUpload, sendVoiceMessage };
 }
