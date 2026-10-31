@@ -14,6 +14,8 @@ import SettingsModal from "../components/SettingsModal";
 import { CallOverlay } from "../components/CallOverlay";
 import { useCallController } from "./useCallController";
 import { useAttachmentSender } from "./useAttachmentSender";
+import { useMessageActions } from "./useMessageActions";
+import { useComposer } from "./useComposer";
 import {
   DEFAULT_PRIVACY,
   blockUser,
@@ -113,8 +115,6 @@ export function useMessenger() {
   const [messageSearch, setMessageSearch] = useState("");
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [draft, setDraft] = useState("");
-  const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
-  const [editDraft, setEditDraft] = useState("");
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [newChatName, setNewChatName] = useState("");
   const [newChatIsGroup, setNewChatIsGroup] = useState(() => !isDemoMode);
@@ -170,7 +170,6 @@ export function useMessenger() {
   const [blockedEntries, setBlockedEntries] = useState<string[]>([]);
   const [openingUserId, setOpeningUserId] = useState<string | null>(null);
   const [openMessageActionsId, setOpenMessageActionsId] = useState<number | null>(null);
-  const [deletedMessage, setDeletedMessage] = useState<{ chatId: number; message: Message; index: number } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   /** The scrolling list itself, which is what the reader actually looks at. */
   const messagesListRef = useRef<HTMLDivElement | null>(null);
@@ -299,6 +298,58 @@ export function useMessenger() {
   const unreadHold = unreadMessages(activeChat) ? activeChat.id : null;
   useAutoScroll(messagesListRef, [activeId, activeChat.messages.length], unreadHold);
 
+  const {
+    deletedMessage,
+    setDeletedMessage,
+    forwardMessage,
+    deleteMessage,
+    deleteMessageLocal,
+    undoDelete,
+    applyMessageEffect,
+    copyMessage,
+    startEditing,
+  } = useMessageActions({
+    accountId: accountId ?? null,
+    profileName,
+    activeId,
+    chats,
+    setChats,
+    notify: action,
+    setOpenMessageActionsId,
+  });
+
+  const [stickerOpen, setStickerOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+
+  const {
+    editingMessageId,
+    setEditingMessageId,
+    editDraft,
+    setEditDraft,
+    sendMessage,
+    sendSticker,
+    scheduleMessage,
+    clearComposer,
+
+  } = useComposer({
+    accountId: accountId ?? null,
+    profileName,
+    activeId,
+    chats,
+    setChats,
+    notify: action,
+    draft,
+    setDraft,
+    setDrafts,
+    replyTarget,
+    replyDrafts,
+    setReplyDrafts,
+    setReplyTarget,
+    queueText,
+    setStickerOpen,
+    setScheduleOpen,
+  });
+
   const { loadOlder, loadingChatIds } = useHistoryPagination({ accountId, profileName, notify: action, setChats });
   useInfiniteHistory(messagesAreaRef, activeChat, loadOlder);
   // Notification preferences live per device, and the permission state is read
@@ -314,8 +365,6 @@ export function useMessenger() {
   const { passcode: lockCode, unlocked: lockUnlocked, setCode, unlock } = usePasscode();
   const { wallpaper, setWallpaper } = useWallpaper();
   const [emojiOpen, setEmojiOpen] = useState(false);
-  const [stickerOpen, setStickerOpen] = useState(false);
-  const [scheduleOpen, setScheduleOpen] = useState(false);
   // The message a search result points at. Cleared once the highlight has been shown.
   const [revealMessageId, setRevealMessageId] = useState<string | null>(null);
   const [noteOpen, setNoteOpen] = useState(false);
@@ -1032,238 +1081,9 @@ export function useMessenger() {
     action("Приглашение готово — отправьте его сообщением.");
   }
 
-  async function sendMessage(event: FormEvent) {
-    event.preventDefault();
-    if (editingMessageId !== null) {
-      const text = editDraft.trim();
-      if (!text) return;
-      if (exceedsMessageLimit(text)) { action(MESSAGE_TOO_LONG); return; }
-      const editingChat = chats.find((chat) => chat.id === activeId);
-      const editingMessage = editingChat?.messages.find((message) => message.id === editingMessageId);
-      if (editingChat?.remoteId && editingMessage?.remoteId) {
-        if (!supabase) {
-          action("Нет подключения к Supabase");
-          return;
-        }
-        const { error } = await supabase
-          .from("messages")
-          .update({ body: text, edited_at: new Date().toISOString() })
-          .eq("id", editingMessage.remoteId)
-          .eq("sender_id", accountId);
-        if (error) {
-          action("Не удалось изменить сообщение в облаке");
-          return;
-        }
-      }
-      setChats((current) =>
-        updateChat(current, activeId, (chat) => ({
-          ...chat,
-          preview: chat.messages[chat.messages.length - 1]?.id === editingMessageId ? text : chat.preview,
-          messages: chat.messages.map((message) => (message.id === editingMessageId ? { ...message, text, edited: true } : message)),
-        }))
-      );
-      setEditingMessageId(null);
-      setEditDraft("");
-      return;
-    }
-    const text = draft.trim();
-    if (!text) return;
-    if (exceedsMessageLimit(text)) { action(MESSAGE_TOO_LONG); return; }
-    // The server's clock decides the order, so its timestamp is what gets stored.
-    // Falling back to this device is only for chats that live in this browser.
-    let createdAt = Date.now();
-    const time = clockTime();
-    const replyTo = replyTarget ? { author: replyTarget.author, text: replyTarget.text } : undefined;
-    const targetChat = chats.find((chat) => chat.id === activeId);
-    const client = supabase;
-    let remoteMessageId: string | undefined;
-    if (targetChat?.remoteId) {
-      if (!client || !accountId) {
-        action("Нужно войти в аккаунт, чтобы отправить сообщение");
-        return;
-      }
-      queueText(targetChat, text, replyTo);
-      setDraft("");
-      setDrafts((current) => ({ ...current, [activeId]: "" }));
-      setReplyDrafts((current) => ({ ...current, [activeId]: { author: "", text: "" } }));
-      setReplyTarget(null);
-      return;
-    } else if (client && accountId) {
-      action("Этот чат локальный. Начни переписку, выбрав пользователя по @username.");
-      return;
-    }
-    const message: Message = {
-      id: remoteMessageId ? numericId(remoteMessageId) : createdAt,
-      ...(remoteMessageId ? { remoteId: remoteMessageId } : {}),
-      author: profileName,
-      text,
-      time: clockTime(new Date(createdAt)),
-      mine: true,
-      createdAt,
-      ...(replyTo ? { replyTo } : {}),
-    };
-    // Placed by timestamp rather than appended: the server's clock may put this
-    // message just before the newest one already on screen.
-    setChats((current) =>
-      updateChat(current, activeId, (chat) => ({
-        ...chat,
-        preview: message.text,
-        time: message.time,
-        messages: placeNewMessage(chat.messages, message),
-      }))
-    );
-    setDraft("");
-    setDrafts((current) => ({ ...current, [activeId]: "" }));
-    setReplyDrafts((current) => ({ ...current, [activeId]: { author: "", text: "" } }));
-    setReplyTarget(null);
-  }
-
-  /**
-   * Sends a sticker: a message whose content is the sticker id and nothing else.
-   *
-   * Kept separate from sendMessage rather than folded into it with a flag, because the two
-   * differ in more places than they look: a sticker has no draft to clear, no reply quote to
-   * attach, and a chat-list preview that names the sticker rather than showing its text.
-   * One function would turn every one of those differences into a conditional inside it.
-   */
-  async function sendSticker(stickerId: string) {
-    const sticker = stickerById(stickerId);
-    if (!sticker) return;
-    const targetChat = chats.find((chat) => chat.id === activeId);
-    const client = supabase;
-    let remoteMessageId: string | undefined;
-    let createdAt = Date.now();
-    if (targetChat?.remoteId) {
-      if (!client || !accountId) {
-        action("Нужно войти в аккаунт, чтобы отправить стикер");
-        return;
-      }
-      queueText(targetChat, sticker.label, undefined, { body: stickerMarkup(stickerId), stickerId });
-      setStickerOpen(false);
-      return;
-    } else if (client && accountId) {
-      action("Этот чат локальный. Начни переписку, выбрав пользователя по @username.");
-      return;
-    }
-    const message: Message = {
-      id: remoteMessageId ? numericId(remoteMessageId) : createdAt,
-      ...(remoteMessageId ? { remoteId: remoteMessageId } : {}),
-      author: profileName,
-      text: sticker.label,
-      time: clockTime(new Date(createdAt)),
-      mine: true,
-      createdAt,
-      stickerId,
-    };
-    setChats((current) =>
-      updateChat(current, activeId, (chat) => ({
-        ...chat,
-        preview: `Стикер: ${sticker.label}`,
-        time: message.time,
-        messages: placeNewMessage(chat.messages, message),
-      }))
-    );
-    setStickerOpen(false);
-  }
 
 
-  /**
-   * Sends the draft at a later moment.
-   *
-   * The moment goes to the database with the message, and the row is hidden from everyone
-   * but its author until then. That is the whole difference between this and a timer: a
-   * timer stops when the tab closes, and a message that silently never arrives is worse
-   * than one that was sent at the wrong time.
-   */
-  async function scheduleMessage(at: Date, stickerId?: string) {
-    const sticker = stickerId ? stickerById(stickerId) : undefined;
-    const text = sticker ? sticker.label : draft.trim();
-    if (!text) return;
-    const targetChat = chats.find((chat) => chat.id === activeId);
-    const client = supabase;
-    if (!targetChat?.remoteId) {
-      // Local chats live in this browser, so there is nowhere to keep a moment the browser
-      // cannot outlive. Saying so is better than accepting the message and losing it.
-      action("Отложенная отправка работает в облачных чатах");
-      setScheduleOpen(false);
-      return;
-    }
-    if (!client || !accountId) {
-      action("Нужно войти в аккаунт, чтобы отправить позже");
-      setScheduleOpen(false);
-      return;
-    }
-    const body = sticker ? stickerMarkup(sticker.id) : text;
-    const inserted = await sendText(client, {
-      id: crypto.randomUUID(), chat_id: targetChat.remoteId, sender_id: accountId, body, send_at: at.toISOString(),
-    }).then(data => ({ data })).catch((error: unknown) => ({ error }));
-    const { data, error } = inserted as { data?: { id: string; created_at: string } | null; error?: unknown };
-    if (error || !data) {
-      action("Не удалось отложить сообщение. Проверь подключение и права Supabase.");
-      setScheduleOpen(false);
-      return;
-    }
-    const createdAt = new Date(data.created_at).getTime();
-    const message: Message = {
-      id: numericId(data.id),
-      remoteId: data.id,
-      author: profileName,
-      text,
-      time: at.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
-      mine: true,
-      createdAt,
-      sendAt: at.getTime(),
-      ...(sticker ? { stickerId: sticker.id } : {}),
-    };
-    setChats((current) =>
-      updateChat(current, activeId, (chat) => ({
-        ...chat,
-        // The chat list keeps showing the last delivered message: a pending one is not what
-        // the conversation last said.
-        messages: placeNewMessage(chat.messages, message),
-      }))
-    );
-    setDraft("");
-    setDrafts((current) => ({ ...current, [activeId]: "" }));
-    setReplyTarget(null);
-    setScheduleOpen(false);
-    action(`Уйдёт ${formatSendAt(at, new Date())}`);
-  }
 
-
-  function startEditing(message: Message) {
-    setEditingMessageId(message.id);
-    setEditDraft(message.text);
-    setDraft("");
-  }
-
-  async function applyMessageEffect(messageId: number, effect: MessageEffect) {
-    const chat = chats.find((item) => item.id === activeId);
-    const message = chat?.messages.find((item) => item.id === messageId);
-    // The menu hides the stickers on someone else's message, but hiding a control is not a
-    // rule. In the cloud the update is already scoped to the sender; locally it was not, so
-    // an effect could be painted onto a message its author never decorated.
-    if (!message?.mine) return;
-    if (chat?.remoteId && message.remoteId) {
-      if (!supabase) return;
-      const { error } = await supabase
-        .from("messages")
-        .update({ effect: message.effect === effect ? null : effect })
-        .eq("id", message.remoteId)
-        .eq("sender_id", accountId);
-      if (error) {
-        action("Не удалось сохранить эффект в облаке");
-        return;
-      }
-    }
-    setChats((current) =>
-      mapMessages(current, activeId, (entry) =>
-        entry.id !== messageId ? entry : { ...entry, effect: entry.effect === effect ? undefined : effect }
-      )
-    );
-    setOpenMessageActionsId(null);
-    action("Эффект сообщения обновлён");
-  }
 
   async function toggleReaction(messageId: number, emoji: string) {
     const chat = chats.find((item) => item.id === activeId);
@@ -1398,42 +1218,6 @@ export function useMessenger() {
     setChats((current) => applyReadStamp(current, chat.id, accountId, stamped));
   }
 
-  async function deleteMessage(messageId: number) {
-    const chat = chats.find((item) => item.id === activeId);
-    const index = chat?.messages.findIndex((message) => message.id === messageId) ?? -1;
-    const message = index >= 0 ? chat?.messages[index] : undefined;
-    if (!chat || !message) return;
-    if (chat.remoteId && message.remoteId && supabase) {
-      const { error } = await supabase
-        .from("messages")
-        .update({ deleted_at: new Date().toISOString() })
-        .eq("id", message.remoteId)
-        .eq("sender_id", accountId);
-      if (error) {
-        action("Не удалось удалить сообщение в облаке");
-        return;
-      }
-    }
-    setDeletedMessage({ chatId: activeId, message, index });
-    setChats((current) => removeMessage(current, activeId, messageId).chats);
-    setOpenMessageActionsId(null);
-    if (editingMessageId === messageId) {
-      setEditingMessageId(null);
-      setEditDraft("");
-    }
-  }
-
-  /**
-   * Removes a message from this account's view only.
-   *
-   * Nothing is written to the other side: "у себя" is a viewing preference, not a
-   * statement about the conversation. The row stays hidden until the next full
-   * reload, which is what other messengers do too.
-   */
-  /**
-   * Chat-level settings live on this account's membership row, so the change
-   * applies to this person only and follows them to another device.
-   */
   async function saveChatSettings(chatId: number, patch: { mutedUntil?: number | null; archived?: boolean }) {
     const chat = chats.find((item) => item.id === chatId);
     if (!chat?.remoteId) {
@@ -1632,29 +1416,7 @@ export function useMessenger() {
     if (ok) action(until ? "Уведомления из чата отключены" : "Звук включён");
   }
 
-  async function deleteMessageLocal(messageId: number) {
-    const chat = chats.find((item) => item.id === activeId);
-    const index = chat?.messages.findIndex((message) => message.id === messageId) ?? -1;
-    const message = index >= 0 ? chat?.messages[index] : undefined;
-    if (!chat || !message) return;
-    if (chat.remoteId && message.remoteId && supabase && accountId) {
-      // Recorded per account so the row does not come back on reload.
-      await supabase.from("message_hides").upsert(
-        { message_id: message.remoteId, user_id: accountId },
-        { onConflict: "message_id,user_id" }
-      );
-    }
-    setDeletedMessage({ chatId: activeId, message, index });
-    setChats((current) => removeMessage(current, activeId, messageId).chats);
-    setOpenMessageActionsId(null);
-    action("Удалено у вас");
-  }
 
-  function undoDelete() {
-    if (!deletedMessage) return;
-    setChats((current) => restoreMessage(current, deletedMessage));
-    setDeletedMessage(null);
-  }
 
   function clearHistory() {
     if (!activeChat.messages.length) {
@@ -1731,25 +1493,6 @@ export function useMessenger() {
     setEmojiOpen(false);
   }
 
-  function copyMessage(message: Message) {
-    navigator.clipboard
-      ?.writeText(message.text)
-      .then(() => action("Текст скопирован"))
-      .catch(() => action("Не удалось скопировать текст"));
-    setOpenMessageActionsId(null);
-  }
-
-  // A reply that outlives a reload, the same way the text of a draft does. The stored
-  // draft names the message by author and quoted text rather than by id, because a local
-  // message id is not stable across a reload and the quote is what the reader sees.
-  const restoredReplyFor = useRef<number | null>(null);
-  useEffect(() => {
-    if (restoredReplyFor.current === activeId) return;
-    restoredReplyFor.current = activeId;
-    const stored = replyDrafts[activeId];
-    if (!stored?.text) return;
-    setReplyTarget({ id: -1, author: stored.author, text: stored.text, time: "", createdAt: 0, mine: false });
-  }, [activeId, replyDrafts]);
 
   function replyToMessage(message: Message) {
     setReplyTarget(message);
@@ -1758,79 +1501,6 @@ export function useMessenger() {
   }
 
   /** Sends the message into the open chat with a marker naming the original author. */
-  async function forwardMessage(message: Message) {
-    setOpenMessageActionsId(null);
-    const text = formatForwardText(message);
-    const chat = chats.find((item) => item.id === activeId);
-    if (!chat) return;
-    if (chat.remoteId) {
-      const client = supabase;
-      if (!client || !accountId) {
-        action("Нет подключения к Supabase");
-        return;
-      }
-      const { data, error } = await client
-        .from("messages")
-        .insert({ chat_id: chat.remoteId, sender_id: accountId, body: text })
-        .select("id")
-        .single();
-      if (error) {
-        action("Не удалось переслать сообщение");
-        return;
-      }
-      setChats((current) =>
-        current.map((item) =>
-          item.id === chat.id
-            ? {
-                ...item,
-                messages: [
-                  ...item.messages,
-                  {
-                    id: nextLocalId(item.messages),
-                    remoteId: data.id as string,
-                    author: profileName,
-                    text,
-                    time: clockTime(new Date()),
-                    mine: true,
-                    createdAt: Date.now(),
-                  },
-                ],
-                preview: text.split("\n").pop() ?? text,
-                time: clockTime(new Date()),
-              }
-            : item
-        )
-      );
-      action("Сообщение переслано");
-      return;
-    }
-    // Local-only chat: the message never leaves this browser.
-    setChats((current) =>
-      current.map((item) =>
-        item.id === chat.id
-          ? {
-              ...item,
-              messages: [
-                ...item.messages,
-                {
-                  id: nextLocalId(item.messages),
-                  author: profileName,
-                  text,
-                  time: clockTime(new Date()),
-                  mine: true,
-                  createdAt: Date.now(),
-                },
-              ],
-              preview: text.split("\n").pop() ?? text,
-              time: clockTime(new Date()),
-            }
-          : item
-      )
-    );
-    action("Сообщение переслано");
-  }
-
-  /** Keeps a private copy in the "Избранное" chat, which never syncs. */
   function saveToFavourites(message: Message) {
     setOpenMessageActionsId(null);
     const content = message.text.trim() || message.attachment?.name || "Вложение";
