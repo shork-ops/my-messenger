@@ -61,3 +61,5 @@ qa-shots/
 # Временные диагностические скрипты, которые запускаются через vite-node
 /*.mjs
 /*.cjs
+# Scratch files from one-off scripts; never meant to be committed.
+/*.txt
