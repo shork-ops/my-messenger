@@ -1,4 +1,21 @@
-import type { Chat, Message } from "../types";
+import type { Chat, Message, UserSearchResult } from "../types";
+import { numericId } from "./format";
+
+/** The initial chat must carry the same peer photo as a later cloud reload. */
+export function directChatFromSearch(remoteId: string, user: UserSearchResult, selfName: string): Chat {
+  return {
+    id: numericId(remoteId),
+    remoteId,
+    name: user.display_name,
+    avatar: user.avatar || Array.from(user.display_name)[0]?.toUpperCase() || "N",
+    avatarPath: user.avatar_path ?? null,
+    color: "blue",
+    preview: "Диалог создан — напиши первое сообщение",
+    time: "",
+    messages: [],
+    members: [selfName, user.display_name],
+  };
+}
 
 export function sortChats(chats: Chat[]): Chat[] {
   return [...chats].sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)));

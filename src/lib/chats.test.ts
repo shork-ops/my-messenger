@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Chat, Message } from "../types";
 import {
   appendMessage,
+  directChatFromSearch,
   filterChats,
   getGalleryImages,
   getVisibleMessages,
@@ -21,6 +22,22 @@ import {
 function message(overrides: Partial<Message> = {}): Message {
   return { id: 1, author: "Аня", text: "привет", time: "10:00", createdAt: 1, ...overrides };
 }
+
+describe("a new account opens a direct chat", () => {
+  it("keeps the existing account's photo before any cloud reload", () => {
+    const peer = { id: "old-user", username: "anya", display_name: "Аня", avatar: "А", avatar_path: "old-user/photo.webp" };
+    const created = directChatFromSearch("00000000-0000-0000-0000-000000000001", peer, "Новый аккаунт");
+    expect(created.avatarPath).toBe("old-user/photo.webp");
+    expect(created.members).toEqual(["Новый аккаунт", "Аня"]);
+    expect(created.messages).toEqual([]);
+  });
+
+  it("still provides a fallback for an account without a photo", () => {
+    const created = directChatFromSearch("chat-id", { id: "old-user", username: "anya", display_name: "Аня", avatar: "" }, "Новый аккаунт");
+    expect(created.avatarPath).toBeNull();
+    expect(created.avatar).toBe("А");
+  });
+});
 
 function chat(overrides: Partial<Chat> = {}): Chat {
   return {

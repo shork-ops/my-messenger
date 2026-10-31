@@ -125,7 +125,7 @@ export default function ChatListPanel({
           </div>
           {userSearch.items.map((user) => (
             <button key={user.id} type="button" className="chat-row" onClick={() => onOpenDirectChat(user)}>
-              <Avatar color="blue">{user.avatar || user.display_name.slice(0, 1).toUpperCase()}</Avatar>
+              <UserAvatar name={user.display_name} letter={user.avatar || Array.from(user.display_name)[0]?.toUpperCase() || "N"} avatarPath={user.avatar_path} color="blue" />
               <span className="chat-row-copy">
                 <strong>{user.display_name}</strong>
                 <small>@{user.username}</small>

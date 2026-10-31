@@ -39,7 +39,7 @@ import { analyseWaveform } from "../lib/voice";
 import { GalleryModal, MuteModal, NewChatModal, PollModal } from "../components/Modals";
 import { friends, isDemoMode } from "../lib/constants";
 import { clockTime, numericId } from "../lib/format";
-import { appendMessage, applyReadStamp, mapMessages, markRead, removeChat, removeMessage, restoreMessage, updateChat } from "../lib/chats";
+import { appendMessage, applyReadStamp, directChatFromSearch, mapMessages, markRead, removeChat, removeMessage, restoreMessage, updateChat } from "../lib/chats";
 import { placeNewMessage } from "../lib/messageOrder";
 import { isTransientError, withRetry } from "../lib/retry";
 import { toggleLocalVote } from "../lib/polls";
@@ -583,18 +583,8 @@ export function useMessenger() {
       return;
     }
     const remoteId = data as string;
-    const localId = numericId(remoteId);
-    const created: Chat = {
-      id: localId,
-      remoteId,
-      name: user.display_name,
-      avatar: user.avatar || user.display_name.slice(0, 1).toUpperCase(),
-      color: "blue",
-      preview: "Диалог создан — напиши первое сообщение",
-      time: "",
-      messages: [],
-      members: [profileName, user.display_name],
-    };
+    const created = directChatFromSearch(remoteId, user, profileName);
+    const localId = created.id;
     setChats((current) => (current.some((chat) => chat.remoteId === remoteId) ? current : [created, ...current]));
     setActiveId(localId);
     setSearch("");
