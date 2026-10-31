@@ -1,4 +1,4 @@
-/**
+﻿/**
  * The account's own settings.
  *
  * Everything here is about the person using the app rather than about a conversation: what
@@ -15,25 +15,19 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { deleteAccount, savePrivacyPreferences, unblockUser, type PrivacyPreferences } from "../lib/privacy";
 import { describeVisibility, type VisibilitySettings } from "../lib/visibility";
-import { SESSION_STORAGE_KEY, type SessionRecord } from "../lib/sessions";
-
 export function useAccountSettings(deps: {
   accountId: string | null;
   notify: (text: string) => void;
   setPrivacySaving: Dispatch<SetStateAction<boolean>>;
   setVisibilityState: Dispatch<SetStateAction<VisibilitySettings>>;
   setCacheKeys: Dispatch<SetStateAction<string[]>>;
-  setClearingCache: Dispatch<SetStateAction<boolean>>;
-  setDevices: Dispatch<SetStateAction<SessionRecord[]>>;
-  setSigningOutOthers: Dispatch<SetStateAction<boolean>>;
   setDeletingAccount: Dispatch<SetStateAction<boolean>>;
+  setClearingCache: Dispatch<SetStateAction<boolean>>;
   setBlockedEntries: Dispatch<SetStateAction<string[]>>;
   privacy: PrivacyPreferences;
   setPrivacy: Dispatch<SetStateAction<PrivacyPreferences>>;
   visibility: VisibilitySettings;
   cacheKeys: string[];
-  devices: SessionRecord[];
-  deviceId: string;
 }) {
   async function changePrivacy(next: PrivacyPreferences) {
     const client = supabase;
@@ -89,33 +83,6 @@ export function useAccountSettings(deps: {
     }
   }
 
-  async function signOutOtherDevices() {
-    const client = supabase;
-    if (!client) {
-      deps.notify("Нет подключения к Supabase");
-      return;
-    }
-    deps.setSigningOutOthers(true);
-    try {
-      // scope "others" keeps this session and revokes the rest - the point of the
-      // button is to stay here and end everywhere else.
-      const { error } = await client.auth.signOut({ scope: "others" });
-      if (error) {
-        deps.notify("Не удалось завершить другие сессии");
-        return;
-      }
-      const kept = deps.devices.filter((device) => device.deviceId === deps.deviceId);
-      try {
-        window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(kept));
-      } catch {
-        // Nothing to record; the sign-out itself already happened.
-      }
-      deps.setDevices(kept);
-      deps.notify("Другие сессии завершены");
-    } finally {
-      deps.setSigningOutOthers(false);
-    }
-  }
 
   async function confirmDeleteAccount() {
     const client = supabase;
@@ -147,7 +114,6 @@ export function useAccountSettings(deps: {
     changePrivacy,
     changeVisibility,
     clearCache,
-    signOutOtherDevices,
     confirmDeleteAccount,
     unblockPerson,
   };

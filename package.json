@@ -24,12 +24,20 @@
     "deploy:reliability": "node scripts/deploy-reliability.mjs",
     "check:bundle": "node scripts/check-bundle-budget.mjs",
     "bench": "node scripts/bench-conversations.mjs",
-    "test:reports": "node scripts/check-reports.mjs"
+    "test:reports": "node scripts/check-reports.mjs",
+    "test:device-sessions": "node scripts/check-device-sessions.mjs",
+    "build:dictionary": "node scripts/build-dictionary.mjs",
+    "test:games": "node scripts/check-games.mjs",
+    "test:security": "node scripts/check-security-stand.mjs",
+    "test:revoke": "node scripts/check-revoke-session.mjs",
+    "test:controls": "node scripts/controls/control-resurrect.mjs && node scripts/controls/control-firstframe.mjs",
+    "test:migrations": "node scripts/check-migration-order.mjs"
   },
   "dependencies": {
     "@capacitor/core": "^7.6.10",
     "@sentry/react": "^11.9.0",
     "@supabase/supabase-js": "^2.57.0",
+    "chess.js": "1.4.0",
     "livekit-client": "^2.23.0",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",

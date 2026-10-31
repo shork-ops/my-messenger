@@ -18,6 +18,9 @@ import { useTwoFactor } from "./useTwoFactor";
 import { useTyping } from "./useTyping";
 import { folderNameError, newFolderId } from "../lib/chatFolders";
 
+/** The account these tests are working as: folders are stored per account, not per browser. */
+const ACCOUNT = "11111111-1111-4111-8111-111111111111";
+
 beforeEach(() => {
   // One storage per file: without this a folder created in one test is still filed in the
   // next, and the test that follows fails for a reason that has nothing to do with it.
@@ -26,12 +29,12 @@ beforeEach(() => {
 
 describe("useChatFolders", () => {
   it("starts with no folders and nothing filed", () => {
-    const { result } = renderHook(() => useChatFolders());
+    const { result } = renderHook(() => useChatFolders(ACCOUNT));
     expect(result.current.folders).toEqual([]);
   });
 
   it("creates a folder", () => {
-    const { result } = renderHook(() => useChatFolders());
+    const { result } = renderHook(() => useChatFolders(ACCOUNT));
     act(() => {
       result.current.createFolder("Работа");
     });
@@ -42,7 +45,7 @@ describe("useChatFolders", () => {
   it("files a chat under a folder id, and unfiles it on a second press", () => {
     // The id is stored as a string because it comes back out of local storage, where every
     // number arrives as text; comparing it to a number would silently never match.
-    const { result } = renderHook(() => useChatFolders());
+    const { result } = renderHook(() => useChatFolders(ACCOUNT));
     act(() => {
       result.current.createFolder("Работа");
     });
@@ -60,7 +63,7 @@ describe("useChatFolders", () => {
   });
 
   it("leaves nothing behind when a folder is deleted", () => {
-    const { result } = renderHook(() => useChatFolders());
+    const { result } = renderHook(() => useChatFolders(ACCOUNT));
     act(() => {
       result.current.createFolder("Работа");
     });
@@ -80,7 +83,7 @@ describe("useChatFolders", () => {
   });
 
   it("renames one folder without touching the others", () => {
-    const { result } = renderHook(() => useChatFolders());
+    const { result } = renderHook(() => useChatFolders(ACCOUNT));
     act(() => {
       result.current.createFolder("Работа");
       result.current.createFolder("Учёба");
@@ -96,7 +99,7 @@ describe("useChatFolders", () => {
   it("refuses to rename a folder onto an existing name", () => {
     // Renaming onto a duplicate would leave two identical tabs, and the reader has no way
     // to tell which one they are filing a chat into.
-    const { result } = renderHook(() => useChatFolders());
+    const { result } = renderHook(() => useChatFolders(ACCOUNT));
     act(() => {
       result.current.createFolder("Работа");
       result.current.createFolder("Учёба");
@@ -110,7 +113,7 @@ describe("useChatFolders", () => {
   });
 
   it("moves a folder down and back up", () => {
-    const { result } = renderHook(() => useChatFolders());
+    const { result } = renderHook(() => useChatFolders(ACCOUNT));
     act(() => {
       result.current.createFolder("Работа");
       result.current.createFolder("Учёба");
@@ -131,7 +134,7 @@ describe("useChatFolders", () => {
   it("does not move the ends of the list anywhere", () => {
     // A wrap-around would turn one press into a jump from first to last, which reads as a
     // mistake rather than as a move.
-    const { result } = renderHook(() => useChatFolders());
+    const { result } = renderHook(() => useChatFolders(ACCOUNT));
     act(() => {
       result.current.createFolder("Работа");
       result.current.createFolder("Учёба");
@@ -150,13 +153,13 @@ describe("useChatFolders", () => {
 
   it("keeps the folders across a remount", () => {
     // The shelf is stored, not held in memory: closing the app is not losing it.
-    const first = renderHook(() => useChatFolders());
+    const first = renderHook(() => useChatFolders(ACCOUNT));
     act(() => {
       first.result.current.createFolder("Работа");
     });
     first.unmount();
 
-    const second = renderHook(() => useChatFolders());
+    const second = renderHook(() => useChatFolders(ACCOUNT));
     expect(second.result.current.folders.map((folder) => folder.name)).toEqual(["Работа"]);
   });
 
@@ -164,7 +167,7 @@ describe("useChatFolders", () => {
     // Every operation finds its folder by id, so two folders sharing one were renamed and
     // deleted together - the id used to be the current millisecond alone. This test is what
     // found it: the second folder silently took the first one's place in the list.
-    const { result } = renderHook(() => useChatFolders());
+    const { result } = renderHook(() => useChatFolders(ACCOUNT));
     act(() => {
       result.current.createFolder("Работа");
     });

@@ -32,8 +32,8 @@ import {
 } from "../lib/privacy";
 import type { PrivacyPreferences } from "../lib/privacy";
 import { removeMember, rotateInvite, setMemberRole } from "../lib/groupAdmin";
-import { CACHE_KEYS, mediaBytes, presentCacheKeys } from "../lib/storageUsage";
-import { SESSION_STORAGE_KEY, type SessionRecord, describeDevice, upsertSession } from "../lib/sessions";
+import { cacheKeysFor, mediaBytes, presentCacheKeys } from "../lib/storageUsage";
+import { useDeviceSessions } from "./useDeviceSessions";
 import {
   DEFAULT_VISIBILITY,
   type VisibilitySettings,
@@ -61,6 +61,10 @@ import { viewOnceReady } from "../lib/viewOnceCloud";
 import { exceedsMessageLimit, MESSAGE_TOO_LONG } from "../lib/messageLimits";
 import { useGames } from "../hooks/useGames";
 import { encodeInvitation } from "../games/core/invitation";
+// Not a static import: `inviteGame` reaches the game engines, and «Балда»'s word list is ~197 KB
+// compressed. Sending an invitation is rare enough to pay for it at that moment; importing it here
+// would put the whole dictionary on the first screen for every user who never touches games.
+// Only the *types* are imported statically, which costs nothing at runtime.
 import type { GameKind } from "../games/core/types";
 import { useChatCollection } from "../hooks/useChatCollection";
 import { useUserSearch } from "../hooks/useUserSearch";
@@ -206,7 +210,7 @@ export function useMessenger() {
   });
   const { activeGame, setActiveGame, openGame } = useGames();
   const { chats, setChats, activeId, setActiveId, drafts, setDrafts, replyDrafts, setReplyDrafts, activeChat, displayChats, visibleMessages, galleryImages, unreadTotal, toggleChatPin } =
-    useChatCollection({ search, chatFilter, messageSearch, notify: action });
+    useChatCollection({ search, chatFilter, messageSearch, notify: action, accountId });
   const { foundUsers, userSearchLoading } = useUserSearch({ search, accountId });
 
   // A folder narrows the list rather than replacing it: search and the unread filter
@@ -218,7 +222,7 @@ export function useMessenger() {
     renameFolder: renameChatFolder,
     moveFolder: moveChatFolder,
     toggleChat: toggleChatFolder,
-  } = useChatFolders();
+  } = useChatFolders(accountId);
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [folderPickerChat, setFolderPickerChat] = useState<Chat | null>(null);
 
@@ -362,21 +366,21 @@ export function useMessenger() {
   useInfiniteHistory(messagesAreaRef, activeChat, loadOlder);
   // Notification preferences live per device, and the permission state is read
   // once so the settings screen can say plainly whether the browser allows them.
-  const { prefs: notificationPrefs, setPrefs: setNotificationPrefs } = useNotificationPrefs();
+  const { prefs: notificationPrefs, setPrefs: setNotificationPrefs } = useNotificationPrefs(accountId);
   // What this browser draws about read receipts and last-seen. Kept beside the notification
   // preferences because both describe the device rather than the account.
-  const { prefs: privacyPrefs, setPrefs: setPrivacyPrefs } = usePrivacyPrefs();
+  const { prefs: privacyPrefs, setPrefs: setPrivacyPrefs } = usePrivacyPrefs(accountId);
   // The language is a device preference, like the theme: a phone in English should
   // not change the laptop.
   const { language, setLanguage, t } = useLanguage();
   // A four-digit lock on this device, separate from the account password.
-  const { passcode: lockCode, unlocked: lockUnlocked, setCode, unlock } = usePasscode();
-  const { wallpaper, setWallpaper } = useWallpaper();
+  const { passcode: lockCode, unlocked: lockUnlocked, setCode, unlock } = usePasscode(accountId);
+  const { wallpaper, setWallpaper } = useWallpaper(accountId);
   const [emojiOpen, setEmojiOpen] = useState(false);
   // The message a search result points at. Cleared once the highlight has been shown.
   const [revealMessageId, setRevealMessageId] = useState<string | null>(null);
   const [noteOpen, setNoteOpen] = useState(false);
-  const { policy: mediaPolicy, setPolicy: setMediaPolicy, network: networkKind } = useMediaPolicy();
+  const { policy: mediaPolicy, setPolicy: setMediaPolicy, network: networkKind } = useMediaPolicy(accountId);
   const autoloadMedia = shouldAutoload(mediaPolicy, networkKind);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   // Focusing the existing field rather than opening a second search: two search
@@ -689,14 +693,43 @@ export function useMessenger() {
    * It goes through the draft and the ordinary send path on purpose: an invitation that took a
    * second code path would be the one message that does not get delivery state, retries or the
    * limit check.
+   *
+   * When this account is signed in and the chat exists on the server, a real game is opened first
+   * and its id travels inside the message. That id is what turns the invitation from a note into a
+   * shared board: the recipient joins it and both screens read the same game. If the game cannot be
+   * opened - signed out, demo chat, no connection, migration not deployed - the invitation is still
+   * sent, without an id, and its note says the game will be local. Sending nothing at all because a
+   * server call failed would be worse than sending an honest message.
    */
   async function sendGameInvitation(kind: GameKind) {
     if (!activeChat) return;
     // The names that go into the invitation are the ones the chat already shows.
     const from = "Вы";
     const to = activeChat.name;
-    setDraft(encodeInvitation({ kind, from, to, gameId: null }));
-    action("Приглашение готово — отправьте его сообщением.");
+
+    let gameId: string | null = null;
+    const chatId = activeChat.remoteId;
+    if (accountId && chatId) {
+      // Loaded here rather than at the top of the module, so the engines and the «Балда» word list
+      // stay out of the first screen: the dictionary alone is ~197 KB compressed, and most people
+      // never send an invitation. The `catch` is not decoration - a failed chunk download must
+      // still send the invitation, just without a shared game behind it.
+      const opened = await import("../games/core/inviteGame")
+        .then((module) => module.openInvitedGame(kind, chatId, to))
+        .catch(() => ({ ok: false as const, error: "offline" as const }));
+      if (opened.ok) {
+        gameId = opened.value;
+      } else if (opened.error === "not-deployed") {
+        action("Совместная игра ещё не развёрнута на сервере — приглашение будет для игры на устройстве.");
+      } else {
+        action("Не удалось открыть совместную партию — приглашение будет для игры на устройстве.");
+      }
+    }
+
+    setDraft(encodeInvitation({ kind, from, to, gameId }));
+    if (gameId) {
+      action("Приглашение готово — отправьте его сообщением.");
+    }
   }
 
 
@@ -767,12 +800,13 @@ export function useMessenger() {
 
   useEffect(() => {
     try {
-      setCacheKeys(presentCacheKeys(CACHE_KEYS, (key) => window.localStorage.getItem(key) !== null));
+      // Only this account's caches: clearing them must not wipe the other person's drafts.
+      setCacheKeys(presentCacheKeys(cacheKeysFor(accountId), (key) => window.localStorage.getItem(key) !== null));
     } catch {
       // Storage blocked: nothing to clear and nothing to offer.
       setCacheKeys([]);
     }
-  }, [profileOpen]);
+  }, [profileOpen, accountId]);
 
   // Who may find and write to this account. Stored on the profile, because the
   // rules are enforced server-side where the search and chat creation happen.
@@ -796,36 +830,23 @@ export function useMessenger() {
     };
   }, [accountId]);
 
-  // This device's own short record. Supabase does not expose the list of signed-in
-  // devices to the client, so the app keeps a hint of its own; the only action it
-  // enables - signing out everywhere else - the server performs for real.
-  const [deviceId] = useState(() => {
-    try {
-      const existing = window.localStorage.getItem("nexus-device-id");
-      if (existing) return existing;
-      const created = Math.random().toString(36).slice(2) + Date.now().toString(36);
-      window.localStorage.setItem("nexus-device-id", created);
-      return created;
-    } catch {
-      return "local";
-    }
+  // The real session list, from the server. It used to be a record this browser kept for itself,
+  // which could only describe the browser it was written in and could not end anything.
+  const [sessionsNotice, setSessionsNotice] = useState<string | null>(null);
+  // `onRevoked` runs only after the server confirmed the revocation, so the one-line notice can never
+  // appear ahead of the fact it is announcing - which is the whole bug this feature is fixing.
+  // Ending *this* device also clears the local session, because the person is signing out of the page
+  // they are reading.
+  const sessions = useDeviceSessions(accountId, {
+    onRevoked: (scope) => {
+      if (scope === "others") {
+        setSessionsNotice("Остальные сессии завершены: их токены обновления больше не принимаются.");
+        return;
+      }
+      setSessionsNotice(null);
+      void supabase?.auth.signOut({ scope: "local" }).catch(() => undefined);
+    },
   });
-  const [devices, setDevices] = useState<SessionRecord[]>([]);
-  const [signingOutOthers, setSigningOutOthers] = useState(false);
-
-  useEffect(() => {
-    if (!accountId) return;
-    const { label, platform } = describeDevice(navigator.userAgent);
-    try {
-      const stored = JSON.parse(window.localStorage.getItem(SESSION_STORAGE_KEY) || "[]") as SessionRecord[];
-      const next = upsertSession(stored, { deviceId, label, platform, lastSeen: Date.now() }, Date.now());
-      window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(next));
-      setDevices(next);
-    } catch {
-      // Storage blocked: the list is simply unavailable.
-      setDevices([{ deviceId, label, platform, lastSeen: Date.now() }]);
-    }
-  }, [accountId, deviceId]);
 
 
 
@@ -1098,7 +1119,6 @@ export function useMessenger() {
     changePrivacy,
     changeVisibility,
     clearCache,
-    signOutOtherDevices,
     confirmDeleteAccount,
     unblockPerson,
   } = useAccountSettings({
@@ -1112,10 +1132,6 @@ export function useMessenger() {
     cacheKeys,
     setCacheKeys,
     setClearingCache,
-    devices,
-    deviceId,
-    setDevices,
-    setSigningOutOthers,
     setDeletingAccount,
     setBlockedEntries,
   });
@@ -1150,7 +1166,8 @@ export function useMessenger() {
     activeId,
     activeNav,
     addEmoji,
-    answerCall,    applyMessageEffect,
+    answerCall,
+    applyMessageEffect,
     applyMute,
     askForNotifications,
     attachRemoteScreen,
@@ -1158,7 +1175,8 @@ export function useMessenger() {
     attachmentBytes,
     attachmentCount,
     autoloadMedia,
-    avatarUploading,    blockedEntries,
+    avatarUploading,
+    blockedEntries,
     cacheKeys,
     call,
     callError,
@@ -1170,7 +1188,8 @@ export function useMessenger() {
     chatFilter,
     chatMembers,
     chatMenuOpen,
-    chats,    chooseMention,
+    chats,
+    chooseMention,
     clearCache,
     clearHistory,
     deleteChat,
@@ -1187,9 +1206,8 @@ export function useMessenger() {
     deleteMessageLocal,
     deletedMessage,
     deletingAccount,
-    deviceId,
-    devices,
-    draft,    editDraft,
+    draft,
+    editDraft,
     editingMessageId,
     emojiOpen,
     stickerOpen,
@@ -1206,7 +1224,8 @@ export function useMessenger() {
     forwardMessage,
     foundUsers,
     galleryImages,
-    galleryOpen,    goBackToChats,
+    galleryOpen,
+    goBackToChats,
     handleAttachment,
     hangUp,
     kickMember,
@@ -1243,7 +1262,8 @@ export function useMessenger() {
     openingUserId,
     peerLastSeenAt,
     peerOnline,
-    pinnedMessageIds,    pollOpen,
+    pinnedMessageIds,
+    pollOpen,
     pollOptions,
     pollQuestion,
     privacy,
@@ -1278,7 +1298,8 @@ export function useMessenger() {
     setActiveFolderId,
     setActiveGame,
     setActiveId,
-    setActiveNav,    setChatFilter,
+    setActiveNav,
+    setChatFilter,
     setChatMenuOpen,
     setCode,
     setDeletedMessage,
@@ -1319,13 +1340,14 @@ export function useMessenger() {
     setTheme,
     setUsername,
     setWallpaper,
+    sessions,
+    sessionsNotice,
     shortcutsOpen,
     showProfile,
-    signOutOtherDevices,
-    signingOutOthers,
     startCallNow,
     startEditing,
-    startVoiceRecording,    t,
+    startVoiceRecording,
+    t,
     textSize,
     theme,
     toggleCamera,
@@ -1340,7 +1362,8 @@ export function useMessenger() {
     typingUsers,
     unblockPerson,
     undoDelete,
-    unlock,    unreadTotal,
+    unlock,
+    unreadTotal,
     uploadAvatar,
     uploadProgress,
     userSearchLoading,

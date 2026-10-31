@@ -1,4 +1,4 @@
-/**
+﻿/**
  * The messenger shell.
  *
  * The state, effects and handlers live in useMessenger; this file is the layout, and
@@ -6,6 +6,7 @@
  * three things at once.
  */
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import type { GameInvitation } from "./games/core/invitation";
 import type { ChangeEvent } from "react";
 import { Shield, X } from "lucide-react";
 import PasscodeLock from "./components/PasscodeLock";
@@ -48,6 +49,8 @@ export default function App() {
   // The complaint dialog needs the chat and message ids from the server, not the local ones:
   // only a stored message can be pointed at. Kept here because it outlives one bubble.
   const [reportTarget, setReportTarget] = useState<{ chatId: string; messageId: string | null } | null>(null);
+  /** A game invitation the player pressed, waiting for the games screen to join it. */
+  const [pendingInvite, setPendingInvite] = useState<GameInvitation | null>(null);
   const {
     about,
     accountId,
@@ -58,7 +61,8 @@ export default function App() {
     activeId,
     activeNav,
     addEmoji,
-    answerCall,    applyMessageEffect,
+    answerCall,
+    applyMessageEffect,
     applyMute,
     askForNotifications,
     attachRemoteScreen,
@@ -66,7 +70,8 @@ export default function App() {
     attachmentBytes,
     attachmentCount,
     autoloadMedia,
-    avatarUploading,    blockedEntries,
+    avatarUploading,
+    blockedEntries,
     cacheKeys,
     call,
     callError,
@@ -78,7 +83,8 @@ export default function App() {
     chatFilter,
     chatMembers,
     chatMenuOpen,
-    chats,    chooseMention,
+    chats,
+    chooseMention,
     clearCache,
     clearHistory,
     deleteChat,
@@ -95,9 +101,8 @@ export default function App() {
     deleteMessageLocal,
     deletedMessage,
     deletingAccount,
-    deviceId,
-    devices,
-    draft,    editDraft,
+    draft,
+    editDraft,
     editingMessageId,
     emojiOpen,
     stickerOpen,
@@ -113,7 +118,8 @@ export default function App() {
     forwardMessage,
     foundUsers,
     galleryImages,
-    galleryOpen,    goBackToChats,
+    galleryOpen,
+    goBackToChats,
     handleAttachment,
     hangUp,
     kickMember,
@@ -151,7 +157,8 @@ export default function App() {
     openingUserId,
     peerLastSeenAt,
     peerOnline,
-    pinnedMessageIds,    pollOpen,
+    pinnedMessageIds,
+    pollOpen,
     pollOptions,
     pollQuestion,
     privacy,
@@ -186,7 +193,8 @@ export default function App() {
     setActiveFolderId,
     setActiveGame,
     setActiveId,
-    setActiveNav,    setChatFilter,
+    setActiveNav,
+    setChatFilter,
     setChatMenuOpen,
     setCode,
     setDeletedMessage,
@@ -223,14 +231,15 @@ export default function App() {
     setTextSize,
     setTheme,
     setUsername,
+    sessions,
+    sessionsNotice,
     setWallpaper,
     shortcutsOpen,
     showProfile,
-    signOutOtherDevices,
-    signingOutOthers,
     startCallNow,
     startEditing,
-    startVoiceRecording,    t,
+    startVoiceRecording,
+    t,
     textSize,
     theme,
     toggleCamera,
@@ -245,7 +254,8 @@ export default function App() {
     typingUsers,
     unblockPerson,
     undoDelete,
-    unlock,    unreadTotal,
+    unlock,
+    unreadTotal,
     uploadAvatar,
     uploadProgress,
     failedUploads,
@@ -437,7 +447,12 @@ export default function App() {
         }}
         onDelete={(messageId) => void deleteMessage(messageId)}
         onDeleteLocal={(messageId) => void deleteMessageLocal(messageId)}
-        onGameInvite={() => setActiveGame("Каталог")}
+        onGameInvite={(invitation) => {
+          // A shared invitation carries the server game's id; the games screen joins that id rather
+          // than starting a separate local game and leaving the other player waiting.
+          setPendingInvite(invitation);
+          setActiveGame("Каталог");
+        }}
         onReportMessage={(chatRemoteId, messageRemoteId) => {
           if (!chatRemoteId) {
             action("Разговор ещё не сохранён на сервере — пожаловаться пока нельзя");
@@ -587,8 +602,20 @@ export default function App() {
         </Suspense>
       )}
 
-      {/* The game screen owns its own sessions; the app only decides whether it is on screen. */}
-      {activeGame && <GameModal open onClose={() => setActiveGame(null)} />}
+      {/* The game screen owns its own sessions; the app only decides whether it is on screen.
+          The account is passed in so a shared phone keeps one player's games out of another's. */}
+      {activeGame && (
+        <GameModal
+          open
+          accountId={accountId ?? null}
+          pendingInvite={pendingInvite}
+          onInviteHandled={() => setPendingInvite(null)}
+          onClose={() => {
+            setActiveGame(null);
+            setPendingInvite(null);
+          }}
+        />
+      )}
 
       {/* Mounted only while open: a lazy component starts downloading on its first
           render, so keeping it mounted with open={false} would fetch it anyway. */}
@@ -726,10 +753,8 @@ export default function App() {
           clearing={clearingCache}
           language={language}
           onLanguageChange={setLanguage}
-          devices={devices}
-          currentDeviceId={deviceId}
-          onSignOutOthers={() => void signOutOtherDevices()}
-          signingOut={signingOutOthers}
+          sessions={sessions}
+          sessionsNotice={sessionsNotice}
           passcode={lockCode}
           onPasscodeChange={setCode}
           twoFactor={twoFactor}

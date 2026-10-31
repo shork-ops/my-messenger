@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+﻿import { useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import { badgeCount, formatDocumentTitle } from "../lib/notifications";
 import { pushConfigured, subscribeToPush } from "../lib/push";
@@ -198,14 +198,14 @@ export function useNotificationsPrompt({ accountId, enabled, onNotice }: UseNoti
     if (!enabled || !accountId) return;
     if (typeof Notification === "undefined") return;
     if (Notification.permission !== "default") return;
-    if (pushPromptAlreadySeen()) return;
+    if (pushPromptAlreadySeen(accountId)) return;
 
     let done = false;
     const request = async () => {
       if (done) return;
       done = true;
       remove();
-      rememberPushPrompt();
+      rememberPushPrompt(accountId);
       const permission = await requestNotificationPermission();
       if (permission === "granted") {
         const result = await subscribeToPush(accountId);

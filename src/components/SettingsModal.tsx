@@ -18,7 +18,8 @@ import { formatMinute, parseMinute, type NotificationPrefs } from "../lib/notifi
 import type { PrivacyPrefs } from "../lib/privacyPrefs";
 import { plural, storageSummary } from "../lib/storageUsage";
 import { LANGUAGES, type Language } from "../lib/i18n";
-import { type SessionRecord, lastSeenLabel } from "../lib/sessions";
+import type { DeviceSessionsHook } from "../hooks/useDeviceSessions";
+import { DeviceSessionsPanel } from "./DeviceSessionsPanel";
 import { avatarFallback } from "../lib/avatar";
 import TwoFactorPanel from "./TwoFactorPanel";
 import { WALLPAPERS, type WallpaperId, wallpaperBackground, wallpaperSize } from "../lib/wallpaper";
@@ -78,10 +79,10 @@ export type SettingsModalProps = {
   onLanguageChange: (value: Language) => void;
   wallpaper: WallpaperId;
   onWallpaperChange: (value: WallpaperId) => void;
-  devices: SessionRecord[];
-  currentDeviceId: string;
-  onSignOutOthers: () => void;
-  signingOut: boolean;
+  /** The real session list, from the server. */
+  sessions: DeviceSessionsHook;
+  /** A one-line confirmation after a bulk sign-out. */
+  sessionsNotice: string | null;
   passcode: string | null;
   onPasscodeChange: (code: string | null) => void;
   twoFactor: TwoFactorState;
@@ -235,10 +236,8 @@ export default function SettingsModal(props: SettingsModalProps) {
           cacheKeys={props.cacheKeys}
           onClearCache={props.onClearCache}
           clearing={props.clearing}
-          devices={props.devices}
-          currentDeviceId={props.currentDeviceId}
-          onSignOutOthers={props.onSignOutOthers}
-          signingOut={props.signingOut}
+          sessions={props.sessions}
+          sessionsNotice={props.sessionsNotice}
           passcode={props.passcode}
           onPasscodeChange={props.onPasscodeChange}
           twoFactor={props.twoFactor}
@@ -672,11 +671,10 @@ type DataSectionProps = {
   cacheKeys: string[];
   onClearCache: () => void;
   clearing: boolean;
-  /** Devices this account has been used on, most recent first. */
-  devices: SessionRecord[];
-  currentDeviceId: string;
-  onSignOutOthers: () => void;
-  signingOut: boolean;
+  /** The real session list, from the server. */
+  sessions: DeviceSessionsHook;
+  /** A one-line confirmation after a bulk sign-out. */
+  sessionsNotice: string | null;
   passcode: string | null;
   onPasscodeChange: (code: string | null) => void;
   twoFactor: TwoFactorState;
@@ -697,17 +695,14 @@ function DataSection({
   cacheKeys,
   onClearCache,
   clearing,
-  devices,
-  currentDeviceId,
-  onSignOutOthers,
-  signingOut,
+  sessions,
+  sessionsNotice,
   passcode,
   onPasscodeChange,
   twoFactor,
   mediaPolicy,
   onMediaPolicyChange,
 }: DataSectionProps) {
-  const now = Date.now();
   const [codeDraft, setCodeDraft] = useState("");
   return (
     <>
@@ -768,21 +763,6 @@ function DataSection({
       <div className="settings-divider" />
       <div className="settings-row">
         <span>
-          <strong>Устройства</strong>
-          <small>
-            {devices.length === 1
-              ? "Только это устройство"
-              : `${devices.length} ${plural(devices.length, "устройство", "устройства", "устройств")}`}
-          </small>
-        </span>
-        {devices.length > 1 && (
-          <button type="button" className="settings-action danger" disabled={signingOut} onClick={onSignOutOthers}>
-            {signingOut ? "Выхожу…" : "Выйти на других"}
-          </button>
-        )}
-      </div>
-      <div className="settings-row">
-        <span>
           <strong>Код доступа</strong>
           <small>
             {passcode
@@ -821,19 +801,16 @@ function DataSection({
         )}
       </div>
 
-      <ul className="device-list">
-        {devices.map((device) => (
-          <li key={device.deviceId}>
-            <span>
-              <strong>
-                {device.label} · {device.platform}
-              </strong>
-              <small>{lastSeenLabel(device.lastSeen, now)}</small>
-            </span>
-            {device.deviceId === currentDeviceId && <b className="device-current">это устройство</b>}
-          </li>
-        ))}
-      </ul>
+      <div className="device-panel-slot">
+        <DeviceSessionsPanel
+          state={sessions.state}
+          busy={sessions.busy}
+          actionError={sessions.actionError}
+          onRevokeThis={sessions.revokeThis}
+          onRevokeOthers={sessions.revokeOthers}
+          notice={sessionsNotice}
+        />
+      </div>
     </>
   );
 }

@@ -185,7 +185,12 @@ test.describe("Nexus messenger smoke", () => {
     const composer = page.getByLabel("Текст сообщения");
     await composer.fill("переживёт перезагрузку");
     await expect
-      .poll(() => page.evaluate(() => window.localStorage.getItem("nexus-drafts-v1") ?? ""))
+      // Drafts are per-account since the isolation work, and the demo runs as a guest, so the draft
+      // lives under the guest namespace. Reading the old bare key here would pass only if the
+      // isolation had been undone - which is the opposite of what this test is for.
+      .poll(() =>
+        page.evaluate(() => window.localStorage.getItem("nexus-scoped:guest:nexus-drafts-v1") ?? "")
+      )
       .toContain("переживёт перезагрузку");
 
     await page.reload();

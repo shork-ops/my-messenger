@@ -11,6 +11,7 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { useMessenger } from "./useMessenger";
+import { ownerFor, scopedKey } from "../lib/accountScope";
 
 beforeAll(() => {
   // jsdom implements no CSS media queries at all, and the app asks whether the screen is
@@ -79,7 +80,10 @@ describe("useMessenger: drafts", () => {
     act(() => {
       result.current.changeDraft("чтобы не потерять");
     });
-    const stored = window.localStorage.getItem("nexus-drafts-v1");
+    // Drafts live inside the account's own namespace, so the shared key must stay empty: a draft
+    // written by one account is not readable by the next person to sign in on this browser.
+    expect(window.localStorage.getItem("nexus-drafts-v1")).toBeNull();
+    const stored = window.localStorage.getItem(scopedKey(ownerFor(null), "nexus-drafts-v1"));
     expect(stored, "the draft was never written").toBeTruthy();
     expect(stored).toContain("чтобы не потерять");
   });
@@ -196,7 +200,8 @@ describe("useMessenger: replying", () => {
     act(() => {
       result.current.replyToMessage(target);
     });
-    const stored = window.localStorage.getItem("nexus-reply-drafts-v1");
+    expect(window.localStorage.getItem("nexus-reply-drafts-v1")).toBeNull();
+    const stored = window.localStorage.getItem(scopedKey(ownerFor(null), "nexus-reply-drafts-v1"));
     expect(stored, "the reply target was never stored").toBeTruthy();
     expect(stored).toContain(target.author);
   });

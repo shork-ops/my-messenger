@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;600;700;800&display=swap');
+﻿@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;600;700;800&display=swap');
 
 :root {
   font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -811,7 +811,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .game-play-label { display: flex; align-items: center; gap: 4px; margin-top: auto; color: var(--yellow); font-size: 12px; font-weight: 700; }
 .game-instructions { margin: 0; color: #adaeb5; font-size: 12px; line-height: 1.6; }
 .chess-game, .uno-game, .balda-game { display: flex; flex-direction: column; gap: 15px; }
-.chess-board { display: grid; grid-template-columns: repeat(8, 1fr); width: min(100%, 360px); align-self: center; overflow: hidden; border: 4px solid #37383d; border-radius: 8px; }
+.chess-board { display: grid; grid-template-columns: repeat(8, 1fr); width: min(100%, 420px); align-self: center; overflow: hidden; border: 4px solid #37383d; border-radius: 8px; touch-action: manipulation; }
 .chess-square { display: grid; place-items: center; aspect-ratio: 1; font-family: Georgia, serif; font-size: clamp(18px, 4vw, 32px); line-height: 1; }
 .chess-square.light { background: #e8d7b7; color: #222; }
 .chess-square.dark { background: #8d684d; color: #171717; }
@@ -867,7 +867,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 /* --- Игровые экраны: доска шахмат, карты, балда --- */
 /* Светлые и тёмные поля различаются не только цветом: у них разный узор фона, поэтому доска
    остаётся читаемой для того, кто не различает эти два оттенка. */
-.chess-board-wrap { display: flex; justify-content: center; }
+/* Обёртка тянет доску на всю доступную ширину, а не сжимает её до содержимого: без колонки
+   grid `width: 100%` у доски считался бы от ширины содержимого, и на телефоне доска вышла бы
+   вчетверо меньше экрана — клетки по 20 пикселей, в которые не попасть пальцем. */
+.chess-board-wrap { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; }
 .chess-light { background: #e8d7b7; color: #222; background-image: repeating-linear-gradient(45deg, #0000 0 6px, #00000006 6px 12px); }
 .chess-dark { background: #8d684d; color: #171717; background-image: repeating-linear-gradient(-45deg, #0000 0 6px, #00000014 6px 12px); }
 .chess-square { position: relative; border: 0; padding: 0; cursor: pointer; }
@@ -888,6 +891,36 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .chess-moves li { display: grid; grid-template-columns: 22px 1fr 1fr; gap: 6px; }
 .chess-move-number { color: var(--fg-muted); }
 .chess-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* --- Экран шахматной партии ---
+   Порядок в разметке — доска, затем управление — повторён и здесь: на телефоне ничто не ставится
+   сбоку от доски, потому что сбоку у телефона ничего нет. Доска занимает ровно столько ширины,
+   сколько даёт экран, и остаётся квадратной за счёт aspect-ratio у каждой клетки. */
+.chess-panel { display: flex; flex-direction: column; gap: 12px; }
+/* Строка состояния стоит над доской и не прокручивается вместе с ней. */
+.chess-status { margin: 0; padding: 9px 12px; border: 1px solid #34353b; border-radius: 10px; background: #1a1b1f; color: var(--fg-secondary); font-size: 13px; font-weight: 700; }
+.chess-status-you { border-color: #4a4220; background: #211d0b; color: var(--yellow); }
+/* Файлы подписаны под доской; цифры — внутри левого столбца, чтобы не занимать ширину. */
+.chess-files { display: grid; grid-template-columns: repeat(8, 1fr); width: min(100%, 420px); align-self: center; margin-top: -6px; color: var(--fg-muted); font-size: 11px; text-align: center; }
+.chess-rank { position: absolute; top: 2px; left: 3px; color: #00000088; font-family: system-ui, sans-serif; font-size: 10px; font-weight: 700; pointer-events: none; }
+.chess-dark .chess-rank { color: #ffffff99; }
+/* Кольцо — взятие, точка — ход на пустое поле: форма отличает их без цвета. */
+.chess-ring { position: absolute; inset: 6%; border: 3px solid #2f9e6a; border-radius: 50%; pointer-events: none; }
+/* Вопрос о превращении — диалог поверх доски, а не выбор «по умолчанию». */
+.chess-promotion { display: flex; flex-direction: column; gap: 10px; align-items: center; padding: 13px; border: 1px solid var(--yellow); border-radius: 12px; background: #1c1a0e; }
+.chess-promotion p { margin: 0; color: var(--yellow); font-size: 13px; font-weight: 700; }
+.chess-promotion-choices { display: flex; gap: 8px; }
+.chess-promotion-piece { display: grid; place-items: center; width: 52px; height: 52px; border: 1px solid #47484f; border-radius: 10px; background: #26272c; font-family: Georgia, serif; font-size: 30px; line-height: 1; cursor: pointer; }
+.chess-promotion-piece:hover { border-color: var(--yellow); }
+.chess-capture-rows { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; color: var(--fg-muted); font-size: 12px; }
+.chess-captured { display: inline-flex; gap: 5px; align-items: baseline; }
+.chess-captured-pieces { color: #d8d9df; font-family: Georgia, serif; font-size: 16px; letter-spacing: 1px; }
+.chess-material { color: var(--fg-secondary); font-weight: 700; }
+.chess-finished { display: flex; flex-direction: column; gap: 10px; padding: 13px; border: 1px solid #2f5e46; border-radius: 12px; background: #12261d; }
+.chess-outcome { margin: 0; color: #c8f0d8; font-size: 14px; font-weight: 700; line-height: 1.5; }
+.chess-offer { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.game-rules summary { color: var(--fg-secondary); font-size: 12px; font-weight: 700; cursor: pointer; }
+.game-rules ul { display: flex; flex-direction: column; gap: 6px; margin: 9px 0 0; padding-left: 18px; color: var(--fg-muted); font-size: 12px; line-height: 1.55; }
 .game-notice { margin: 0; padding: 11px 13px; border: 1px solid #5b4e17; border-radius: 10px; background: #211d0b; color: #f4df7c; font-size: 12px; line-height: 1.5; }
 .game-result { margin: 0; padding: 13px 15px; border: 1px solid #2f5e46; border-radius: 12px; background: #12261d; color: #c8f0d8; font-size: 13px; font-weight: 700; }
 .game-hint { margin: 0; color: var(--fg-muted); font-size: 12px; line-height: 1.55; }
@@ -933,8 +966,22 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 /* Узкий экран: доска на всю ширину, боковая колонка уходит вниз. */
 @media (max-width: 560px) {
   .chess-board { width: 100%; }
+  .chess-files { width: 100%; }
   .balda-form { flex-direction: column; align-items: stretch; }
   .chess-moves { grid-template-columns: 1fr; }
+  /* Кнопки партии — в три равные колонки: «Сдаться» не должна уезжать за край, и палец должен
+     попадать в неё не целясь. */
+  .chess-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .chess-controls .btn { min-height: 42px; font-size: 12px; }
+  /* Своя партия занимает экран целиком, но чат за ней остаётся доступен: модальное окно не
+     блокирует прокрутку страницы под собой. */
+  .game-modal-playing { max-height: calc(100dvh - 16px); gap: 12px; padding: 13px; }
+  .chess-status { font-size: 12px; }
+  .chess-promotion-piece { width: 46px; height: 46px; font-size: 26px; }
+}
+@media (max-height: 620px) {
+  /* Телефон в горизонтальной ориентации: доска не должна выдавливать управление за экран. */
+  .chess-board { width: min(100%, 62dvh); }
 }
 .game-back-link { align-self: flex-start; padding: 5px 0; border: 0; background: transparent; color: var(--yellow); font-size: 12px; }
 @media (max-width: 560px) {

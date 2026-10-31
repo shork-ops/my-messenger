@@ -12,7 +12,7 @@ import { firstLink } from "../lib/links";
 import { useLinkCard } from "../hooks/useLinkCard";
 import LinkPreview from "./LinkPreview";
 import GameInviteCard from "./games/GameInviteCard";
-import { parseInvitation } from "../games/core/invitation";
+import { parseInvitation, type GameInvitation } from "../games/core/invitation";
 import AlbumGrid from "./AlbumGrid";
 import { formatBytes } from "../lib/media";
 import {
@@ -85,16 +85,19 @@ function ViewOnceCard({
   messageKey,
   remoteId,
   mine,
+  accountId,
 }: {
   attachment: NonNullable<Message["attachment"]>;
   remoteId?: string;
   mine?: boolean;
   /** Identifies this piece of media across unmounts, so "already opened" survives them. */
   messageKey: string;
+  /** Whose "already opened" list this is: spending is recorded per account. */
+  accountId: string | null;
 }) {
   // The initial state is read from storage rather than assumed: coming back to a conversation
   // must not offer a photo that has already been opened.
-  const [state, setState] = useState<ViewOnceState>(() => (isSpent(messageKey) ? "spent" : "closed"));
+  const [state, setState] = useState<ViewOnceState>(() => (isSpent(messageKey, accountId) ? "spent" : "closed"));
   const [left, setLeft] = useState(VIEW_ONCE_SECONDS);
   const [cloudUrl, setCloudUrl] = useState("");
   const [opening, setOpening] = useState(false);
@@ -114,7 +117,7 @@ function ViewOnceCard({
       setCloudUrl(result.url);
     }
     openedRef.current = true;
-    markSpent(messageKey);
+    markSpent(messageKey, accountId);
     setState("open");
   };
   const [startedAt, setStartedAt] = useState(0);
@@ -129,7 +132,7 @@ function ViewOnceCard({
       setLeft(remaining);
       if (remaining === 0) {
         window.clearInterval(tick);
-        markSpent(messageKey);
+        markSpent(messageKey, accountId);
         setCloudUrl("");
         setState(nextViewOnceState("open"));
       }
@@ -177,6 +180,7 @@ function AttachmentCard({
   messageKey,
   remoteId,
   mine,
+  accountId,
 }: {
   attachment: NonNullable<Message["attachment"]>;
   remoteId?: string;
@@ -185,12 +189,14 @@ function AttachmentCard({
   autoload: boolean;
   /** Identifies the message, so "already opened" is remembered per message, not per file. */
   messageKey: string;
+  /** Whose "already opened" list this is: spending is recorded per account. */
+  accountId: string | null;
 }) {
   const [revealed, setRevealed] = useState(false);
   const show = autoload || revealed;
 
   if (isViewOnce({ viewOnce: attachment.viewOnce })) {
-    return <ViewOnceCard attachment={attachment} messageKey={messageKey} remoteId={remoteId} mine={mine} />;
+    return <ViewOnceCard attachment={attachment} messageKey={messageKey} remoteId={remoteId} mine={mine} accountId={accountId} />;
   }
 
   return (
@@ -282,7 +288,14 @@ type MessageBubbleProps = {
   onReport?: () => void;
   /** Removes it for everyone; only offered to the author. */
   onDelete: () => void;
-  onGameInvite: () => void;
+  /**
+   * Opens the game an invitation points at.
+   *
+   * The invitation travels with the call because it carries the server game's id. Without it the
+   * games screen can only open a new local game, which is exactly the behaviour a shared
+   * invitation must not produce.
+   */
+  onGameInvite: (invitation: GameInvitation) => void;
 };
 
 export default function MessageBubble({
@@ -378,7 +391,7 @@ export default function MessageBubble({
   // One card per message, for the first link. Two cards for two links in one sentence turn a
   // message into a feed.
   const cardUrl = !message.poll && !message.attachment && !message.stickerId ? firstLink(message.text) : null;
-  const linkCard = useLinkCard(cardUrl, Boolean(cardUrl));
+  const linkCard = useLinkCard(cardUrl, Boolean(cardUrl), accountId);
   // An invitation is recognised from the message text, so it survives a reload and arrives
   // from the other side as an ordinary message rather than as a separate kind of event.
   const invitation = !message.poll && !message.attachment && !message.stickerId ? parseInvitation(message.text) : null;
@@ -468,6 +481,7 @@ export default function MessageBubble({
               messageKey={`${accountId || "local"}:${message.remoteId || String(message.id)}`}
               remoteId={message.remoteId}
               mine={message.mine}
+              accountId={accountId}
             />
           ) : (
             <div className="message-body">
@@ -603,7 +617,7 @@ export default function MessageBubble({
           <GameInviteCard
             invitation={invitation}
             viewerIsInvited={!message.mine}
-            onOpen={onGameInvite}
+            onOpen={() => onGameInvite(invitation)}
           />
         )}
       </div>

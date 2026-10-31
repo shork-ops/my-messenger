@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from "react";
+import type { GameInvitation } from "../games/core/invitation";
 import type { ComponentProps, MutableRefObject } from "react";
 import { type WallpaperId, wallpaperBackground, wallpaperSize } from "../lib/wallpaper";
 import { ArrowDown, ChevronsUp, Download, FolderPlus, Megaphone } from "lucide-react";
@@ -76,7 +77,8 @@ type ConversationPanelProps = {
   onEdit: (message: Message) => void;
   onDelete: (messageId: number) => void;
   onDeleteLocal: (messageId: number) => void;
-  onGameInvite: () => void;
+  /** Opens the game an invitation points at, carrying the invitation so its id is not lost. */
+  onGameInvite: (invitation: GameInvitation) => void;
   /** Opens the complaint dialog for a message that exists on the server. */
   onReportMessage: (chatRemoteId: string | null, messageRemoteId: string | null) => void;
   typingNames: string[];

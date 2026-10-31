@@ -30,10 +30,23 @@ const dist = join(root, "dist");
  * Ceilings for what the browser fetches before the app can draw itself, after gzip.
  *
  * Raised only with a reason: a new limit is a decision that the extra weight is worth it.
+ *
+ * **Reason for the 200 -> 210 KB raise (account isolation and device sessions):** the first screen
+ * grew by ~3 KB gzipped because `useMessenger` itself must now carry the account-scope rules
+ * (`accountScope`, `scopedStorage`, `useOwnerStorage`) and the device-session client
+ * (`deviceSessions`, `useDeviceSessions`). These cannot be code-split: they are hooks the messenger
+ * body calls on every render, not screens opened on demand. The alternative - a lazily loaded
+ * sessions list - would put a network round trip in front of the settings screen's "which devices
+ * are signed in" answer, and the whole point of that panel is that it reports server truth promptly.
+ *
+ * The dictionary, which is the genuinely large addition this release (965 KB), was split into its
+ * own chunk instead of being absorbed here: `words.data` is now a separate 197 KB-gzip chunk loaded
+ * only when the games screen opens. See `scripts/build-dictionary.mjs`. So the honest summary is:
+ * the first screen gained a little weight it cannot avoid, and did not gain the weight it could.
  */
 const BUDGET = {
   /** Everything the first screen needs, compressed - what a phone downloads on a cold start. */
-  firstScreenGzip: 200 * 1024,
+  firstScreenGzip: 210 * 1024,
   /** The same uncompressed. Catches a dependency that compresses deceptively well. */
   firstScreenRaw: 750 * 1024,
   /** One chunk on its own. Anything above this should be split by feature. */
