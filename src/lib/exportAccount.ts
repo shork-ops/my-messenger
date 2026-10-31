@@ -14,6 +14,7 @@
 import type { Chat } from "../types";
 import { archiveFileName, archiveSummary, buildArchive } from "./archive";
 import { exportAsText, exportFileName, pluralMessages } from "./exportChat";
+import { scopedStore } from "./scopedStorage";
 
 /** A conversation as plain text. */
 export function chatAsText(chat: Chat): string {
@@ -88,13 +89,19 @@ export type ArchiveSettings = {
   folders: unknown;
 };
 
-/** Settings are passed through rather than reinterpreted: the archive is a copy, not a translation. */
-export function settingsForArchive(): Pick<ArchiveSettings, "theme" | "language" | "wallpaper"> {
+/**
+ * Settings are passed through rather than reinterpreted: the archive is a copy, not a translation.
+ *
+ * Read from the account's own namespace, so an export contains the settings of the account being
+ * exported and not whichever of the browser's accounts last changed a theme.
+ */
+export function settingsForArchive(accountId: string | null): Pick<ArchiveSettings, "theme" | "language" | "wallpaper"> {
   if (typeof window === "undefined") return { theme: null, language: null, wallpaper: null };
+  const store = scopedStore(accountId);
   return {
-    theme: window.localStorage.getItem("nexus-theme"),
-    language: window.localStorage.getItem("nexus-language"),
-    wallpaper: window.localStorage.getItem("nexus-wallpaper"),
+    theme: store.read("nexus-theme"),
+    language: store.read("nexus-language"),
+    wallpaper: store.read("nexus-wallpaper"),
   };
 }
 
@@ -111,11 +118,18 @@ export function buildAccountArchive(input: {
   privacy: unknown;
   notifications: unknown;
   folders: unknown;
+  /** Whose settings to copy: the archive belongs to one account, not to the browser. */
+  accountId?: string | null;
 }): { parts: ArchiveParts; text: string; summary: string } {
   const parts: ArchiveParts = {
     profile: { name: input.profileName, username: input.username ?? null },
     chats: chatsForArchive(input.chats),
-    settings: { ...settingsForArchive(), privacy: input.privacy, notifications: input.notifications, folders: input.folders },
+    settings: {
+      ...settingsForArchive(input.accountId ?? null),
+      privacy: input.privacy,
+      notifications: input.notifications,
+      folders: input.folders,
+    },
   };
   const text = buildArchive(parts, Date.now());
   return { parts, text, summary: archiveSummary(parts) };

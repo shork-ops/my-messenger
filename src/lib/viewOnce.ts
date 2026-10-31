@@ -1,6 +1,8 @@
 /** Single-view UI helpers. Cloud media is claimed through viewOnceCloud and a server receipt.
  * Browser storage below is only a local UI/demo hint; it is never the cloud access control. */
 
+import { scopedStore } from "./scopedStorage";
+
 /** A message whose attachment is marked single-view. */
 export const VIEW_ONCE_KEY = "viewOnce";
 
@@ -52,13 +54,20 @@ export function viewOnceVisible(state: ViewOnceState): boolean {
   return state === "open";
 }
 
-/** Local UI/demo hint. Real cloud access is enforced by the server per account/message. */
+/**
+ * Local UI/demo hint. Real cloud access is enforced by the server per account/message.
+ *
+ * The list is per account for two reasons. It is a record of what *this person* has already
+ * looked at, so it belongs in their namespace on a shared browser; and it is capped at 500
+ * entries, so a shared list would let a busy account push out the ids that another account on
+ * the same device was relying on to keep spent media closed.
+ */
 const SPENT_KEY = "nexus-view-once-spent";
 
-function readSpent(): Set<string> {
+function readSpent(accountId: string | null): Set<string> {
   if (typeof window === "undefined") return new Set();
   try {
-    const raw = window.localStorage.getItem(SPENT_KEY);
+    const raw = scopedStore(accountId).read(SPENT_KEY);
     const parsed: unknown = raw ? JSON.parse(raw) : [];
     return new Set(Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : []);
   } catch {
@@ -66,19 +75,15 @@ function readSpent(): Set<string> {
   }
 }
 
-/** Whether this piece of media has been opened already on this device. */
-export function isSpent(key: string): boolean {
-  return readSpent().has(key);
+/** Whether this piece of media has been opened already on this device by this account. */
+export function isSpent(key: string, accountId: string | null): boolean {
+  return readSpent(accountId).has(key);
 }
 
 /** Remembers that it has been opened, so it is not shown again. */
-export function markSpent(key: string): void {
+export function markSpent(key: string, accountId: string | null): void {
   if (typeof window === "undefined") return;
-  try {
-    const spent = readSpent();
-    spent.add(key);
-    window.localStorage.setItem(SPENT_KEY, JSON.stringify(Array.from(spent).slice(-500)));
-  } catch {
-    // Storage can be refused; the picture still closes, it just may be reopened later.
-  }
+  const spent = readSpent(accountId);
+  spent.add(key);
+  scopedStore(accountId).write(SPENT_KEY, JSON.stringify(Array.from(spent).slice(-500)));
 }

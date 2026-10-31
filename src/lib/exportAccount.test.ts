@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Taking your data out.
  *
  * These functions were inside the messenger hook, where the only way to reach them was to
@@ -10,6 +10,10 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it } from "vitest";
 import { chatsForArchive, chatAsText, chatAsTextCount, settingsForArchive } from "./exportAccount";
+import { scopedStore } from "./scopedStorage";
+
+const ACCOUNT = "11111111-1111-4111-8111-111111111111";
+const OTHER = "22222222-2222-4222-8222-222222222222";
 import type { Chat, Message } from "../types";
 
 function message(id: number, text: string, mine = false): Message {
@@ -91,10 +95,24 @@ describe("the account archive", () => {
   });
 
   it("copies settings as they are instead of reinterpreting them", () => {
-    window.localStorage.setItem("nexus-theme", "dark");
-    window.localStorage.setItem("nexus-language", "ru");
+    // Settings now live in the account's namespace; the export reads that namespace.
+    const store = scopedStore(ACCOUNT);
+    store.write("nexus-theme", "dark");
+    store.write("nexus-language", "ru");
     try {
-      expect(settingsForArchive()).toEqual({ theme: "dark", language: "ru", wallpaper: null });
+      expect(settingsForArchive(ACCOUNT)).toEqual({ theme: "dark", language: "ru", wallpaper: null });
+    } finally {
+      window.localStorage.clear();
+    }
+  });
+
+  it("exports the account's settings, not the browser's", () => {
+    // A shared browser: a bare key left by an older build must not end up in an account's export.
+    window.localStorage.setItem("nexus-theme", "light");
+    scopedStore(ACCOUNT).write("nexus-theme", "dark");
+    try {
+      expect(settingsForArchive(ACCOUNT).theme).toBe("dark");
+      expect(settingsForArchive(OTHER).theme).toBeNull();
     } finally {
       window.localStorage.clear();
     }

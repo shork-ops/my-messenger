@@ -23,8 +23,16 @@ export { formatBytes } from "./media";
 
 /** Local alias: the re-export above does not bind a name in this module. */
 import { formatBytes } from "./media";
+import { ownerFor, scopedKey } from "./accountScope";
 
-/** Every local-storage key this app owns, so "clear cache" cannot miss one or hit a stranger's. */
+/**
+ * Every local-storage key this app owns, so "clear cache" cannot miss one or hit a stranger's.
+ *
+ * These are the *logical* names. Since caches became per account they are stored under the
+ * account's namespace, so the real key is `scopedKey(owner, name)` - see `cacheKeysFor`. The bare
+ * names are kept because clearing a cache has to work for entries written before the split as
+ * well, and because this list is what the settings screen reports.
+ */
 export const CACHE_KEYS = [
   "nexus-theme",
   "nexus-text-size",
@@ -34,7 +42,28 @@ export const CACHE_KEYS = [
   "nexus-language",
   "nexus-push-prompted",
   "nexus-push-asked",
+  "nexus-chat-folders",
+  "nexus-privacy-prefs",
+  "nexus-media-policy",
+  "nexus-chats-v1",
+  "nexus-drafts-v1",
+  "nexus-reply-drafts-v1",
+  "nexus-view-once-spent",
+  "nexus-profile-name",
+  "nexus-profile-avatar",
 ] as const;
+
+/**
+ * The real storage keys for one account, plus the bare legacy names.
+ *
+ * Clearing the cache must clear *this account's* cache: on a shared browser, wiping the other
+ * person's drafts is not a cache clear, it is data loss. The bare names are included because a
+ * pre-split entry left behind is still this device's cache and still safe to drop.
+ */
+export function cacheKeysFor(accountId: string | null): string[] {
+  const owner = ownerFor(accountId);
+  return [...CACHE_KEYS.map((key) => scopedKey(owner, key)), ...CACHE_KEYS];
+}
 
 /**
  * Which of these keys actually exist right now.

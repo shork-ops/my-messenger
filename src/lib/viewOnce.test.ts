@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   VIEW_ONCE_SECONDS,
   isSpent,
@@ -64,8 +64,8 @@ describe("view once", () => {
  */
 describe("remembering what was opened", () => {
   it("does nothing and throws nothing without a browser", () => {
-    expect(isSpent("anything")).toBe(false);
-    expect(() => markSpent("anything")).not.toThrow();
-    expect(isSpent("anything")).toBe(false);
+    expect(isSpent("anything", null)).toBe(false);
+    expect(() => markSpent("anything", null)).not.toThrow();
+    expect(isSpent("anything", null)).toBe(false);
   });
 });
