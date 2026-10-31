@@ -69,7 +69,48 @@ type MediaListeners = {
   onRemoteVideo: (track: Track | null) => void;
   /** A shared screen, kept apart from the camera so both can be shown at once. */
   onRemoteScreen: (track: Track | null) => void;
+  /** Whether the browser is currently blocking playback until the user interacts. */
+  onAudioBlocked?: (blocked: boolean) => void;
 };
+
+/**
+ * The element the remote audio is played through.
+ *
+ * There is no `<audio>` in the call screen and there never was: the video element carried the
+ * camera and screen tracks, and the audio handler returned early for everything that was not
+ * video. The result was a call where both sides could see each other, the microphone indicator
+ * was on, and neither heard anything - the tracks were subscribed and played to nothing.
+ *
+ * One shared element rather than one per participant keeps the mixing in the browser and avoids
+ * a page full of audio tags; `attach` replaces the source when the peer's track changes.
+ */
+let remoteAudioElement: HTMLAudioElement | null = null;
+
+/** Test seam: forgets the shared element so the next call builds a fresh one. */
+export function resetRemoteAudioForTests(): void {
+  remoteAudioElement = null;
+}
+
+/** Test seam: the same function the room uses, so the test checks the real path. */
+export function remoteAudioTargetForTests(): HTMLAudioElement | null {
+  return remoteAudioTarget();
+}
+
+function remoteAudioTarget(): HTMLAudioElement | null {
+  if (typeof document === "undefined") return null;
+  if (!remoteAudioElement) {
+    remoteAudioElement = document.createElement("audio");
+    remoteAudioElement.autoplay = true;
+    // Said out loud rather than left to the default. An element that is muted plays nothing,
+    // and this one exists only to play - a later edit that copies an attribute list from a
+    // video preview would silence the whole call without failing a single check.
+    remoteAudioElement.muted = false;
+    remoteAudioElement.setAttribute("playsinline", "true");
+    remoteAudioElement.style.display = "none";
+    document.body.appendChild(remoteAudioElement);
+  }
+  return remoteAudioElement;
+}
 
 /**
  * Turns a browser media error into something a person can act on.
@@ -136,6 +177,16 @@ export class CallSession {
       .on(RoomEvent.TrackMuted, publishParticipants)
       .on(RoomEvent.TrackUnmuted, publishParticipants)
       .on(RoomEvent.TrackSubscribed, (track, publication) => {
+        if (track.kind === Track.Kind.Audio) {
+          // Audio is a track like any other and has to be attached to an element to be heard.
+          // Reported to the interface because a browser may block playback until the user
+          // interacts, and silence with no explanation is the worst outcome.
+          const target = remoteAudioTarget();
+          if (!target) return;
+          track.attach(target);
+          void target.play().catch(() => this.listeners.onAudioBlocked?.(true));
+          return;
+        }
         if (track.kind !== Track.Kind.Video) return;
         // The publisher names the screen track "screen"; a camera track keeps the default
         // name, so the name is what tells the two apart on the receiving side.
@@ -143,6 +194,12 @@ export class CallSession {
         else this.listeners.onRemoteVideo(track);
       })
       .on(RoomEvent.TrackUnsubscribed, (track, publication) => {
+        if (track.kind === Track.Kind.Audio) {
+          // Detaching matters when a participant leaves: an audio element left playing a
+          // silent track keeps the call "live" in the browser's eyes.
+          track.detach().forEach((element) => element.remove());
+          return;
+        }
         // Clearing the right element matters more than it looks: a screen track left
         // attached to its video element freezes on its last frame when the share ends,
         // which reads as if the other person were still showing their screen.
@@ -240,6 +297,12 @@ export class CallSession {
       } catch {
         // A track already stopped elsewhere is not a failure worth reporting.
       }
+    }
+    // The incoming sound goes too: leaving the shared audio element playing after the room
+    // is gone would keep a dead call audible.
+    if (remoteAudioElement) {
+      remoteAudioElement.pause();
+      remoteAudioElement.srcObject = null;
     }
     this.listeners.onRemoteVideo(null);
   }
