@@ -195,8 +195,11 @@ export default function GameModal({ open, onClose }: GameModalProps) {
         {current.kind === "cards" && (
           <CardTable
             state={current.state}
-            playerId={currentPlayer(current.state)}
-            hidden={false}
+            // The seat at the screen is always «Вы». Showing the hand of whoever is on turn
+            // would put the opponent's cards on screen - in a bot game the player would simply
+            // read the bot's hand.
+            playerId="Вы"
+            hidden={current.mode === "bot" && currentPlayer(current.state) !== "Вы"}
             onPlay={(cardId) => {
               const card = current.state.cards[cardId];
               if (card.color === null) {
