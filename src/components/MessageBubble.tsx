@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Forward, MessageCircle, MoreVertical, Paperclip, PencilLine, Pin, Send, Star, Trash2, X } from "lucide-react";
+import { Flag, Forward, MessageCircle, MoreVertical, Paperclip, PencilLine, Pin, Send, Star, Trash2, X } from "lucide-react";
 import Avatar from "./Avatar";
 import VoicePlayer from "./VoicePlayer";
 import { friends } from "../lib/constants";
@@ -278,6 +278,8 @@ type MessageBubbleProps = {
   onEdit: () => void;
   /** Removes the message for this account only. */
   onDeleteLocal: () => void;
+  /** Opens the complaint dialog; absent for messages that cannot be reported. */
+  onReport?: () => void;
   /** Removes it for everyone; only offered to the author. */
   onDelete: () => void;
   onGameInvite: () => void;
@@ -307,6 +309,7 @@ export default function MessageBubble({
   onEffect,
   onEdit,
   onDeleteLocal,
+  onReport,
   onDelete,
   onGameInvite,
 }: MessageBubbleProps) {
@@ -582,6 +585,14 @@ export default function MessageBubble({
               {message.mine && (
                 <button type="button" onClick={onDelete} aria-label="Удалить у всех">
                   <Trash2 size={13} /> У всех
+                </button>
+              )}
+              {/* Only other people's messages can be reported: complaining about yourself is a
+                  mistake, not a request. Offered only once the message exists on the server,
+                  because a complaint needs something to point at. */}
+              {!message.mine && message.remoteId && onReport && (
+                <button type="button" onClick={onReport} aria-label="Пожаловаться на сообщение">
+                  <Flag size={13} /> Пожаловаться
                 </button>
               )}
             </div>

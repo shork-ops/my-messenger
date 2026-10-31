@@ -33,6 +33,7 @@ import { useMobileViewport } from "./hooks/useMobileViewport";
 // Each is its own chunk, so the first screen does not download what it may never open.
 // `Modals` exports four dialogs from one file and keeps one chunk between them.
 const GameModal = lazy(() => import("./components/GameModal"));
+const ReportModal = lazy(() => import("./components/ReportModal"));
 const SettingsModal = lazy(() => import("./components/SettingsModal"));
 const VideoNoteRecorder = lazy(() => import("./components/VideoNoteRecorder"));
 const ShortcutHelp = lazy(() => import("./components/ShortcutHelp"));
@@ -44,6 +45,9 @@ const PollModal = lazy(() => import("./components/Modals").then((m) => ({ defaul
 
 export default function App() {
   const [settingsSection, setSettingsSection] = useState<SettingsSectionId | null>(null);
+  // The complaint dialog needs the chat and message ids from the server, not the local ones:
+  // only a stored message can be pointed at. Kept here because it outlives one bubble.
+  const [reportTarget, setReportTarget] = useState<{ chatId: string; messageId: string | null } | null>(null);
   const {
     about,
     accountId,
@@ -434,6 +438,13 @@ export default function App() {
         onDelete={(messageId) => void deleteMessage(messageId)}
         onDeleteLocal={(messageId) => void deleteMessageLocal(messageId)}
         onGameInvite={() => setActiveGame("Каталог")}
+        onReportMessage={(chatRemoteId, messageRemoteId) => {
+          if (!chatRemoteId) {
+            action("Разговор ещё не сохранён на сервере — пожаловаться пока нельзя");
+            return;
+          }
+          setReportTarget({ chatId: chatRemoteId, messageId: messageRemoteId });
+        }}
         typingNames={typingUsers.map((user) => user.name)}
         uploadProgress={uploadProgress}
         failedUploads={pendingUploadsForChat}
@@ -568,6 +579,12 @@ export default function App() {
           onRemoveMember={(userId) => void kickMember(userId)}
           onLeaveGroup={() => void leaveGroup()}
         />
+      )}
+
+      {reportTarget && (
+        <Suspense fallback={null}>
+          <ReportModal target={reportTarget} onClose={() => setReportTarget(null)} />
+        </Suspense>
       )}
 
       {/* The game screen owns its own sessions; the app only decides whether it is on screen. */}

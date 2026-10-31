@@ -77,6 +77,8 @@ type ConversationPanelProps = {
   onDelete: (messageId: number) => void;
   onDeleteLocal: (messageId: number) => void;
   onGameInvite: () => void;
+  /** Opens the complaint dialog for a message that exists on the server. */
+  onReportMessage: (chatRemoteId: string | null, messageRemoteId: string | null) => void;
   typingNames: string[];
   /** Live upload state for the file being sent, if any. */
   uploadProgress: { name: string; percent: number; stage: string } | null;
@@ -148,6 +150,7 @@ export default function ConversationPanel({
   onDelete,
   onDeleteLocal,
   onGameInvite,
+  onReportMessage,
   typingNames,
   uploadProgress,
   failedUploads,
@@ -597,6 +600,7 @@ export default function ConversationPanel({
                 actionsOpen={actionsOpenId === message.id}
                 receipt={chat.remoteId ? receiptVisible(receiptFor(message, chat.memberReadAt ?? {}, accountId), privacyValue.readReceipts) : null}
                 onToggleActions={() => onToggleActions(message.id)}
+                onReport={() => onReportMessage(chat.remoteId ?? null, message.remoteId ?? null)}
                 onVote={(optionId) => onVote(message.id, optionId)}
                 onToggleReaction={(emoji) => onToggleReaction(message.id, emoji)}
                 onRetry={() => onRetry?.(message.id)}
