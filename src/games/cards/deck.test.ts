@@ -407,6 +407,6 @@ describe("the deck never leaks or duplicates", () => {
   it("describes a card in words, not by colour alone", () => {
     // Colour must be doubled by a word, or a colour-blind player cannot tell red from green.
     expect(describeCard({ id: "x", color: "red", kind: "number", value: 7 })).toBe("красный 7");
-    expect(describeCard({ id: "y", color: null, kind: "wild4", value: null })).toBe("+4");
+    expect(describeCard({ id: "y", color: null, kind: "wild4", value: null })).toBe("дикая карта +4");
   });
 });

@@ -20,6 +20,8 @@ describe("the chess board", () => {
   it("says what is on every square, so it can be read without seeing it", () => {
     expect(squareLabel({ color: "w", type: "k" }, 60)).toBe("e1, белый король");
     expect(squareLabel({ color: "b", type: "n" }, 1)).toBe("b8, чёрный конь");
+    expect(squareLabel({ color: "b", type: "r" }, 0)).toBe("a8, чёрная ладья");
+    expect(squareLabel({ color: "w", type: "p" }, 48)).toBe("a2, белая пешка");
     expect(squareLabel(null, 28)).toBe("e5");
     expect(squareLabel(null, 36)).toBe("e4");
   });

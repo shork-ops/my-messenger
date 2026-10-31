@@ -482,8 +482,10 @@ function playCard(
 
 /** A card as a player would say it out loud. */
 export function describeCard(card: Card): string {
-  if (card.kind === "wild") return "смена цвета";
-  if (card.kind === "wild4") return "+4";
+  // A label has to stand on its own when it is read aloud: "+4" alone says nothing about being
+  // a card, and neither does "смена цвета".
+  if (card.kind === "wild") return "дикая карта, смена цвета";
+  if (card.kind === "wild4") return "дикая карта +4";
   const colour = card.color ? COLOR_LABEL[card.color] : "";
   if (card.kind === "number") return `${colour} ${card.value}`;
   return `${colour} ${KIND_LABEL[card.kind]}`;

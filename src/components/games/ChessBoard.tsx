@@ -43,10 +43,15 @@ const NAME: Record<PieceType, string> = {
   p: "пешка",
 };
 
+/** Feminine nouns among the pieces: «ладья», «пешка». The rest are masculine. */
+const FEMININE = new Set<PieceType>(["r", "p"]);
+
 export function squareLabel(piece: Piece | null, index: number): string {
   const square = squareName(index);
   if (!piece) return square;
-  const colour = piece.color === "w" ? "белый" : "чёрный";
+  // The adjective has to agree with the noun: «чёрная ладья», but «чёрный конь».
+  const feminine = FEMININE.has(piece.type);
+  const colour = piece.color === "w" ? (feminine ? "белая" : "белый") : feminine ? "чёрная" : "чёрный";
   return `${square}, ${colour} ${NAME[piece.type]}`;
 }
 
