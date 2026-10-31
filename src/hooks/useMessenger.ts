@@ -19,6 +19,7 @@ import { useComposer } from "./useComposer";
 import { useChatSelection } from "./useChatSelection";
 import { useGroupAdmin } from "./useGroupAdmin";
 import { usePollsAndReactions } from "./usePollsAndReactions";
+import { useAccountSettings } from "./useAccountSettings";
 import {
   DEFAULT_PRIVACY,
   blockUser,
@@ -731,45 +732,8 @@ export function useMessenger() {
    * only ever written to local state.
    */
 
-  async function changePrivacy(next: PrivacyPreferences) {
-    const client = supabase;
-    const previous = privacy;
-    setPrivacy(next);
-    if (!client || !accountId) return;
-    setPrivacySaving(true);
-    const result = await savePrivacyPreferences(client, accountId, next);
-    setPrivacySaving(false);
-    if (!result.ok) {
-      setPrivacy(previous);
-      action("Не удалось сохранить настройку приватности");
-    }
-  }
 
-  async function unblockPerson(userId: string) {
-    const client = supabase;
-    if (!client) return;
-    const result = await unblockUser(client, userId);
-    if (!result.ok) {
-      action(result.message);
-      return;
-    }
-    setBlockedEntries((current) => current.filter((entry) => !entry.startsWith(`${userId}:`)));
-    action("Пользователь разблокирован");
-  }
 
-  async function confirmDeleteAccount() {
-    const client = supabase;
-    if (!client) return;
-    if (!window.confirm("Удалить аккаунт навсегда? Это действие нельзя отменить.")) return;
-    setDeletingAccount(true);
-    const result = await deleteAccount(client);
-    setDeletingAccount(false);
-    if (!result.ok) {
-      action(result.message);
-      return;
-    }
-    action("Аккаунт удалён");
-  }
 
 
 
@@ -961,73 +925,8 @@ export function useMessenger() {
     }
   }, [accountId, deviceId]);
 
-  async function signOutOtherDevices() {
-    const client = supabase;
-    if (!client) {
-      action("Нет подключения к Supabase");
-      return;
-    }
-    setSigningOutOthers(true);
-    try {
-      // scope "others" keeps this session and revokes the rest - the point of the
-      // button is to stay here and end everywhere else.
-      const { error } = await client.auth.signOut({ scope: "others" });
-      if (error) {
-        action("Не удалось завершить другие сессии");
-        return;
-      }
-      const kept = devices.filter((device) => device.deviceId === deviceId);
-      try {
-        window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(kept));
-      } catch {
-        // Nothing to record; the sign-out itself already happened.
-      }
-      setDevices(kept);
-      action("Другие сессии завершены");
-    } finally {
-      setSigningOutOthers(false);
-    }
-  }
 
-  async function changeVisibility(next: VisibilitySettings) {
-    const previous = visibility;
-    setVisibilityState(next);
-    const client = supabase;
-    if (!client || !accountId) {
-      action("Настройка сохранена");
-      return;
-    }
-    const { error } = await client
-      .from("profiles")
-      .update({ profile_visibility: next.profile, message_policy: next.messages })
-      .eq("id", accountId);
-    if (error) {
-      // Put it back rather than showing a switch that saved nothing.
-      setVisibilityState(previous);
-      action("Не удалось сохранить настройку видимости");
-      return;
-    }
-    action(describeVisibility(next));
-  }
 
-  async function clearCache() {
-    setClearingCache(true);
-    try {
-      for (const key of cacheKeys) window.localStorage.removeItem(key);
-      // The service-worker cache is separate from local storage and is the part
-      // that actually grows.
-      if ("caches" in window) {
-        const names = await caches.keys();
-        await Promise.all(names.map((name) => caches.delete(name)));
-      }
-      setCacheKeys([]);
-      action("Кеш очищен");
-    } catch {
-      action("Не удалось очистить кеш");
-    } finally {
-      setClearingCache(false);
-    }
-  }
 
   async function applyMute(optionId: MuteOptionId) {
     if (muteChatId === null) return;
@@ -1291,6 +1190,32 @@ export function useMessenger() {
     setPollQuestion,
     pollQuestion,
     pollOptions,
+  });
+
+  const {
+    changePrivacy,
+    changeVisibility,
+    clearCache,
+    signOutOtherDevices,
+    confirmDeleteAccount,
+    unblockPerson,
+  } = useAccountSettings({
+    accountId: accountId ?? null,
+    notify: action,
+    privacy,
+    setPrivacy,
+    setPrivacySaving,
+    visibility,
+    setVisibilityState,
+    cacheKeys,
+    setCacheKeys,
+    setClearingCache,
+    devices,
+    deviceId,
+    setDevices,
+    setSigningOutOthers,
+    setDeletingAccount,
+    setBlockedEntries,
   });
 
   return {
