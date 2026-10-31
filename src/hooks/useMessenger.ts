@@ -20,6 +20,7 @@ import { useChatSelection } from "./useChatSelection";
 import { useGroupAdmin } from "./useGroupAdmin";
 import { usePollsAndReactions } from "./usePollsAndReactions";
 import { useAccountSettings } from "./useAccountSettings";
+import { useChatCreation } from "./useChatCreation";
 import {
   DEFAULT_PRIVACY,
   blockUser,
@@ -568,110 +569,8 @@ export function useMessenger() {
           .filter((name) => name.toLocaleLowerCase("ru-RU").startsWith(mentionQuery.toLocaleLowerCase("ru-RU")))
           .slice(0, 6);
 
-  async function openDirectChat(user: UserSearchResult) {
-    const client = supabase;
-    if (!client || !accountId) {
-      action("Войди в аккаунт, чтобы начать переписку");
-      return;
-    }
-    const existing = findDirectChatByPeer(chats, user.id);
-    if (existing) {
-      selectChat(existing);
-      setSearch("");
-      setActiveNav("Чаты");
-      return;
-    }
-    setOpeningUserId(user.id);
-    const { data, error } = await client.rpc("create_direct_chat", { target_user_id: user.id });
-    setOpeningUserId(null);
-    if (error || !data) {
-      action(error?.message.includes("function") ? "Выполни SQL-миграцию direct_chats в Supabase" : "Не удалось создать диалог. Проверь SQL-миграцию и попробуй ещё раз.");
-      return;
-    }
-    const remoteId = data as string;
-    const known = chats.find((chat) => chat.remoteId === remoteId);
-    if (known) {
-      setChats((current) => updateChat(current, known.id, (chat) => ({ ...chat, peerId: user.id, avatarPath: user.avatar_path ?? null })));
-      selectChat(known);
-      setSearch("");
-      return;
-    }
-    const created = directChatFromSearch(remoteId, user, profileName);
-    const localId = created.id;
-    setChats((current) => (current.some((chat) => chat.remoteId === remoteId) ? current : [created, ...current]));
-    setActiveId(localId);
-    setMobileView("chat");
-    setOpenedChatId(localId);
-    setSearch("");
-    setDraft("");
-    setActiveNav("Чаты");
-    action(`Диалог с @${user.username} создан`);
-  }
-
-  /**
-   * Uploads one picture and returns what the message will carry for it.
-   *
-   * Shared by single pictures and albums so a photo looks and costs the same either way; the
-   * compression and the size rules are not worth having in two places.
-   */
 
 
-  async function createChat(event: FormEvent) {
-    event.preventDefault();
-    const name = newChatName.trim();
-    if (!name) return;
-    const wantsGroup = isDemoMode ? newChatIsGroup : true;
-    if (wantsGroup) {
-      if (!supabase || !accountId) {
-        action("Войди в аккаунт, чтобы создать облачную группу");
-        return;
-      }
-      const { data, error } = await supabase.rpc("create_group_chat", { group_title: name });
-      const createdRow = Array.isArray(data) ? data[0] : data;
-      if (error || !createdRow?.chat_id) {
-        action(error?.message?.includes("create_group_chat") ? "Примени миграцию 20261028_cloud_group_chats.sql в Supabase" : "Не удалось создать облачную группу");
-        return;
-      }
-      const created: Chat = {
-        id: numericId(createdRow.chat_id),
-        remoteId: createdRow.chat_id,
-        name,
-        avatar: "👥",
-        color: "group",
-        preview: "Группа создана",
-        time: clockTime(),
-        messages: [],
-        group: true,
-        members: [profileName],
-        inviteCode: createdRow.invite_code,
-      };
-      setChats((current) => [created, ...current]);
-      setActiveId(created.id);
-      setDraft("");
-      setNewChatName("");
-      setNewChatOpen(false);
-      setActiveNav("Чаты");
-      action("Облачная группа создана");
-      return;
-    }
-    const existing = chats.find((chat) => chat.name.toLocaleLowerCase("ru-RU") === name.toLocaleLowerCase("ru-RU"));
-    if (existing) {
-      setActiveId(existing.id);
-      setNewChatOpen(false);
-      setNewChatName("");
-      action("Этот чат уже существует");
-      return;
-    }
-    const id = Date.now();
-    const created: Chat = { id, name, avatar: name.slice(0, 1).toUpperCase(), color: "blue", preview: "Новый чат", time: clockTime(), messages: [] };
-    setChats((current) => [created, ...current]);
-    setActiveId(id);
-    setDraft("");
-    setNewChatName("");
-    setNewChatOpen(false);
-    setActiveNav("Чаты");
-    action(`Чат «${name}» создан локально`);
-  }
 
   function chooseMention(name: string) {
     setDraft((current) => current.replace(/(?:^|\s)@[^\s@]*$/, (match) => `${match.startsWith(" ") ? " " : ""}@${name} `));
@@ -1216,6 +1115,26 @@ export function useMessenger() {
     setSigningOutOthers,
     setDeletingAccount,
     setBlockedEntries,
+  });
+
+  const { createChat, openDirectChat } = useChatCreation({
+    accountId: accountId ?? null,
+    profileName,
+    setChats,
+    setActiveId,
+    setActiveNav,
+    setDraft,
+    setNewChatName,
+    setNewChatOpen,
+    setMobileView,
+    setOpenedChatId,
+    setOpeningUserId,
+    setSearch,
+    notify: action,
+    chats,
+    newChatName,
+    newChatIsGroup,
+    selectChat,
   });
 
   return {
