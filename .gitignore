@@ -69,3 +69,7 @@ qa-shots/
 # licence notice, so the dictionary can be verified without the source. Re-download it from the URL in
 # scripts/data/NOTICE.md when the word list actually needs rebuilding - it does not belong in review.
 scripts/data/russian_nouns.raw.txt
+
+# Hand-off copies of the files to apply by hand. The originals live in supabase/ and are the source of
+# truth; this is a convenience export, not a second copy to maintain in git.
+deploy-bundle/
