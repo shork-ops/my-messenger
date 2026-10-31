@@ -931,6 +931,15 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .upload-progress { margin: 8px 16px 0; padding: 9px 12px; border: 1px solid var(--border); border-radius: 11px; background: #0d0e11; }
 .upload-progress-row { display: flex; align-items: center; justify-content: space-between; color: var(--fg-secondary); font-size: 12px; }
 .upload-progress-row b { color: var(--yellow); }
+.upload-retry { margin: 8px 16px 0; padding: 8px 12px; border: 1px solid var(--red); border-radius: 11px; background: #140f10; display: flex; flex-direction: column; gap: 6px; }
+.upload-retry-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.upload-retry-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg-secondary); font-size: 12px; }
+.upload-retry-button { flex: none; padding: 4px 10px; border: 1px solid var(--border); border-radius: 8px; background: #1a1b20; color: var(--fg); font-size: 12px; cursor: pointer; }
+.upload-retry-button:hover { background: #23242a; }
+.upload-retry-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.upload-retry-dismiss { flex: none; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--fg-muted); cursor: pointer; }
+.upload-retry-dismiss:hover { background: #23242a; color: var(--fg); }
+
 .upload-track { height: 4px; margin: 7px 0 5px; border-radius: 3px; background: #1d1e23; overflow: hidden; }
 .upload-track i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, #ffd400, #ffb800); transition: width 0.25s ease; }
 .upload-progress small { color: var(--fg-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
@@ -1561,4 +1570,83 @@ button.conversation-title { border: 0; padding: 0; background: transparent; text
   .message-action-wrap { margin: 0; }
   .message-menu-toggle { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); }
   .message-menu-toggle:focus-visible, .message-menu-toggle[aria-expanded="true"] { position: relative; width: 44px; height: 44px; clip-path: none; }
+}
+
+/* Keyboard focus must be visible everywhere.
+   Several components remove the outline on purpose (.search-box input, .composer textarea,
+   .emoji-search input ...) because their wrapper draws the border. That made the focus ring
+   disappear for anyone navigating with Tab: the field was reached, and nothing said so.
+   These rules come last and outrank the resets, so focus is always drawn. */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+button:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--yellow);
+  outline-offset: 2px;
+}
+/* A field that sits inside a rounded wrapper would draw the ring inside its own box and clip
+   it; showing it on the wrapper instead keeps the shape and the contrast. */
+.search-box:focus-within,
+.emoji-search:focus-within,
+.message-search:focus-within {
+  outline: 2px solid var(--yellow);
+  outline-offset: 2px;
+}
+.search-box input:focus-visible,
+.emoji-search input:focus-visible,
+.message-search input:focus-visible {
+  outline: 0;
+}
+
+/* High contrast, asked for at the operating system level.
+   People who turn this on have said the default borders and secondary text are too faint.
+   Nothing here changes the layout: only lines get stronger and dim text gets brighter. */
+@media (prefers-contrast: more) {
+  :root {
+    --border: #5c5d66;
+    --border-strong: #8d8e99;
+    --fg-secondary: #e8e8ec;
+    --fg-muted: #c9c9d1;
+  }
+  .chat-row,
+  .folder-bar button,
+  .settings-nav-item,
+  .message-bubble,
+  .search-box,
+  .composer textarea {
+    border-width: 2px;
+  }
+  .message-time,
+  .chat-preview,
+  .typing-indicator,
+  .upload-progress small {
+    opacity: 1;
+  }
+}
+
+/* Forced colours: the system replaces our palette, and the only job left is not to fight it.
+   Shadows and background images are dropped so text stays legible, and focus keeps a ring
+   the system colour can be seen against. */
+@media (forced-colors: active) {
+  .wallpaper-layer,
+  .avatar-glow,
+  .modal-backdrop::before {
+    display: none;
+  }
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+  .message-bubble,
+  .chat-row,
+  .settings-nav-item {
+    border: 1px solid CanvasText;
+  }
 }

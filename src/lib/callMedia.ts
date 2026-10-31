@@ -150,7 +150,14 @@ export class CallSession {
         if (isScreenTrack(publication?.trackName)) this.listeners.onRemoteScreen(null);
         else this.listeners.onRemoteVideo(null);
       })
-      .on(RoomEvent.Disconnected, () => this.emit({ connected: false, micEnabled: false, cameraEnabled: false, screenSharing: false }));
+      .on(RoomEvent.Disconnected, () => {
+        // Losing the connection does not stop the microphone by itself. Emitting "mic off"
+        // only told the interface; the device kept capturing, and the browser's recording
+        // indicator stayed on after the call had visibly ended - the worst kind of silent
+        // surveillance, made worse by a screen that says the opposite.
+        this.releaseDevices(room);
+        this.emit({ connected: false, micEnabled: false, cameraEnabled: false, screenSharing: false });
+      });
 
     try {
       await room.connect(token.url, token.token, { autoSubscribe: true });
@@ -216,6 +223,25 @@ export class CallSession {
       this.emit({ screenSharing: false });
       return shareErrorMessage(name);
     }
+  }
+
+  /**
+   * Stops every local track without disturbing the room.
+   *
+   * Used when the connection is gone: there is nothing left to tell, but the microphone and
+   * the camera are still held, and the browser says so with an indicator that will not go away
+   * until the tracks are stopped. Separate from `dispose` because disposing also tears down the
+   * room, and a room that has just disconnected still has to be tidied up by its owner.
+   */
+  private releaseDevices(room: Room): void {
+    for (const publication of room.localParticipant.getTrackPublications()) {
+      try {
+        publication.track?.stop();
+      } catch {
+        // A track already stopped elsewhere is not a failure worth reporting.
+      }
+    }
+    this.listeners.onRemoteVideo(null);
   }
 
   /** Leaves the room and releases the microphone light. */

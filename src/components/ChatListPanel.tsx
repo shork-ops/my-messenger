@@ -110,7 +110,7 @@ export default function ChatListPanel({
       <div className="search-row">
         <label className="search-box">
           <Search size={18} />
-          <input value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="Поиск чатов или @username..." />
+          <input value={search} onChange={(event) => onSearchChange(event.target.value)} aria-label="Поиск чатов" placeholder="Поиск чатов или @username..." />
         </label>
         <button className="square-action" onClick={onNewChat} aria-label="Новый чат" title="Создать чат">
           <PencilLine size={20} />

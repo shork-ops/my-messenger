@@ -16,6 +16,7 @@ import { jumpButton, scrollTarget } from "../lib/jumpToUnread";
 import { dateLabel, lastSeenLabel } from "../lib/format";
 import { messageRuns } from "../lib/messageRuns";
 import { receiptFor } from "../lib/readState";
+import type { PendingAttachment } from "../lib/retryQueue";
 import { receiptVisible } from "../lib/privacyPrefs";
 import type { useServerSearch } from "../hooks/useServerSearch";
 import type { Chat, Message, MessageEffect } from "../types";
@@ -79,6 +80,9 @@ type ConversationPanelProps = {
   typingNames: string[];
   /** Live upload state for the file being sent, if any. */
   uploadProgress: { name: string; percent: number; stage: string } | null;
+  failedUploads: PendingAttachment[];
+  onRetryUpload: (entry: PendingAttachment) => void;
+  onDismissUpload: (key: string) => void;
   peerOnline: boolean;
   peerLastSeenAt: number | null;
   endRef: MutableRefObject<HTMLDivElement | null>;
@@ -146,6 +150,9 @@ export default function ConversationPanel({
   onGameInvite,
   typingNames,
   uploadProgress,
+  failedUploads,
+  onRetryUpload,
+  onDismissUpload,
   peerOnline,
   peerLastSeenAt,
   endRef,
@@ -635,6 +642,30 @@ export default function ConversationPanel({
             <i style={{ width: `${uploadProgress.percent}%` }} />
           </div>
           <small>{uploadProgress.name}</small>
+        </div>
+      )}
+
+      {failedUploads.length > 0 && (
+        // The file is still here, so trying again does not mean finding it again.
+        <div className="upload-retry" role="status">
+          {failedUploads.map((entry) => (
+            <div className="upload-retry-row" key={entry.key}>
+              <span className="upload-retry-name" title={entry.file.name}>
+                {entry.file.name}
+              </span>
+              <button type="button" className="upload-retry-button" onClick={() => onRetryUpload(entry)}>
+                Повторить
+              </button>
+              <button
+                type="button"
+                className="upload-retry-dismiss"
+                aria-label={`Не повторять \u00ab${entry.file.name}\u00bb`}
+                onClick={() => onDismissUpload(entry.key)}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ))}
         </div>
       )}
 

@@ -30,6 +30,12 @@ jobs:
         run: npm test
       - name: Single-view database permissions
         run: npm run test:db
+      # The first screen has a ceiling: the build must stay under it. Splitting the bundle
+      # once was easy to undo by accident, and the only symptom would be a slower phone.
+      - name: Bundle budget
+        run: |
+          npm run build
+          npm run check:bundle
 
   e2e:
     runs-on: ubuntu-latest

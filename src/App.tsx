@@ -25,6 +25,7 @@ import { isDemoMode } from "./lib/constants";
 import { useMessenger } from "./hooks/useMessenger";
 import { useCallRecording } from "./hooks/useCallRecording";
 import { useAccounts } from "./hooks/useAccounts";
+import { pendingForChat } from "./lib/retryQueue";
 import "./styles.css";
 import { useMobileViewport } from "./hooks/useMobileViewport";
 
@@ -263,6 +264,9 @@ export default function App() {
     unreadTotal,
     uploadAvatar,
     uploadProgress,
+    failedUploads,
+    retryFailedUpload,
+    dismissFailedUpload,
     userSearchLoading,
     username,
     usernameSaving,
@@ -276,6 +280,8 @@ export default function App() {
   // Recording belongs to the call surface, but the chat name - which names the saved file - is
   // known here. The accounts list describes this browser, so it lives beside the call.
   useMobileViewport();
+  // A file that failed in one conversation is not offered in another.
+  const pendingUploadsForChat = pendingForChat(failedUploads, activeChat.id);
   const callRecording = useCallRecording(activeChat.name);
   const accounts = useAccounts();
 
@@ -450,6 +456,9 @@ export default function App() {
         onGameInvite={() => action("Приглашение в игру скоро появится")}
         typingNames={typingUsers.map((user) => user.name)}
         uploadProgress={uploadProgress}
+        failedUploads={pendingUploadsForChat}
+        onRetryUpload={retryFailedUpload}
+        onDismissUpload={dismissFailedUpload}
         peerOnline={peerOnline}
         peerLastSeenAt={peerLastSeenAt}
         endRef={messagesEndRef}

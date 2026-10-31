@@ -1,4 +1,7 @@
 # Logs
+# Local build scratch space (a blocked %TEMP% breaks esbuild)
+.tmpbuild/
+
 logs
 *.log
 npm-debug.log*

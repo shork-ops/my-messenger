@@ -1,0 +1,24 @@
+{
+  "measuredAt": "2026-10-31T05:00:20.932Z",
+  "viewport": "1280x900",
+  "results": [
+    {
+      "count": 5000,
+      "openMs": 37,
+      "domNodes": 848,
+      "renderedMessages": 40,
+      "messageLines": 40,
+      "longestTask": 85,
+      "totalBlockingMs": 35
+    },
+    {
+      "count": 50000,
+      "openMs": 88,
+      "domNodes": 853,
+      "renderedMessages": 40,
+      "messageLines": 40,
+      "longestTask": 74,
+      "totalBlockingMs": 24
+    }
+  ]
+}

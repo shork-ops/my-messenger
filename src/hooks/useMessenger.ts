@@ -67,6 +67,7 @@ import { usePrivacyPrefs } from "../hooks/usePrivacyPrefs";
 import { stickerById, stickerMarkup } from "../lib/stickers";
 import { formatSendAt } from "../lib/scheduling";
 import { splitIntoAlbums } from "../lib/albums";
+import { addPending, pendingForChat, removePending, type PendingAttachment } from "../lib/retryQueue";
 import { useLanguage } from "../hooks/useLanguage";
 import { usePasscode } from "../hooks/usePasscode";
 import { useTwoFactor } from "../hooks/useTwoFactor";
@@ -149,6 +150,9 @@ export function useMessenger() {
   const [membersRefreshKey, setMembersRefreshKey] = useState(0);
   const [pinnedMessageIds, setPinnedMessageIds] = useState<Set<number>>(() => new Set());
   const [uploadProgress, setUploadProgress] = useState<{ name: string; percent: number; stage: string } | null>(null);
+  // Files that failed to send, kept in memory so the person can retry without finding them
+  // again. Deliberately not persisted: a photo should not survive the tab closing.
+  const [failedUploads, setFailedUploads] = useState<PendingAttachment[]>([]);
   // A reply target is a message, so it can only be restored once the chats are known.
   // It starts empty and the restore pass below fills it from the stored draft.
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
@@ -440,6 +444,34 @@ export function useMessenger() {
    * kind of data missing from the archive would be a silent loss, which is the one failure a
    * backup cannot afford.
    */
+  /**
+   * Sends a file that failed earlier, without asking for it again.
+   *
+   * The file is taken off the shelf before the attempt starts: if it fails again the upload
+   * path puts it back, so a repeated failure does not leave two copies of the same entry.
+   */
+  async function retryFailedUpload(entry: PendingAttachment) {
+    setFailedUploads((current) => removePending(current, entry.key));
+    const transfer = new DataTransfer();
+    transfer.items.add(entry.file);
+    // The upload path reads the chosen files from an input event, so the retry goes through
+    // the same door rather than a second copy of the same logic that could drift.
+    const input = fileInputRef.current;
+    if (!input) {
+      action("Повторить не удалось: поле выбора файла недоступно");
+      return;
+    }
+    Object.defineProperty(input, "files", { value: transfer.files, configurable: true });
+    if (entry.viewOnce) input.dataset.viewOnce = "true";
+    await handleAttachment({ target: input } as unknown as ChangeEvent<HTMLInputElement>, {
+      viewOnce: entry.viewOnce,
+    });
+  }
+
+  function dismissFailedUpload(key: string) {
+    setFailedUploads((current) => removePending(current, key));
+  }
+
   function exportEverything() {
     const everything = chats
       .filter((chat) => chat.messages.length > 0 || chat.remoteId)
@@ -736,7 +768,22 @@ export function useMessenger() {
         // message that is missing the picture the person meant to send.
         await client.storage.from(viewOnce ? "view-once-media" : "chat-media").remove(paths);
         setUploadProgress(null);
-        action("Не удалось загрузить файл. Проверь миграцию online_media в Supabase.");
+        // Keep the files so "try again" does not mean "find the file again".
+        const reason = "Не удалось загрузить файл. Проверь миграцию online_media в Supabase.";
+        setFailedUploads((current) =>
+          group.reduce(
+            (list, item) =>
+              addPending(list, {
+                key: `${chat.remoteId}:${item.name}:${item.size}:${item.lastModified}`,
+                file: item,
+                chatId: activeId,
+                viewOnce,
+                reason,
+              }),
+            current
+          )
+        );
+        action(reason);
         return;
       }
 
@@ -2192,6 +2239,9 @@ export function useMessenger() {
     scheduleOpen,
     exportChat,
     exportEverything,
+    failedUploads,
+    retryFailedUpload,
+    dismissFailedUpload,
     fileInputRef,
     folderChats,
     folderPickerChat,
