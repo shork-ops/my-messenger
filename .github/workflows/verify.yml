@@ -30,6 +30,8 @@ jobs:
         run: npm test
       - name: Single-view database permissions
         run: npm run test:db
+      - name: Moderation queue permissions
+        run: npm run test:reports
       # The first screen has a ceiling: the build must stay under it. Splitting the bundle
       # once was easy to undo by accident, and the only symptom would be a slower phone.
       - name: Bundle budget

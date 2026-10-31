@@ -5,6 +5,7 @@ import { appendMessage, applyRemoteMemberRead, mapMessagesByRemoteId, planRealti
 import { mapMessageRow } from "../lib/messageSync";
 import { canMarkRead } from "../lib/readState";
 import type { Chat, ChatMessageRow, Message, MessageEffect } from "../types";
+import { channelStatus, isRecovery } from "../lib/catchUp";
 
 type UseRealtimeChatOptions = {
   accountId: string | null;
@@ -18,15 +19,24 @@ type UseRealtimeChatOptions = {
   visible: { chatOpen: boolean; conversationOnScreen: boolean; documentVisible: boolean };
   /** Called when an event arrives for a chat that is not loaded yet. */
   onMissingChat?: (chatId: string) => Promise<void> | void;
+  /**
+   * Called when the subscription joins again after being lost.
+   *
+   * This is the moment messages written during the gap are missing from this device, and
+   * nothing on screen would say so.
+   */
+  onReconnect?: () => Promise<void> | void;
 };
 
-export function useRealtimeChat({ accountId, profileName, remoteId, setChats, visible, onMissingChat }: UseRealtimeChatOptions) {
+export function useRealtimeChat({ accountId, profileName, remoteId, setChats, visible, onMissingChat, onReconnect }: UseRealtimeChatOptions) {
   // The callback is held in a ref so that passing an inline arrow function does
   // not tear down and rebuild the subscription on every render. Doing that made
   // the channel re-join constantly, and events that arrived during a re-join were
   // lost.
   const onMissingChatRef = useRef(onMissingChat);
   onMissingChatRef.current = onMissingChat;
+  const onReconnectRef = useRef(onReconnect);
+  onReconnectRef.current = onReconnect;
   // Read inside the subscription, which is not rebuilt when the reader moves between
   // chats: a ref keeps it a value that is current rather than one from the first render.
   const visibleRef = useRef(visible);
@@ -35,6 +45,9 @@ export function useRealtimeChat({ accountId, profileName, remoteId, setChats, vi
   useEffect(() => {
     const client = supabase;
     if (!client || !accountId || !remoteId) return;
+    // Reset per subscription: a fresh channel has not joined yet, so its first join is not
+    // a recovery and must not trigger a refetch of a conversation that was just loaded.
+    let previousStatus: "joined" | "lost" | null = null;
     const channel = client
       .channel(`nexus-messages-${remoteId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "messages", filter: `chat_id=eq.${remoteId}` }, async (payload) => {
@@ -97,7 +110,13 @@ export function useRealtimeChat({ accountId, profileName, remoteId, setChats, vi
         const emojis = (reactions ?? []).map((item) => item.emoji);
         setChats((current) => mapMessagesByRemoteId(current, row.message_id!, (message) => ({ ...message, reactions: emojis })));
       })
-      .subscribe();
+      .subscribe((status) => {
+        // The subscription only reports what happens from now on. A drop and a rejoin means
+        // messages written in between were never delivered, so the conversation is refetched.
+        const next = channelStatus(status);
+        if (isRecovery(previousStatus, next)) void onReconnectRef.current?.();
+        if (next !== "other") previousStatus = next;
+      });
     return () => {
       void client.removeChannel(channel);
     };

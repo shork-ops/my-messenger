@@ -267,6 +267,11 @@ export function useMessenger() {
     // A message can arrive before the chat list has finished loading. Without
     // this the event was dropped and the message never appeared.
     onMissingChat: async () => reloadChatsRef.current?.(),
+    // When the socket drops and comes back, whatever was written in between was never
+    // delivered. The list is refetched from the database rather than patched by guesswork:
+    // a merge that only appends would hide a deletion, and one that replaces would drop a
+    // message that arrived while the fetch was in flight.
+    onReconnect: async () => reloadChatsRef.current?.(),
   });
   // Signed attachment URLs last an hour; keep them alive in a long-lived tab.
   useAttachmentRefresh({ chats, enabled: Boolean(accountId), setChats });

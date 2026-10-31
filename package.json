@@ -23,7 +23,8 @@
     "test:db": "node scripts/check-view-once.mjs",
     "deploy:reliability": "node scripts/deploy-reliability.mjs",
     "check:bundle": "node scripts/check-bundle-budget.mjs",
-    "bench": "node scripts/bench-conversations.mjs"
+    "bench": "node scripts/bench-conversations.mjs",
+    "test:reports": "node scripts/check-reports.mjs"
   },
   "dependencies": {
     "@capacitor/core": "^7.6.10",
