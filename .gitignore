@@ -57,3 +57,7 @@ qa-out.txt
 qa-acceptance.json
 qa-shots/
 .qa-env.json
+
+# Временные диагностические скрипты, которые запускаются через vite-node
+/*.mjs
+/*.cjs
