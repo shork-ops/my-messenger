@@ -11,6 +11,8 @@ import { stickerById } from "../lib/stickers";
 import { firstLink } from "../lib/links";
 import { useLinkCard } from "../hooks/useLinkCard";
 import LinkPreview from "./LinkPreview";
+import GameInviteCard from "./games/GameInviteCard";
+import { parseInvitation } from "../games/core/invitation";
 import AlbumGrid from "./AlbumGrid";
 import { formatBytes } from "../lib/media";
 import {
@@ -261,7 +263,6 @@ type MessageBubbleProps = {
   accountId: string | null;
   profileName: string;
   actionsOpen: boolean;
-  showGamePreview: boolean;
   receipt?: "sent" | "read" | null;
   onToggleActions: () => void;
   onVote: (optionId: string) => void;
@@ -292,7 +293,6 @@ export default function MessageBubble({
   accountId,
   profileName,
   actionsOpen,
-  showGamePreview,
   receipt,
   onToggleActions,
   onVote,
@@ -376,6 +376,9 @@ export default function MessageBubble({
   // message into a feed.
   const cardUrl = !message.poll && !message.attachment && !message.stickerId ? firstLink(message.text) : null;
   const linkCard = useLinkCard(cardUrl, Boolean(cardUrl));
+  // An invitation is recognised from the message text, so it survives a reload and arrives
+  // from the other side as an ordinary message rather than as a separate kind of event.
+  const invitation = !message.poll && !message.attachment && !message.stickerId ? parseInvitation(message.text) : null;
   return (
     <div
       data-remote-id={message.remoteId ?? undefined}
@@ -585,24 +588,12 @@ export default function MessageBubble({
           )}
         </div>
 
-        {showGamePreview && (
-          <div className="game-preview">
-            <div className="game-art">
-              <span>D</span>
-              <div className="art-orb orb-one" />
-              <div className="art-orb orb-two" />
-              <div className="art-orb orb-three" />
-            </div>
-            <div className="game-info">
-              <div>
-                <strong>Dota 2</strong>
-                <small>5 игроков · 19:42</small>
-              </div>
-              <button type="button" onClick={onGameInvite} aria-label="Пригласить в игру">
-                <Send size={16} />
-              </button>
-            </div>
-          </div>
+        {invitation && (
+          <GameInviteCard
+            invitation={invitation}
+            viewerIsInvited={!message.mine}
+            onOpen={onGameInvite}
+          />
         )}
       </div>
     </div>

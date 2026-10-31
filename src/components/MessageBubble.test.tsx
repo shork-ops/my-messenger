@@ -38,8 +38,7 @@ function renderBubble(
       autoloadMedia={false}
       accountId={null}
       profileName="Алексей"
-      actionsOpen={runs.actionsOpen ?? false}
-      showGamePreview
+      actionsOpen={runs.actionsOpen ?? false}
       onToggleActions={noop}
       onVote={noop}
       onToggleReaction={noop}

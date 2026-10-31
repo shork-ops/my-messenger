@@ -594,8 +594,7 @@ export default function ConversationPanel({
                 autoloadMedia={autoloadMedia}
                 accountId={accountId}
                 profileName={profileName}
-                actionsOpen={actionsOpenId === message.id}
-                showGamePreview={showGamePreview}
+                actionsOpen={actionsOpenId === message.id}
                 receipt={chat.remoteId ? receiptVisible(receiptFor(message, chat.memberReadAt ?? {}, accountId), privacyValue.readReceipts) : null}
                 onToggleActions={() => onToggleActions(message.id)}
                 onVote={(optionId) => onVote(message.id, optionId)}

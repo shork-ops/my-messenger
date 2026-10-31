@@ -51,7 +51,7 @@ const renderComposer = (overrides: Partial<ComponentProps<typeof Composer>> = {}
       onStickers={noop}
       onVideoNote={noop}
       onToggleVoice={noop}
-      onSubmit={noop}
+      onSubmit={noop} onGameInvite={noop}
       onCancelEdit={noop}
       onCancelReply={noop}
       onChooseMention={noop}

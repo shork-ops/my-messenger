@@ -174,6 +174,7 @@ export default function App() {
     selectChat,
     selfAvatarUrl,
     sendMessage,
+    sendGameInvitation,
     retryMessage,
     sendSticker,
     scheduleMessage,
@@ -432,7 +433,7 @@ export default function App() {
         }}
         onDelete={(messageId) => void deleteMessage(messageId)}
         onDeleteLocal={(messageId) => void deleteMessageLocal(messageId)}
-        onGameInvite={() => action("Приглашение в игру скоро появится")}
+        onGameInvite={() => setActiveGame("Каталог")}
         typingNames={typingUsers.map((user) => user.name)}
         uploadProgress={uploadProgress}
         failedUploads={pendingUploadsForChat}
@@ -465,6 +466,7 @@ export default function App() {
           onVideoNote: () => setNoteOpen(true),
           onToggleVoice: () => void startVoiceRecording(),
           onSubmit: sendMessage,
+        onGameInvite: (kind: "chess" | "cards" | "balda") => void sendGameInvitation(kind),
           onCancelEdit: () => {
             setEditingMessageId(null);
             setEditDraft("");

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent, MutableRefObject } from "react";
-import { CheckCheck, Clock, EyeOff, Image, Mic, Paperclip, Plus, Send, Smile, Sticker, Users, Video, X } from "lucide-react";
+import { CheckCheck, Clock, EyeOff, Image, Mic, Paperclip, Plus, Send, Smile, Sticker, Users, Video, X, Gamepad2 } from "lucide-react";
 import type { Message } from "../types";
 import { SUPPORTED_TYPES } from "../lib/media";
 
@@ -20,6 +20,8 @@ type ComposerProps = {
   onVideoNote: () => void;
   onToggleVoice: () => void;
   onSubmit: (event: FormEvent) => void;
+  /** Puts a game invitation into the draft, so it is sent like any other message. */
+  onGameInvite: (kind: "chess" | "cards" | "balda") => void;
   onCancelEdit: () => void;
   onCancelReply: () => void;
   onChooseMention: (name: string) => void;
@@ -48,6 +50,7 @@ export default function Composer({
   onVideoNote,
   onToggleVoice,
   onSubmit,
+  onGameInvite,
   onCancelEdit,
   onCancelReply,
   onChooseMention,
@@ -59,6 +62,7 @@ export default function Composer({
 }: ComposerProps) {
   const value = editing ? editDraft : draft;
   const [attachOpen, setAttachOpen] = useState(false);
+  const [gameMenuOpen, setGameMenuOpen] = useState(false);
   const [expressionOpen, setExpressionOpen] = useState(false);
   const expressionRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);

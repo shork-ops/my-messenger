@@ -53,6 +53,8 @@ import { useTextOutbox } from "./useTextOutbox";
 import { viewOnceReady } from "../lib/viewOnceCloud";
 import { exceedsMessageLimit, MESSAGE_TOO_LONG } from "../lib/messageLimits";
 import { useGames } from "../hooks/useGames";
+import { encodeInvitation } from "../games/core/invitation";
+import type { GameKind } from "../games/core/types";
 import { useChatCollection } from "../hooks/useChatCollection";
 import { useUserSearch } from "../hooks/useUserSearch";
 import { useCloudChats } from "../hooks/useCloudChats";
@@ -1271,6 +1273,22 @@ export function useMessenger() {
     setRevealMessageId(hitRemoteId ?? null);
   }
 
+  /**
+   * Sends a game invitation into the open chat.
+   *
+   * It goes through the draft and the ordinary send path on purpose: an invitation that took a
+   * second code path would be the one message that does not get delivery state, retries or the
+   * limit check.
+   */
+  async function sendGameInvitation(kind: GameKind) {
+    if (!activeChat) return;
+    // The names that go into the invitation are the ones the chat already shows.
+    const from = "Вы";
+    const to = activeChat.name;
+    setDraft(encodeInvitation({ kind, from, to, gameId: null }));
+    action("Приглашение готово — отправьте его сообщением.");
+  }
+
   async function sendMessage(event: FormEvent) {
     event.preventDefault();
     if (editingMessageId !== null) {
@@ -2292,6 +2310,7 @@ export function useMessenger() {
     selectChat,
     selfAvatarUrl,
     sendMessage,
+    sendGameInvitation,
     retryMessage,
     sendSticker,
     scheduleMessage,

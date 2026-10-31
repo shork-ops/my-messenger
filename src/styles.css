@@ -839,6 +839,15 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .balda-words span { padding: 6px 9px; border: 1px solid var(--border-strong); border-radius: 8px; background: #1a1b1f; color: #f0f0f2; font-size: 12px; }
 .balda-words b { margin-left: 4px; color: var(--yellow); }
 .game-feedback { padding: 11px 13px; border: 1px solid #5b4e17; border-radius: 10px; background: #211d0b; color: #f4df7c; font-size: 12px; line-height: 1.5; }
+/* Приглашение в игру внутри сообщения. */
+.game-invite { display: flex; align-items: flex-start; gap: 12px; margin-top: 8px; padding: 12px 14px; border: 1px solid #3a3b41; border-left: 3px solid var(--yellow); border-radius: 12px; background: linear-gradient(145deg, #1d1e23, #141519); }
+.game-invite-icon { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 auto; border-radius: 10px; background: #2b2a1c; color: var(--yellow); }
+.game-invite-body { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 5px; }
+.game-invite-body strong { color: #f2f2f5; font-size: 13px; }
+.game-invite-body small { color: var(--fg-muted); font-size: 11px; line-height: 1.5; }
+.game-invite-button { align-self: flex-start; display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+.game-invite-kind { flex: 0 0 auto; padding: 3px 8px; border: 1px solid #3a3b41; border-radius: 999px; color: var(--yellow); font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
+
 /* --- Игровые экраны: доска шахмат, карты, балда --- */
 /* Светлые и тёмные поля различаются не только цветом: у них разный узор фона, поэтому доска
    остаётся читаемой для того, кто не различает эти два оттенка. */
