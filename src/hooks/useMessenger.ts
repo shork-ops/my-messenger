@@ -12,8 +12,8 @@ import { useServerSearch } from "../hooks/useServerSearch";
 import PrivacyModal from "../components/PrivacyModal";
 import SettingsModal from "../components/SettingsModal";
 import { CallOverlay } from "../components/CallOverlay";
-import { useCalls } from "../hooks/useCalls";
-import { describeCallError } from "../lib/calls";
+import { useCallController } from "./useCallController";
+import { useAttachmentSender } from "./useAttachmentSender";
 import {
   DEFAULT_PRIVACY,
   blockUser,
@@ -80,8 +80,7 @@ import { useBackSwipe } from "../hooks/useBackSwipe";
 import ShortcutHelp from "../components/ShortcutHelp";
 import type { Shortcut } from "../lib/shortcuts";
 import { exportAsText, exportFileName, pluralMessages } from "../lib/exportChat";
-import { archiveFileName, archiveSummary, buildArchive } from "../lib/archive";
-import { FREE_PLAN_MAX_PARTICIPANTS, minutesWarning, participantLimitNotice } from "../lib/callPlan";
+import { archiveName, buildAccountArchive, chatAsText, chatAsTextCount, downloadText, pluralFor } from "../lib/exportAccount";
 import { useChatFolders } from "../hooks/useChatFolders";
 import { chatsInFolder } from "../lib/chatFolders";
 import FolderPicker from "../components/FolderPicker";
@@ -129,7 +128,6 @@ export function useMessenger() {
   const recordingChunksRef = useRef<Blob[]>([]);
   const recordingStartedRef = useRef(0);
   const [mentionOpen, setMentionOpen] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [activeNav, setActiveNav] = useState("Чаты");
   // The profile panel is a grid column on wide screens and a drawer below
   // 1440px, so it starts closed: open by default it would cover the chat.
@@ -151,10 +149,8 @@ export function useMessenger() {
   }, []);
   const [membersRefreshKey, setMembersRefreshKey] = useState(0);
   const [pinnedMessageIds, setPinnedMessageIds] = useState<Set<number>>(() => new Set());
-  const [uploadProgress, setUploadProgress] = useState<{ name: string; percent: number; stage: string } | null>(null);
   // Files that failed to send, kept in memory so the person can retry without finding them
   // again. Deliberately not persisted: a photo should not survive the tab closing.
-  const [failedUploads, setFailedUploads] = useState<PendingAttachment[]>([]);
   // A reply target is a message, so it can only be restored once the chats are known.
   // It starts empty and the restore pass below fills it from the stored draft.
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
@@ -260,6 +256,26 @@ export function useMessenger() {
     onReconnect: async () => reloadChatsRef.current?.(),
   });
   // Signed attachment URLs last an hour; keep them alive in a long-lived tab.
+  // Attachments live in their own hook: uploading, rolling back a half-sent album and keeping
+  // files that failed on the "try again" shelf is one decision, not four spread through the
+  // composer.
+  const {
+    uploadProgress,
+    setUploadProgress,
+    failedUploads,
+    fileInputRef,
+    handleAttachment,
+    dismissFailedUpload,
+    retryFailedUpload,
+  } = useAttachmentSender({
+    accountId: accountId ?? null,
+    profileName,
+    activeChatId: activeId,
+    chats,
+    notify: action,
+    setChats,
+  });
+
   useAttachmentRefresh({ chats, enabled: Boolean(accountId), setChats });
   const {
     call,
@@ -268,35 +284,14 @@ export function useMessenger() {
     hangUp,
     media: callMedia,
     attachRemoteVideo,
-  attachRemoteScreen,
+    attachRemoteScreen,
     toggleMute,
     toggleCamera,
     toggleScreenShare,
-  } = useCalls({ accountId: accountId ?? null, enabled: Boolean(accountId), notify: action });
-  const [callError, setCallError] = useState<string | null>(null);
-  // Calls are cloud-only: a demo chat has no remoteId, so there is nothing to signal.
-  const startCallNow = async (kind: "audio" | "video") => {
-    setCallError(null);
-    if (!activeChat.remoteId) {
-      action("Звонки доступны в облачных чатах");
-      return;
-    }
-    // The free plan is named *before* the call, not discovered during it: a person who hears
-    // "соединение потеряно" mid-conversation concludes the messenger is broken. A group call is
-    // where the cap can actually be reached, so that is where the count is checked.
-    const callMembers = activeChat.members?.length ?? 0;
-    if (callMembers >= FREE_PLAN_MAX_PARTICIPANTS) {
-      const notice = participantLimitNotice(callMembers);
-      if (notice) {
-        action(notice);
-        return;
-      }
-    }
-    const planWarning = minutesWarning(null);
-    if (planWarning) action(planWarning);
-    const result = await startCall(activeChat.remoteId, kind);
-    if (result.error) setCallError(describeCallError(result.error));
-  };
+    callError,
+    startCallNow,
+  } = useCallController({ accountId: accountId ?? null, activeChat, notify: action });
+
   // Hold the scroll while a chat is showing its unread divider. The holder is
   // cleared as soon as the message count changes, so a new message still pulls
   // the view down.
@@ -403,28 +398,9 @@ export function useMessenger() {
    * read years later by something other than this app.
    */
   function exportChat(chat: Chat) {
-    const messages = chat.messages.filter((message) => message.id > 0);
-    const text = exportAsText(
-      chat.name,
-      messages.map((message) => ({
-        author: message.author,
-        text: message.text,
-        createdAt: message.createdAt ? new Date(message.createdAt).toISOString() : undefined,
-        attachment: message.attachment
-          ? { name: message.attachment.name, type: message.attachment.type, size: message.attachment.size }
-          : null,
-      })),
-      Date.now()
-    );
-    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = exportFileName(chat.name, Date.now(), "txt");
-    link.click();
-    // Revoking immediately can cancel the download in some browsers.
-    window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
-    action(`Переписка выгружена: ${pluralMessages(messages.length)}`);
+    const text = chatAsText(chat);
+    downloadText(exportFileName(chat.name, Date.now(), "txt"), text, "text/plain;charset=utf-8");
+    action(`Переписка выгружена: ${pluralFor(chatAsTextCount(chat))}`);
   }
 
   /**
@@ -441,74 +417,18 @@ export function useMessenger() {
    * The file is taken off the shelf before the attempt starts: if it fails again the upload
    * path puts it back, so a repeated failure does not leave two copies of the same entry.
    */
-  async function retryFailedUpload(entry: PendingAttachment) {
-    setFailedUploads((current) => removePending(current, entry.key));
-    const transfer = new DataTransfer();
-    transfer.items.add(entry.file);
-    // The upload path reads the chosen files from an input event, so the retry goes through
-    // the same door rather than a second copy of the same logic that could drift.
-    const input = fileInputRef.current;
-    if (!input) {
-      action("Повторить не удалось: поле выбора файла недоступно");
-      return;
-    }
-    Object.defineProperty(input, "files", { value: transfer.files, configurable: true });
-    if (entry.viewOnce) input.dataset.viewOnce = "true";
-    await handleAttachment({ target: input } as unknown as ChangeEvent<HTMLInputElement>, {
-      viewOnce: entry.viewOnce,
-    });
-  }
 
-  function dismissFailedUpload(key: string) {
-    setFailedUploads((current) => removePending(current, key));
-  }
 
   function exportEverything() {
-    const everything = chats
-      .filter((chat) => chat.messages.length > 0 || chat.remoteId)
-      .map((chat) => ({
-        name: chat.name,
-        kind: chat.channel ? ("channel" as const) : chat.group ? ("group" as const) : ("chat" as const),
-        pinned: chat.pinned,
-        unread: chat.unread,
-        messages: chat.messages
-          .filter((message) => message.id > 0)
-          .map((message) => ({
-            author: message.author,
-            text: message.text,
-            createdAt: message.createdAt ? new Date(message.createdAt).toISOString() : null,
-            attachment: message.attachment
-              ? { name: message.attachment.name, type: message.attachment.type, size: message.attachment.size }
-              : null,
-            ...(message.attachment?.viewOnce ? { viewOnce: true } : {}),
-          })),
-      }));
-
-    const parts = {
-      profile: { name: profileName, username: null },
-      chats: everything,
-      // Passed through rather than reinterpreted: the archive is a copy, not a translation.
-      settings: {
-        theme: typeof window !== "undefined" ? window.localStorage.getItem("nexus-theme") : null,
-        language: typeof window !== "undefined" ? window.localStorage.getItem("nexus-language") : null,
-        wallpaper: typeof window !== "undefined" ? window.localStorage.getItem("nexus-wallpaper") : null,
-        privacy: privacyPrefs,
-        notifications: notificationPrefs,
-        folders,
-      },
-    };
-
-    const text = buildArchive(parts, Date.now());
-    const blob = new Blob([text], { type: "application/json;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = archiveFileName(Date.now());
-    link.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
-    action(
-      `Архив выгружен: ${archiveSummary(parts)}, ${Math.round(text.length / 1024)} КБ`
-    );
+    const archive = buildAccountArchive({
+      profileName,
+      chats,
+      privacy: privacyPrefs,
+      notifications: notificationPrefs,
+      folders,
+    });
+    downloadText(archiveName(), archive.text, "application/json;charset=utf-8");
+    action(`Архив выгружен: ${archive.summary}, ${Math.round(archive.text.length / 1024)} КБ`);
   }
 
   const goBackToChats = useCallback(() => {
@@ -638,184 +558,7 @@ export function useMessenger() {
    * Shared by single pictures and albums so a photo looks and costs the same either way; the
    * compression and the size rules are not worth having in two places.
    */
-  async function uploadPicture(
-    client: NonNullable<typeof supabase>,
-    chatRemoteId: string,
-    ownerId: string,
-    file: File,
-    percentFrom: number,
-    percentTo: number,
-    viewOnce = false,
-  ): Promise<{ meta: Attachment; path: string } | null> {
-    let payload: Blob = file;
-    let uploadName = file.name;
-    const base = { name: file.name, type: file.type || "application/octet-stream", size: file.size };
-    let meta: Omit<Attachment, "data"> = base;
 
-    if (shouldCompress(file)) {
-      setUploadProgress({ name: file.name, percent: percentFrom, stage: "Сжимаю фото…" });
-      const prepared = await prepareImage(file);
-      payload = prepared.blob;
-      uploadName = prepared.fileName;
-      meta = {
-        name: prepared.fileName,
-        type: prepared.blob.type || file.type,
-        size: prepared.blob.size,
-        width: prepared.width || undefined,
-        height: prepared.height || undefined,
-        thumbnail: prepared.thumbnail || undefined,
-      };
-    }
-
-    setUploadProgress({ name: uploadName, percent: Math.round((percentFrom + percentTo) / 2), stage: "Отправляю файл…" });
-    const path = buildStoragePath(chatRemoteId, ownerId, uploadName, crypto.randomUUID());
-    const bucket = viewOnce ? "view-once-media" : "chat-media";
-    const uploaded = await client.storage.from(bucket).upload(path, payload, { contentType: meta.type, cacheControl: viewOnce ? "0" : "3600" });
-    if (uploaded.error) return null;
-    if (viewOnce) {
-      const { thumbnail: _preview, ...safe } = meta;
-      return { meta: { ...safe, path, data: "", viewOnce: true, bucket: "view-once-media" }, path };
-    }
-    const signed = await client.storage.from("chat-media").createSignedUrl(path, 3600);
-    if (signed.error || !signed.data?.signedUrl) {
-      // A stored file whose message is never written is an orphan; remove it rather than
-      // leave the bucket to grow with files nobody can reach.
-      await client.storage.from("chat-media").remove([path]);
-      return null;
-    }
-    return {
-      meta: {
-        ...meta,
-        path,
-        data: signed.data.signedUrl,
-        expiresAt: Date.now() + SIGNED_URL_TTL_SECONDS * 1000,
-        // The marker rides along with the attachment, so it survives every path that already
-        // knows how to store one and needs no migration.
-        ...(viewOnce ? { viewOnce: true } : {}),
-      },
-      path,
-    };
-  }
-
-  async function handleAttachment(event: ChangeEvent<HTMLInputElement>, options: { viewOnce?: boolean } = {}) {
-    const chosen = Array.from(event.target.files ?? []);
-    // The composer sets this just before opening the picker for "look once"; reading it from the
-    // input keeps one file picker rather than two that drift apart.
-    const viewOnce = options.viewOnce ?? event.target.dataset.viewOnce === "true";
-    delete event.target.dataset.viewOnce;
-    event.target.value = "";
-    if (chosen.length === 0) return;
-    const chat = chats.find((item) => item.id === activeId);
-    const client = supabase;
-    if (!client || !accountId || !chat?.remoteId) {
-      action("Открой облачный диалог, чтобы отправить файл");
-      return;
-    }
-
-    if (viewOnce && (!chosen[0].type.startsWith("image/") || !await viewOnceReady())) {
-      action("Одноразовые фото пока недоступны: требуется серверное обновление. Обычные вложения работают.");
-      return;
-    }
-    // Every file is checked before anything is uploaded: a selection that fails halfway
-    // would leave half an album in the bucket and half in the conversation.
-    for (const file of chosen) {
-      if (file.size > MAX_UPLOAD_BYTES) {
-        action(`Файл «${file.name}» больше ${formatBytes(MAX_UPLOAD_BYTES)}`);
-        return;
-      }
-      if (!isSupportedFile(file.type)) {
-        action(`Формат файла «${file.name}» пока не поддерживается`);
-        return;
-      }
-    }
-
-    // A photo meant to be seen once is one photo, never part of an album: the promise is about
-    // that picture, and an album of nine others would leave the rest readable.
-    const albums = viewOnce ? [chosen.slice(0, 1)] : splitIntoAlbums(chosen);
-    if (viewOnce && chosen.length > 1) {
-      action("Для фото «посмотреть один раз» можно выбрать одно фото");
-    }
-    let sent = 0;
-    for (const group of albums) {
-      const pictures: Attachment[] = [];
-      const stored: Omit<Attachment, "data">[] = [];
-      const paths: string[] = [];
-      let failed = false;
-      for (const [index, file] of group.entries()) {
-        const from = 10 + Math.round((index / group.length) * 70);
-        const to = 10 + Math.round(((index + 1) / group.length) * 70);
-        const uploaded = await uploadPicture(client, chat.remoteId, accountId, file, from, to, viewOnce);
-        if (!uploaded) {
-          failed = true;
-          break;
-        }
-        pictures.push(uploaded.meta);
-        const { data: _url, ...withoutUrl } = uploaded.meta;
-        stored.push(withoutUrl);
-        paths.push(uploaded.path);
-      }
-      if (failed) {
-        // Nothing half-sent: the whole group is undone, or the conversation would show a
-        // message that is missing the picture the person meant to send.
-        await client.storage.from(viewOnce ? "view-once-media" : "chat-media").remove(paths);
-        setUploadProgress(null);
-        // Keep the files so "try again" does not mean "find the file again".
-        const reason = "Не удалось загрузить файл. Проверь миграцию online_media в Supabase.";
-        setFailedUploads((current) =>
-          group.reduce(
-            (list, item) =>
-              addPending(list, {
-                key: `${chat.remoteId}:${item.name}:${item.size}:${item.lastModified}`,
-                file: item,
-                chatId: activeId,
-                viewOnce,
-                reason,
-              }),
-            current
-          )
-        );
-        action(reason);
-        return;
-      }
-
-      setUploadProgress({ name: group[0].name, percent: 85, stage: "Публикую сообщение…" });
-      const first = pictures[0];
-      const isAlbum = pictures.length > 1;
-      const body = isAlbum ? `${pictures.length} фото` : first.name;
-      const attachmentValue = isAlbum ? { items: stored } : stored[0];
-      const inserted = await client
-        .from("messages")
-        .insert({ chat_id: chat.remoteId, sender_id: accountId, body, attachment: attachmentValue })
-        .select("id, created_at")
-        .single();
-      if (inserted.error || !inserted.data) {
-        await client.storage.from(viewOnce ? "view-once-media" : "chat-media").remove(paths);
-        setUploadProgress(null);
-        action("Не удалось отправить вложение");
-        return;
-      }
-      const row = inserted.data;
-      const created = new Date(row.created_at);
-      const message: Message = {
-        id: numericId(row.id),
-        remoteId: row.id,
-        author: profileName,
-        text: body,
-        time: clockTime(created),
-        mine: true,
-        createdAt: created.getTime(),
-        ...(isAlbum ? { album: pictures } : { attachment: first }),
-      };
-      setChats((current) =>
-        appendMessage(current, activeId, message, isAlbum ? `${pictures.length} фото` : "📎 " + first.name, message.time)
-      );
-      sent += isAlbum ? pictures.length : 1;
-    }
-
-    setUploadProgress({ name: chosen[0].name, percent: 100, stage: "Готово" });
-    window.setTimeout(() => setUploadProgress(null), 900);
-    action(sent === 1 ? "Вложение отправлено" : `Отправлено: ${sent}`);
-  }
 
   async function createChat(event: FormEvent) {
     event.preventDefault();

@@ -1,0 +1,58 @@
+  async function uploadPicture(
+    client: NonNullable<typeof supabase>,
+    chatRemoteId: string,
+    ownerId: string,
+    file: File,
+    percentFrom: number,
+    percentTo: number,
+    viewOnce = false,
+  ): Promise<{ meta: Attachment; path: string } | null> {
+    let payload: Blob = file;
+    let uploadName = file.name;
+    const base = { name: file.name, type: file.type || "application/octet-stream", size: file.size };
+    let meta: Omit<Attachment, "data"> = base;
+
+    if (shouldCompress(file)) {
+      setUploadProgress({ name: file.name, percent: percentFrom, stage: "Сжимаю фото…" });
+      const prepared = await prepareImage(file);
+      payload = prepared.blob;
+      uploadName = prepared.fileName;
+      meta = {
+        name: prepared.fileName,
+        type: prepared.blob.type || file.type,
+        size: prepared.blob.size,
+        width: prepared.width || undefined,
+        height: prepared.height || undefined,
+        thumbnail: prepared.thumbnail || undefined,
+      };
+    }
+
+    setUploadProgress({ name: uploadName, percent: Math.round((percentFrom + percentTo) / 2), stage: "Отправляю файл…" });
+    const path = buildStoragePath(chatRemoteId, ownerId, uploadName, crypto.randomUUID());
+    const bucket = viewOnce ? "view-once-media" : "chat-media";
+    const uploaded = await client.storage.from(bucket).upload(path, payload, { contentType: meta.type, cacheControl: viewOnce ? "0" : "3600" });
+    if (uploaded.error) return null;
+    if (viewOnce) {
+      const { thumbnail: _preview, ...safe } = meta;
+      return { meta: { ...safe, path, data: "", viewOnce: true, bucket: "view-once-media" }, path };
+    }
+    const signed = await client.storage.from("chat-media").createSignedUrl(path, 3600);
+    if (signed.error || !signed.data?.signedUrl) {
+      // A stored file whose message is never written is an orphan; remove it rather than
+      // leave the bucket to grow with files nobody can reach.
+      await client.storage.from("chat-media").remove([path]);
+      return null;
+    }
+    return {
+      meta: {
+        ...meta,
+        path,
+        data: signed.data.signedUrl,
+        expiresAt: Date.now() + SIGNED_URL_TTL_SECONDS * 1000,
+        // The marker rides along with the attachment, so it survives every path that already
+        // knows how to store one and needs no migration.
+        ...(viewOnce ? { viewOnce: true } : {}),
+      },
+      path,
+    };
+  }
