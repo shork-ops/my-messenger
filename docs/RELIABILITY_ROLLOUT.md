@@ -6,16 +6,26 @@ Direct chats are identified by peer UUID, with a server lookup for older cached 
 
 ## Server update
 
-The local Supabase CLI returned `Invalid access token`. This repository contains the server changes, but publishing the website does not deploy Edge Functions or apply SQL.
+Deployed on 2026-10-31 to project `wuifyiqnkpridblufxzs`.
 
-After restoring Supabase CLI access, run from this repository:
+To repeat it from this repository:
 
 ```sh
 npx supabase login
-npm run deploy:reliability
+npx supabase db push --include-all     # 20261048..20261051
+npm run deploy:reliability             # functions
 ```
 
-The script uses the project reference from `supabase/config.toml`. To validate on staging first, set `SUPABASE_PROJECT_REF` to that project's reference. It applies **only** `20261050_view_once.sql`, then deploys `cleanup-media` and `view-once`; it does not replay old migrations. No database password or service-role secret needs to be pasted into chat.
+The script uses the project reference from `supabase/config.toml`. To validate on staging first, set `SUPABASE_PROJECT_REF` to that project's reference. It applies **only** `20261050_view_once.sql`, then deploys `cleanup-media` and `view-once`; it does not replay old migrations. `db push --include-all` is what applied the whole pending set. No database password or service-role secret needs to be pasted into chat.
+
+### Two migrations never ran anywhere
+
+`20261048`–`20261051` were written but never applied: the CLI was not authenticated, so the failures below were never seen. Applying them the first time failed twice on `20261049_channels.sql`:
+
+- `or m.is_admin` referred to a column that does not exist. Membership roles live in `chat_members.role` (`owner`, `member`).
+- A regex literal was split across two lines, and a `$$` was written as `$` twice.
+
+A migration that has never been executed is not a migration that works. Both are fixed, and the set now applies cleanly.
 
 The maintenance scheduler must send `Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>` to cleanup-media. A normal user token is refused. Never put this key in the frontend.
 

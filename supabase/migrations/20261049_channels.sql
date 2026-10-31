@@ -39,8 +39,10 @@ as $$
         -- A channel: only its owner and authors.
         or m.channel_role in ('owner', 'author')
         -- Existing admins of a channel keep their ability to post, or promoting someone
-        -- to admin would quietly take their voice away.
-        or m.is_admin
+        -- to admin would quietly take their voice away. The role lives in the `role`
+        -- column, which already existed; there is no separate admin flag, and referring
+        -- to one made this migration fail on a database that had run the others.
+        or m.role = 'owner'
       )
   );
 $$;
@@ -101,8 +103,7 @@ alter table public.chats
 -- name to look up; a channel does, and two channels answering to the same handle would make
 -- an invite ambiguous.
 alter table public.chats
-  add column if not exists handle text check (handle is null or handle ~ '^[a-z0-9_]{3,32}
-);
+  add column if not exists handle text check (handle is null or handle ~ '^[a-z0-9_]{3,32}');
 
 create unique index if not exists chats_channel_handle_key
   on public.chats (handle)
@@ -116,14 +117,14 @@ language sql
 stable
 security definer
 set search_path = public
-as $
+as $$
   select c.id, c.title, c.description, c.channel_design,
          (select count(*) from public.chat_members m where m.chat_id = c.id)
   from public.chats c
   where c.is_channel
     and c.handle = lower(channel_handle)
   limit 1;
-$;
+$$;
 
 grant execute on function public.find_channel(text) to authenticated;
 
