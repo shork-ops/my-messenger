@@ -16,6 +16,7 @@ import { useCallController } from "./useCallController";
 import { useAttachmentSender } from "./useAttachmentSender";
 import { useMessageActions } from "./useMessageActions";
 import { useComposer } from "./useComposer";
+import { useChatSelection } from "./useChatSelection";
 import {
   DEFAULT_PRIVACY,
   blockUser,
@@ -1024,98 +1025,7 @@ export function useMessenger() {
   // another chat is open, and the realtime channel only listens to the active
   // chat. Without this refresh the conversation can show "no messages yet"
   // although the database already holds them.
-  async function refreshChatMessages(chat: Chat) {
-    if (!chat.remoteId || !accountId) return;
-    const messages = await loadMessagePage({
-      chatId: chat.remoteId,
-      accountId,
-      selfName: profileName,
-      authorName: "Собеседник",
-    });
-    if (!messages || !messages.length) return;
-    setChats((current) =>
-      current.map((item) => {
-        if (item.id !== chat.id) return item;
-        // Merge by remote id so locally appended messages are not duplicated.
-        const known = new Set(item.messages.map((message) => message.remoteId).filter(Boolean));
-        const merged = [...item.messages, ...messages.filter((message) => !known.has(message.remoteId))];
-        merged.sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
-        const last = merged[merged.length - 1];
-        return { ...item, messages: merged, preview: last?.text ?? item.preview, time: last?.time ?? item.time };
-      })
-    );
-  }
 
-  // Realtime is the fast path for incoming messages, but it can be unavailable
-  // (server outage, blocked websocket, backgrounded tab). This refresh keeps the
-  // open conversation correct in that case, so a delivery failure costs a few
-  // seconds instead of the message.
-  //
-  // The target chat lives in a ref rather than in the dependency array: a new
-  // dependency value tore down and recreated the timer, and any refresh that was
-  // due in that window was skipped - which is exactly when it was needed.
-  const pollTargetRef = useRef<{ chatId: number; remoteId: string } | null>(null);
-  pollTargetRef.current = activeChat.remoteId ? { chatId: activeChat.id, remoteId: activeChat.remoteId } : null;
-  useEffect(() => {
-    if (!accountId) return;
-    const timer = setInterval(() => {
-      const target = pollTargetRef.current;
-      if (!target || document.visibilityState !== "visible") return;
-      const chat = chatsRef.current.find((item) => item.id === target.chatId);
-      if (chat) void refreshChatMessages(chat);
-    }, 15000);
-    return () => clearInterval(timer);
-    // refreshChatMessages is intentionally not a dependency: it is recreated on
-    // every render, and depending on it would restart the interval constantly.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountId]);
-
-// The Android back gesture should leave the conversation, not the app.
-  useEffect(() => {
-    function onPopState() {
-      setMobileView("list");
-    }
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
-  }, []);
-
-  // The drafts as they are right now, not as they were when the handler was created. Reading
-  // the state directly here was the bug: the box kept the previous chat's text because the
-  // handler looked at a copy of the map from before the typing.
-  const draftsRef = useRef(drafts);
-  draftsRef.current = drafts;
-
-  // The draft for the chat that opens on load, which selectChat would have filled if the
-  // user had chosen it. Without this the text is stored and never shown.
-  //
-  // Choosing a chat clears or restores the box itself, so this must only fill in the case
-  // it was written for: the chat that opens without being chosen. It used to run on every
-  // change of activeId and do nothing when the new chat had no draft, which left the
-  // previous chat's text sitting in the box.
-  const restoredDraftFor = useRef<number | null>(null);
-  useEffect(() => {
-    if (restoredDraftFor.current === activeId) return;
-    restoredDraftFor.current = activeId;
-    setDraft(drafts[activeId] ?? "");
-  }, [activeId, drafts]);
-
-  async function selectChat(chat: Chat) {
-    setActiveId(chat.id);
-    setOpenedChatId(chat.id);
-    setMobileView("chat");
-    if (window.matchMedia("(max-width: 760px)").matches) window.history.pushState({ nexusChat: chat.id }, "");
-    setDraft(draftsRef.current[chat.id] ?? "");
-    setMessageSearch("");
-    setChats((current) => markRead(current, chat.id));
-    const client = supabase;
-    if (!client || !accountId || !chat.remoteId) return;
-    void refreshChatMessages(chat);
-    const { data, error } = await client.rpc("mark_chat_read", { target_chat_id: chat.remoteId });
-    if (error || typeof data !== "string") return;
-    const stamped = Date.parse(data);
-    if (Number.isNaN(stamped)) return;
-    setChats((current) => applyReadStamp(current, chat.id, accountId, stamped));
-  }
 
   async function saveChatSettings(chatId: number, patch: { mutedUntil?: number | null; archived?: boolean }) {
     const chat = chats.find((item) => item.id === chatId);
@@ -1492,6 +1402,61 @@ export function useMessenger() {
   // A lock screen with the app still rendered underneath is one CSS mistake away
   // from showing a message, so the shell is replaced rather than covered.
 
+  // Realtime is the fast path for incoming messages, but it can be unavailable (server outage,
+  // blocked websocket, backgrounded tab). This refresh keeps the open conversation correct in
+  // that case, so a delivery failure costs a few seconds instead of the message.
+  //
+  // The target chat lives in a ref rather than in the dependency array: a new dependency value
+  // tore down and recreated the timer, and any refresh that was due in that window was skipped -
+  // which is exactly when it was needed.
+  const pollTargetRef = useRef<{ chatId: number; remoteId: string } | null>(null);
+  pollTargetRef.current = activeChat.remoteId ? { chatId: activeChat.id, remoteId: activeChat.remoteId } : null;
+  useEffect(() => {
+    if (!accountId) return;
+    const timer = setInterval(() => {
+      const target = pollTargetRef.current;
+      if (!target || document.visibilityState !== "visible") return;
+      const chat = chatsRef.current.find((item) => item.id === target.chatId);
+      if (chat) void refreshChatMessages(chat);
+    }, 15000);
+    return () => clearInterval(timer);
+    // refreshChatMessages is intentionally not a dependency: it is recreated on every render,
+    // and depending on it would restart the interval constantly.
+  }, [accountId]);
+
+  // The drafts as they are right now, not as they were when the handler was created. Reading
+  // the state directly here was the bug: the box kept the previous chat's text because the
+  // handler looked at a copy of the map from before the typing.
+  const draftsRef = useRef(drafts);
+  draftsRef.current = drafts;
+
+  // The draft for the chat that opens on load, which selectChat would have filled if the
+  // user had chosen it. Without this the text is stored and never shown.
+  //
+  // Choosing a chat clears or restores the box itself, so this must only fill in the case
+  // it was written for: the chat that opens without being chosen. It used to run on every
+  // change of activeId and do nothing when the new chat had no draft, which left the
+  // previous chat's text sitting in the box.
+  const restoredDraftFor = useRef<number | null>(null);
+  useEffect(() => {
+    if (restoredDraftFor.current === activeId) return;
+    restoredDraftFor.current = activeId;
+    setDraft(drafts[activeId] ?? "");
+  }, [activeId, drafts]);
+
+  const { selectChat, refreshChatMessages } = useChatSelection({
+    accountId: accountId ?? null,
+    profileName,
+    chats,
+    setChats,
+    setActiveId,
+    setMobileView,
+    setOpenedChatId,
+    setDraft,
+    setMessageSearch,
+    draftsRef,
+  });
+
   return {
     about,
     accountId,
@@ -1705,3 +1670,5 @@ export function useMessenger() {
     wideLayout,
   };
 }
+
+  
