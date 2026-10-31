@@ -839,6 +839,78 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .balda-words span { padding: 6px 9px; border: 1px solid var(--border-strong); border-radius: 8px; background: #1a1b1f; color: #f0f0f2; font-size: 12px; }
 .balda-words b { margin-left: 4px; color: var(--yellow); }
 .game-feedback { padding: 11px 13px; border: 1px solid #5b4e17; border-radius: 10px; background: #211d0b; color: #f4df7c; font-size: 12px; line-height: 1.5; }
+/* --- Игровые экраны: доска шахмат, карты, балда --- */
+/* Светлые и тёмные поля различаются не только цветом: у них разный узор фона, поэтому доска
+   остаётся читаемой для того, кто не различает эти два оттенка. */
+.chess-board-wrap { display: flex; justify-content: center; }
+.chess-light { background: #e8d7b7; color: #222; background-image: repeating-linear-gradient(45deg, #0000 0 6px, #00000006 6px 12px); }
+.chess-dark { background: #8d684d; color: #171717; background-image: repeating-linear-gradient(-45deg, #0000 0 6px, #00000014 6px 12px); }
+.chess-square { position: relative; border: 0; padding: 0; cursor: pointer; }
+.chess-square[aria-disabled="true"] { cursor: default; }
+.chess-square:focus-visible { outline: 3px solid var(--yellow); outline-offset: -3px; z-index: 2; }
+.chess-piece { pointer-events: none; }
+.chess-white { color: #fff; text-shadow: 0 0 2px #000, 0 1px 3px #0009; }
+.chess-black { color: #14161a; text-shadow: 0 0 2px #fff6; }
+/* Выбранная клетка обведена, доступный ход помечен точкой, последний ход — рамкой. */
+.chess-selected { box-shadow: inset 0 0 0 3px var(--yellow); }
+.chess-destination { box-shadow: inset 0 0 0 3px #2f9e6a; }
+.chess-dot { position: absolute; width: 26%; height: 26%; border-radius: 50%; background: #2f9e6a; box-shadow: 0 0 0 2px #ffffffcc; }
+.chess-last { outline: 2px dashed #ffffffaa; outline-offset: -3px; }
+/* Шах: ещё и штриховка, а не только красный цвет. */
+.chess-check { background-image: repeating-linear-gradient(45deg, #d63b3b55 0 5px, #0000 5px 10px); }
+.chess-side { display: flex; flex-direction: column; gap: 9px; }
+.chess-moves { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 10px; max-height: 160px; overflow-y: auto; margin: 0; padding: 0; list-style: none; font-size: 12px; color: var(--fg-secondary); }
+.chess-moves li { display: grid; grid-template-columns: 22px 1fr 1fr; gap: 6px; }
+.chess-move-number { color: var(--fg-muted); }
+.chess-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.game-notice { margin: 0; padding: 11px 13px; border: 1px solid #5b4e17; border-radius: 10px; background: #211d0b; color: #f4df7c; font-size: 12px; line-height: 1.5; }
+.game-result { margin: 0; padding: 13px 15px; border: 1px solid #2f5e46; border-radius: 12px; background: #12261d; color: #c8f0d8; font-size: 13px; font-weight: 700; }
+.game-hint { margin: 0; color: var(--fg-muted); font-size: 12px; line-height: 1.55; }
+/* Карты. Каждая масть получает ещё и свой символ, поэтому цвет — не единственный признак. */
+.uno-table { gap: 14px; }
+.uno-opponents, .uno-centre { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 14px; }
+.uno-opponent { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 12px; border: 1px solid #2f5445; border-radius: 10px; background: #0e1f19ee; color: #dff0e8; font-size: 12px; }
+.uno-opponent-count { color: #9fc4b3; font-size: 11px; }
+.uno-deck { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 62px; height: 90px; border: 3px dashed #6f9585; border-radius: 12px; color: #cfe6da; font-size: 11px; }
+.uno-deck-count { font-size: 20px; font-weight: 800; }
+.uno-pile { display: grid; place-items: center; min-width: 62px; }
+.uno-colour { display: flex; flex-direction: column; align-items: center; gap: 3px; color: #cfe6da; font-size: 11px; }
+.uno-colour-swatch { font-size: 20px; }
+.uno-card { position: relative; border: 3px solid #f8f3e7; }
+.uno-card:disabled { cursor: default; opacity: .95; }
+.uno-playable { box-shadow: 0 0 0 3px var(--yellow), 0 6px 16px #0006; }
+.uno-selected { transform: translateY(-6px); }
+.uno-card-symbol { position: absolute; top: 4px; left: 6px; font-size: 12px; opacity: .85; }
+.uno-card-label { font-size: 13px; text-align: center; }
+.uno-red { background: #d63b3b; color: #fff; }
+.uno-blue { background: #4167c7; color: #fff; }
+.uno-yellow { background: #e0b72e; color: #28210a; }
+.uno-green { background: #26956c; color: #fff; }
+.uno-wild { background: conic-gradient(#d63b3b 0 25%, #4167c7 25% 50%, #e0b72e 50% 75%, #26956c 75%); color: #fff; }
+.uno-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; }
+.uno-colour-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: #dff0e8; font-size: 12px; }
+.uno-colour-button { padding: 7px 10px; border: 2px solid #ffffff44; border-radius: 9px; font-size: 12px; font-weight: 700; }
+/* Балда: правило «рядом с существующей буквой» видно по пунктирной клетке. */
+.balda-wrap { display: flex; flex-direction: column; gap: 12px; }
+.balda-cell { display: grid; place-items: center; aspect-ratio: 1; border: 1px solid #3a3b41; border-radius: 8px; background: #1b1c20; color: #6f7076; font-size: 22px; font-weight: 800; }
+.balda-filled { border-color: #806b25; background: linear-gradient(145deg, #ffe66b, #bd941c); color: #322708; }
+.balda-playable { border-style: dashed; border-color: #6f7076; cursor: pointer; }
+.balda-playable:hover { border-color: var(--yellow); color: var(--yellow); }
+.balda-selected { border: 3px solid var(--yellow); color: var(--yellow); }
+.balda-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.balda-form label { display: flex; flex: 1; min-width: 110px; flex-direction: column; gap: 4px; color: var(--fg-muted); font-size: 11px; }
+.balda-side { display: flex; flex-direction: column; gap: 9px; }
+.game-picker-card { cursor: default; }
+.game-picker-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.game-picker-saved { display: flex; flex-direction: column; gap: 7px; margin-top: auto; }
+.game-picker-saved-what { color: var(--fg-muted); font-size: 11px; }
+.game-modal-playing { width: min(760px, 100%); }
+/* Узкий экран: доска на всю ширину, боковая колонка уходит вниз. */
+@media (max-width: 560px) {
+  .chess-board { width: 100%; }
+  .balda-form { flex-direction: column; align-items: stretch; }
+  .chess-moves { grid-template-columns: 1fr; }
+}
 .game-back-link { align-self: flex-start; padding: 5px 0; border: 0; background: transparent; color: var(--yellow); font-size: 12px; }
 @media (max-width: 560px) {
   .game-modal { gap: 16px; padding: 17px; border-radius: 17px; }

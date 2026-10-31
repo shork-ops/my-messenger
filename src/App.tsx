@@ -54,9 +54,7 @@ export default function App() {
     activeId,
     activeNav,
     addEmoji,
-    answerCall,
-    answerChess,
-    applyMessageEffect,
+    answerCall,    applyMessageEffect,
     applyMute,
     askForNotifications,
     attachRemoteScreen,
@@ -64,11 +62,7 @@ export default function App() {
     attachmentBytes,
     attachmentCount,
     autoloadMedia,
-    avatarUploading,
-    baldaInput,
-    baldaScore,
-    baldaWords,
-    blockedEntries,
+    avatarUploading,    blockedEntries,
     cacheKeys,
     call,
     callError,
@@ -80,9 +74,7 @@ export default function App() {
     chatFilter,
     chatMembers,
     chatMenuOpen,
-    chats,
-    chessSolved,
-    chooseMention,
+    chats,    chooseMention,
     clearCache,
     clearHistory,
     deleteChat,
@@ -101,9 +93,7 @@ export default function App() {
     deletingAccount,
     deviceId,
     devices,
-    draft,
-    drawUnoCard,
-    editDraft,
+    draft,    editDraft,
     editingMessageId,
     emojiOpen,
     stickerOpen,
@@ -119,9 +109,7 @@ export default function App() {
     forwardMessage,
     foundUsers,
     galleryImages,
-    galleryOpen,
-    gameNotice,
-    goBackToChats,
+    galleryOpen,    goBackToChats,
     handleAttachment,
     hangUp,
     kickMember,
@@ -159,9 +147,7 @@ export default function App() {
     openingUserId,
     peerLastSeenAt,
     peerOnline,
-    pinnedMessageIds,
-    playUnoCard,
-    pollOpen,
+    pinnedMessageIds,    pollOpen,
     pollOptions,
     pollQuestion,
     privacy,
@@ -195,9 +181,7 @@ export default function App() {
     setActiveFolderId,
     setActiveGame,
     setActiveId,
-    setActiveNav,
-    setBaldaInput,
-    setChatFilter,
+    setActiveNav,    setChatFilter,
     setChatMenuOpen,
     setCode,
     setDeletedMessage,
@@ -241,9 +225,7 @@ export default function App() {
     signingOutOthers,
     startCallNow,
     startEditing,
-    startVoiceRecording,
-    submitBaldaWord,
-    t,
+    startVoiceRecording,    t,
     textSize,
     theme,
     toggleCamera,
@@ -258,10 +240,7 @@ export default function App() {
     typingUsers,
     unblockPerson,
     undoDelete,
-    unlock,
-    unoHand,
-    unoTop,
-    unreadTotal,
+    unlock,    unreadTotal,
     uploadAvatar,
     uploadProgress,
     failedUploads,
@@ -589,25 +568,8 @@ export default function App() {
         />
       )}
 
-      {activeGame && (
-        <GameModal
-          activeGame={activeGame}
-          gameNotice={gameNotice}
-          chessSolved={chessSolved}
-          unoHand={unoHand}
-          unoTop={unoTop}
-          baldaInput={baldaInput}
-          baldaWords={baldaWords}
-          baldaScore={baldaScore}
-          onClose={() => setActiveGame(null)}
-          onOpenGame={openGame}
-          onPlayUno={playUnoCard}
-          onDrawUno={drawUnoCard}
-          onChessAnswer={answerChess}
-          onBaldaInput={setBaldaInput}
-          onBaldaSubmit={submitBaldaWord}
-        />
-      )}
+      {/* The game screen owns its own sessions; the app only decides whether it is on screen. */}
+      {activeGame && <GameModal open onClose={() => setActiveGame(null)} />}
 
       {/* Mounted only while open: a lazy component starts downloading on its first
           render, so keeping it mounted with open={false} would fetch it anyway. */}
