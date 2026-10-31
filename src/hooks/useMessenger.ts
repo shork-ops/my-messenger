@@ -518,6 +518,9 @@ export function useMessenger() {
     typeof Notification === "undefined" ? "unsupported" : Notification.permission
   );
 
+
+  // Requesting permission and subscribing in one step: the two answers a person can act on are
+  // "включено" and "браузер запретил", and everything else is a silent no-op they would misread.
   async function askForNotifications() {
     const permission = await requestNotificationPermission();
     setNotificationPermission(permission);
