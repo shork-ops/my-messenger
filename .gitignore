@@ -63,3 +63,9 @@ qa-shots/
 /*.cjs
 # Scratch files from one-off scripts; never meant to be committed.
 /*.txt
+
+# The raw upstream dictionary (~1 MB) is only an input to scripts/build-dictionary.mjs. What the app
+# ships is the generated src/games/balda/words.data.ts, which is committed along with its checksum and
+# licence notice, so the dictionary can be verified without the source. Re-download it from the URL in
+# scripts/data/NOTICE.md when the word list actually needs rebuilding - it does not belong in review.
+scripts/data/russian_nouns.raw.txt

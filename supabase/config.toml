@@ -37,3 +37,10 @@ verify_jwt = true
 # JWT is also verified inside the function before claiming any media.
 [functions.view-once]
 verify_jwt = true
+
+# Ends sign-ins through the Supabase Auth server, because a flag in our own table is never consulted
+# when a refresh token is exchanged. The function must have a real caller: it reads identity from the
+# verified JWT via getUser() and has no user id parameter, so verification is required rather than
+# merely performed in the body.
+[functions.revoke-session]
+verify_jwt = true
