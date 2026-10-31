@@ -6,10 +6,14 @@
  * card on the last message of the first demo chat and, when it was pressed, said an invitation
  * would appear soon.
  *
- * What this covers and what it does not: the invitation is stored in the message text in a form
- * the app recognises, so it survives a reload and reaches the other side as an ordinary message.
- * Two people on two devices still do not share a board - that needs a server room - and the
- * invitation says so instead of pretending otherwise.
+ * The sender opens a real game on the server first and puts its id in the message. The recipient
+ * presses the button, the app joins that id, and from then on both screens read the same board from
+ * the same place. The invitation is still an ordinary message - it survives a reload and needs no
+ * special event type - but the id inside it is what makes it a shared game rather than a note.
+ *
+ * An invitation without an id is a legitimate state: it is what a signed-out sender produces, and
+ * what an older client wrote. It opens the game locally, and `invitationNote` says so instead of
+ * implying a shared board that does not exist.
  */
 
 import type { GameKind } from "./types";
@@ -86,12 +90,17 @@ export function invitationAction(invitation: GameInvitation, viewerIsInvited: bo
 }
 
 /**
- * The honest note under the button.
+ * The note under the button.
  *
- * Two people in the same chat still cannot share a board, and a card that implies otherwise wastes
- * a player's time: they accept and then find their own separate game.
+ * It says which of the two things pressing the button will do, because they are not the same and
+ * the difference is what decides whether the opponent is a person or a bot. A card that implied a
+ * shared board for a local game wastes a player's time: they accept and then find their own
+ * separate game, with nobody on the other side.
  */
-export function invitationNote(): string {
+export function invitationNote(invitation?: GameInvitation): string {
+  if (invitation?.gameId) {
+    return "Партия на сервере: ходы обоих игроков видны друг другу.";
+  }
   return "Партия начнётся на вашем устройстве. Совместная игра по сети пока не подключена.";
 }
 

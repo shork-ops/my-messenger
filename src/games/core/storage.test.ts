@@ -1,4 +1,4 @@
-/** @vitest-environment jsdom */
+﻿/** @vitest-environment jsdom */
 /**
  * Saved games.
  *
@@ -11,12 +11,15 @@ import { describe, expect, it } from "vitest";
 import {
   browserStorage,
   canResume,
+  LEGACY_STORAGE_KEY,
   memoryStorage,
   prune,
   removeSession,
   resumeLabel,
   STORAGE_KEY,
   STORAGE_VERSION,
+  storageKeyFor,
+  takeLegacySessions,
   timeAgo,
   unfinishedByKind,
   upsertSession,
@@ -64,7 +67,7 @@ describe("reading and writing", () => {
   it("survives a corrupt value in browser storage", () => {
     // A JSON parse that throws must not take the games screen down with it.
     const original = window.localStorage;
-    const store = new Map<string, string>([[STORAGE_KEY, "{not json"]]);
+    const store = new Map<string, string>([[storageKeyFor(null), "{not json"]]);
     Object.defineProperty(window, "localStorage", {
       configurable: true,
       value: {
@@ -83,7 +86,7 @@ describe("reading and writing", () => {
   it("drops entries that are the wrong shape", () => {
     const original = window.localStorage;
     const store = new Map<string, string>([
-      [STORAGE_KEY, JSON.stringify([{ gameId: "x" }, { nothing: true }, session()])],
+      [storageKeyFor(null), JSON.stringify([{ gameId: "x" }, { nothing: true }, session()])],
     ]);
     Object.defineProperty(window, "localStorage", {
       configurable: true,
@@ -94,7 +97,7 @@ describe("reading and writing", () => {
       },
     });
     try {
-      const read = browserStorage().read();
+      const read = browserStorage(null).read();
       expect(read).toHaveLength(1);
       expect(read[0].kind).toBe("chess");
     } finally {
@@ -116,7 +119,7 @@ describe("reading and writing", () => {
       },
     });
     try {
-      expect(() => browserStorage().write([session()])).not.toThrow();
+      expect(() => browserStorage(null).write([session()])).not.toThrow();
     } finally {
       Object.defineProperty(window, "localStorage", { configurable: true, value: original });
     }
@@ -212,5 +215,147 @@ describe("what the player reads", () => {
 
   it("says nothing rather than a wrong time for a broken date", () => {
     expect(timeAgo("not a date")).toBe("");
+  });
+});
+
+/** Replaces `window.localStorage` with a map for the length of one test. */
+function withStorage(run: (store: Map<string, string>) => void): void {
+  const original = window.localStorage;
+  const store = new Map<string, string>();
+  Object.defineProperty(window, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => void store.set(key, value),
+      removeItem: (key: string) => void store.delete(key),
+    },
+  });
+  try {
+    run(store);
+  } finally {
+    Object.defineProperty(window, "localStorage", { configurable: true, value: original });
+  }
+}
+
+describe("each account keeps its own games", () => {
+  it("writes under a key that names the account", () => {
+    expect(storageKeyFor("user-a")).toBe(`${STORAGE_KEY}:user-a`);
+    expect(storageKeyFor("user-b")).not.toBe(storageKeyFor("user-a"));
+    // A guest is a real identity here, not "no key": a borrowed phone must not reach an account.
+    expect(storageKeyFor(null)).toBe(`${STORAGE_KEY}:guest`);
+    expect(storageKeyFor(null)).not.toBe(STORAGE_KEY);
+  });
+
+  it("does not let one account read another's game", () => {
+    withStorage(() => {
+      const mine = session({ summary: "моя партия" });
+      browserStorage("user-a").write([mine]);
+
+      expect(browserStorage("user-a").read()).toHaveLength(1);
+      expect(browserStorage("user-b").read()).toEqual([]);
+      expect(browserStorage(null).read()).toEqual([]);
+    });
+  });
+
+  it("does not let one account overwrite another's game", () => {
+    // The failure that matters: signing in as a second person must not destroy the first's save.
+    withStorage(() => {
+      const first = session({ gameId: "game-of-a", summary: "партия А" });
+      browserStorage("user-a").write([first]);
+      browserStorage("user-b").write([session({ gameId: "game-of-b", summary: "партия Б" })]);
+
+      const stillThere = browserStorage("user-a").read();
+      expect(stillThere).toHaveLength(1);
+      expect(stillThere[0].gameId).toBe("game-of-a");
+      expect(browserStorage("user-b").read()).toHaveLength(1);
+    });
+  });
+
+  it("keeps a guest's games away from any account", () => {
+    withStorage(() => {
+      browserStorage(null).write([session({ gameId: "guest-game" })]);
+      expect(browserStorage("user-a").read()).toEqual([]);
+      browserStorage("user-a").write([session({ gameId: "account-game" })]);
+      expect(browserStorage(null).read().map((item) => item.gameId)).toEqual(["guest-game"]);
+    });
+  });
+});
+
+describe("saves made before games belonged to an account", () => {
+  it("refuses to hand the old list to the first account that opens the games screen", () => {
+    // This is the attribution the isolation work forbids. The legacy list records no owner, so
+    // there is no evidence that the person who happens to sign in first is the one who played
+    // those games - and on a shared phone it is often someone else.
+    withStorage((store) => {
+      const old = session({ gameId: "old-game", mode: "friend" });
+      store.set(LEGACY_STORAGE_KEY, JSON.stringify([old]));
+
+      expect(takeLegacySessions("user-a")).toEqual([]);
+      // Left exactly where it was: refused is not the same as thrown away.
+      expect(store.has(LEGACY_STORAGE_KEY)).toBe(true);
+      expect(takeLegacySessions("user-b")).toEqual([]);
+      expect(store.has(LEGACY_STORAGE_KEY)).toBe(true);
+    });
+  });
+
+  it("adopts the old list only when every save names that account", () => {
+    withStorage((store) => {
+      const old = { ...session({ gameId: "owned-game", mode: "friend" }), ownerId: "user-a" };
+      store.set(LEGACY_STORAGE_KEY, JSON.stringify([old]));
+
+      expect(takeLegacySessions("user-a").map((item) => item.gameId)).toEqual(["owned-game"]);
+      expect(store.has(LEGACY_STORAGE_KEY)).toBe(false);
+    });
+  });
+
+  it("refuses a list that mixes accounts rather than splitting it by guesswork", () => {
+    withStorage((store) => {
+      const mine = { ...session({ gameId: "a-game", mode: "friend" }), ownerId: "user-a" };
+      const theirs = { ...session({ gameId: "b-game", mode: "friend" }), ownerId: "user-b" };
+      store.set(LEGACY_STORAGE_KEY, JSON.stringify([mine, theirs]));
+
+      expect(takeLegacySessions("user-a")).toEqual([]);
+      expect(store.has(LEGACY_STORAGE_KEY)).toBe(true);
+    });
+  });
+
+  it("gives a guest the account-free games and nothing else", () => {
+    // A borrowed phone: a bot game nobody owned cannot leak, but an account's game must not be
+    // handed to the visitor - and must not be deleted from the owner either.
+    withStorage((store) => {
+      store.set(LEGACY_STORAGE_KEY, JSON.stringify([session({ mode: "bot" })]));
+      expect(takeLegacySessions(null).map((item) => item.mode)).toEqual(["bot"]);
+      expect(store.has(LEGACY_STORAGE_KEY)).toBe(false);
+    });
+
+    withStorage((store) => {
+      store.set(LEGACY_STORAGE_KEY, JSON.stringify([{ ...session({ mode: "friend" }), ownerId: "user-a" }]));
+      expect(takeLegacySessions(null)).toEqual([]);
+      expect(store.has(LEGACY_STORAGE_KEY)).toBe(true);
+    });
+  });
+
+  it("refuses an account's game to the guest even when the mode looks harmless", () => {
+    // A game played with a friend is still somebody's; only a game that records no account at
+    // all may be adopted without proof.
+    withStorage((store) => {
+      store.set(LEGACY_STORAGE_KEY, JSON.stringify([session({ mode: "friend" })]));
+      expect(takeLegacySessions(null)).toEqual([]);
+      expect(store.has(LEGACY_STORAGE_KEY)).toBe(true);
+    });
+  });
+
+  it("clears an unusable old value instead of retrying it forever", () => {
+    withStorage((store) => {
+      store.set(LEGACY_STORAGE_KEY, "{not json");
+      expect(takeLegacySessions("user-a")).toEqual([]);
+      expect(store.has(LEGACY_STORAGE_KEY)).toBe(false);
+    });
+  });
+
+  it("has nothing to adopt when the key is absent", () => {
+    withStorage(() => {
+      expect(takeLegacySessions("user-a")).toEqual([]);
+    });
   });
 });

@@ -1,0 +1,76 @@
+﻿# Words added on top of the generated noun list, one per line.
+#
+# The generated list comes from the Russian-Nouns project, whose own input is an explanatory
+# dictionary compiled before roughly the mid-1990s. That is a measurable gap rather than a theory:
+# интернет, сайт, браузер, ноутбук, смартфон, флешка, сервер and блогер are all ABSENT from the
+# 51,301-line source. To a player, tapping «сайт» on the board and being told "«сайт» нет в словаре
+# игры" reads as a broken game, not as a strict dictionary.
+#
+# So this file adds the vocabulary the source misses. It is deliberately small, hand-checked, and
+# kept separate from the generated list so that the difference between "licensed source data" and
+# "words we added ourselves" stays visible in the diff and in NOTICE.md.
+#
+# Rules for adding a word here, all of which must hold:
+#
+# 1. It is a common noun in the nominative, in ordinary modern use.
+# 2. It is absent from the source list (the generator refuses any collision, so this file cannot
+#    silently duplicate licensed data).
+# 3. It contains only letters from the board alphabet - no hyphens, no spaces, no digits.
+# 4. It is not a proper name, brand or abbreviation. фейсбук, инстаграм and тикток are brands;
+#    вэйпер and сигвей are trademarks. They are out, even though players would type them, because a
+#    dictionary of nouns is not the place to decide which brand names have become common.
+# 5. It is not an adjective or an adverb masquerading as a noun. квантовый and онлайн are out.
+# 6. No duplicates. The generator de-duplicates and reports, but a duplicate here is a mistake.
+
+# --- computing and the internet ---
+# The largest gap in the source: it has компьютер and файл but nothing coined after about 1995.
+интернет
+сайт
+браузер
+курсор
+модем
+роутер
+провайдер
+хостинг
+антивирус
+сервер
+ноутбук
+смартфон
+планшетник
+флешка
+мессенджер
+гаджет
+скриншот
+смайлик
+апдейт
+апгрейд
+нейросеть
+чатбот
+блокчейн
+криптовалюта
+биометрия
+робототехника
+дрон
+квадрокоптер
+дистрибутив
+
+# --- everyday life after about 1995 ---
+селфи
+репост
+лайк
+хештег
+фолловер
+блогер
+видеоблог
+стример
+стриминг
+мем
+флешмоб
+лайфхак
+дедлайн
+стартап
+брендинг
+слоган
+баннер
+кэшбэк
+каршеринг

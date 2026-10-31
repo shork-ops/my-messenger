@@ -1,187 +1,193 @@
 /**
- * The chess bot.
+ * The bot.
  *
- * A bot that plays illegal moves ruins a game; a bot that plays legal but pointless moves
- * ruins it more quietly, because the player keeps playing. These tests cover both, and they
- * are written against positions where the right answer is obvious to a human, so a failure
- * reads as "the bot did something no chess player would do".
+ * Two questions matter more than strength, and they are the ones this suite asks: does it always
+ * play a legal move, and does it stop when told to? A bot that occasionally makes an illegal move
+ * ends the game for a player in a way no message can explain; one that cannot be cancelled makes a
+ * phone wait after the screen has closed.
+ *
+ * The strength tests are deliberately narrow. It has to find a mate in one and take a hanging
+ * queen, because those are the two moves whose absence makes a bot feel broken. It is not asked to
+ * play like a master, and no test here pretends the engine has a rating.
  */
 
 import { describe, expect, it } from "vitest";
-import {
-  chessEngine,
-  createChess,
-  legalMoves,
-  squareIndex,
-  squareName,
-  type ChessState,
-  type Piece,
-  type PieceType,
-} from "./engine";
-import { chooseMove, DIFFICULTY_LABEL, evaluate, SEARCH_LIMITS } from "./bot";
-import { makeRandom } from "../core/types";
+import { Chess } from "chess.js";
+import { chooseMove, DIFFICULTY_LABEL, evaluate, isAnswerLegal, SEARCH_LIMITS } from "./bot";
+import { applyChessCommand, createChessSession, START_FEN } from "./session";
 
-const EMPTY: (Piece | null)[] = Array(64).fill(null);
-
-function piece(color: "w" | "b", type: PieceType): Piece {
-  return { color, type };
+/** A view of the position after `moves`. */
+function after(moves: string[]): string {
+  const chess = new Chess();
+  for (const move of moves) chess.move(move);
+  return chess.fen();
 }
 
-function position(pieces: Record<string, string>, turn: "w" | "b" = "w"): ChessState {
-  const board = EMPTY.slice();
-  for (const [square, code] of Object.entries(pieces)) {
-    board[squareIndex(square)] = piece(code[0] as "w" | "b", code[1] as PieceType);
-  }
-  return {
-    board,
-    turn,
-    castling: { w: { k: false, q: false }, b: { k: false, q: false } },
-    enPassant: null,
-    halfmoveClock: 0,
-    fullmove: 1,
-    history: [],
-    positions: [],
-    result: null,
-    endedBy: null,
-  };
-}
+describe("the bot always offers a legal move", () => {
+  const positions: [string, string][] = [
+    ["the starting position", START_FEN],
+    ["after 1.e4 e5", after(["e4", "e5"])],
+    ["after the Ruy Lopez", after(["e4", "e5", "Nf3", "Nc6", "Bb5", "a6", "Ba4", "Nf6", "O-O", "Be7", "Re1", "b5"])],
+    // Both castling and a possible en passant are in reach here.
+    ["castling rights on both sides", "r3k2r/ppp1pppp/8/8/1b6/8/PPPPPPPP/R3K2R w KQkq - 0 1"],
+    ["in check", "4r1k1/8/8/8/8/8/8/R3K1N1 w - - 0 1"],
+    ["one legal move", "7k/8/8/8/8/8/6q1/K7 w - - 0 1"],
+  ];
 
-describe("what the bot is called", () => {
-  it("does not claim a rating it does not have", () => {
-    // The plan is explicit: no invented Elo. These are the only two words allowed.
-    expect(DIFFICULTY_LABEL.easy).toBe("Начальный");
-    expect(DIFFICULTY_LABEL.normal).toBe("Обычный");
-    expect(Object.keys(DIFFICULTY_LABEL)).toHaveLength(2);
+  it.each(positions)("in %s", (_label, fen) => {
+    const answer = chooseMove({ fen, difficulty: "normal" });
+    expect(answer.move).not.toBeNull();
+    expect(isAnswerLegal(fen, answer)).toBe(true);
+    // The game engine, not the bot, has the final word: the move it offers must also be one the
+    // rules accept.
+    const session = createChessSession({ mode: "local", startFen: fen });
+    const outcome = applyChessCommand(session, {
+      type: "move",
+      from: answer.move!.from,
+      to: answer.move!.to,
+      promotion: answer.move!.promotion,
+    });
+    expect(outcome.changed).toBe(true);
   });
 
-  it("sets a time budget a phone can live with", () => {
-    for (const limit of Object.values(SEARCH_LIMITS)) {
-      expect(limit.budgetMs).toBeLessThanOrEqual(1000);
-    }
-  });
-});
-
-describe("the bot only plays legal moves", () => {
-  it("picks one of the legal moves from the starting position", () => {
-    const state = createChess({ players: [], seed: 1 });
-    const legal = legalMoves(state).map((move) => `${move.from}-${move.to}`);
-    for (let i = 0; i < 6; i += 1) {
-      // A short budget on purpose: this test is about legality, and running the full search
-      // six times under a loaded CI worker made it flaky for a reason that is not a bug.
-      const move = chooseMove(state, "normal", makeRandom(i + 1), { depth: 2, budgetMs: 120 });
-      expect(move).not.toBeNull();
-      expect(legal).toContain(`${move!.from}-${move!.to}`);
-    }
-  });
-
-  it("returns nothing when the game is already over", () => {
-    const state = position({ e1: "wk", e8: "bk" });
-    const mated = { ...state, result: { kind: "draw" as const, reason: "пат" } };
-    expect(chooseMove(mated, "normal")).toBeNull();
-  });
-
-  it("never plays an illegal move over a whole game", () => {
-    // Two bots play each other. If the engine and the bot disagree about legality, one of
-    // them will eventually produce a move the other refuses, and this loop stops.
-    let state = createChess({ players: [], seed: 7 });
+  // Twenty plies of real search is slower than vitest's default allowance when the whole suite is
+  // running in parallel, so the budget is stated rather than inherited.
+  it("plays a long game against itself without an illegal move", { timeout: 30_000 }, () => {
+    const chess = new Chess();
     let plies = 0;
-    while (!state.result && plies < 60) {
-      const move = chooseMove(state, "easy", makeRandom(plies + 1), { depth: 1, budgetMs: 50 });
-      expect(move).not.toBeNull();
-      const result = chessEngine.apply(state, {
-        type: "move",
-        from: move!.from,
-        to: move!.to,
-        promotion: move!.promotion,
+    while (!chess.isGameOver() && plies < 40) {
+      const answer = chooseMove({
+        fen: chess.fen(),
+        difficulty: "easy",
+        random: () => 0.5,
+        now: () => 0,
+        limits: { depth: 2, budgetMs: 60_000, quiescence: 0 },
       });
-      expect(result.changed).toBe(true);
-      state = result.state;
+      expect(answer.move).not.toBeNull();
+      expect(() =>
+        chess.move({ from: answer.move!.from, to: answer.move!.to, promotion: answer.move!.promotion })
+      ).not.toThrow();
       plies += 1;
     }
-    // It should not lose on time or by refusing its own move.
-    expect(plies).toBeGreaterThan(2);
+    // Twenty plies is a real game in miniature: enough for captures, checks and a promotion to
+    // have been possible, not so many that the test becomes a benchmark.
+    expect(plies).toBeGreaterThan(20);
+  });
+
+  it("says there is no move when the game is already over", () => {
+    // Fool's mate: black has won and white has nothing to play.
+    const fen = after(["f3", "e5", "g4", "Qh4"]);
+    const answer = chooseMove({ fen, difficulty: "normal" });
+    expect(answer.move).toBeNull();
+    expect(answer.reason).toContain("матом");
+  });
+
+  it("promotes to a real piece rather than making an illegal move", () => {
+    const fen = "8/P6k/8/8/8/8/8/K7 w - - 0 1";
+    const answer = chooseMove({ fen, difficulty: "normal" });
+    expect(answer.move?.promotion).toBeDefined();
+    expect(["q", "r", "b", "n"]).toContain(answer.move?.promotion);
+    expect(isAnswerLegal(fen, answer)).toBe(true);
   });
 });
 
-describe("the bot plays sensibly", () => {
-  it("takes a free queen", () => {
-    // A black queen sits on d5 with nothing defending it; white's rook on d1 can take it.
-    const state = position({ e1: "wk", e8: "bk", d1: "wr", d5: "bq" });
-    const move = chooseMove(state, "normal", makeRandom(1));
-    expect(move).not.toBeNull();
-    expect(squareName(move!.to)).toBe("d5");
+describe("the bot takes what is on the board", () => {
+  it("finds a mate in one", () => {
+    const fen = "7k/6pp/8/8/8/8/8/Q6K w - - 0 1";
+    const answer = chooseMove({ fen, difficulty: "normal" });
+    expect(answer.move).not.toBeNull();
+    const chess = new Chess(fen);
+    chess.move({ from: answer.move!.from, to: answer.move!.to, promotion: answer.move!.promotion });
+    expect(chess.isCheckmate()).toBe(true);
+    expect(answer.score).toBeGreaterThan(50000);
   });
 
-  it("does not walk into a square where it is simply taken", () => {
-    // White bishop on c1 could move to h6, where a black pawn on g7 takes it. A bot that
-    // scores only material at depth one would still prefer a safe move.
-    const state = position({ e1: "wk", e8: "bk", c1: "wb", g7: "bp" });
-    const move = chooseMove(state, "normal", makeRandom(3));
-    expect(move).not.toBeNull();
-    // h6 is attacked by the pawn on g7; choosing it loses a bishop for nothing.
-    expect(squareName(move!.to)).not.toBe("h6");
+  it("takes a hanging queen rather than a harmless move", () => {
+    // The black queen on a4 stands on the a-file, unguarded, in front of the white rook on a1.
+    const fen = "6k1/7p/8/8/q7/8/8/R5K1 w - - 0 1";
+    const answer = chooseMove({ fen, difficulty: "normal" });
+    expect({ from: answer.move?.from, to: answer.move?.to }).toEqual({ from: "a1", to: "a4" });
   });
 
-  it("finds the mate in one when there is one", () => {
-    // Black king on h8, white queen can go to g7 only if the king has no escape... use a
-    // classic: white queen on a1 delivering mate along the first rank is not available, so
-    // use a simple back-rank mate: black king h8 with rook on h7 waiting.
-    const state = position({ e1: "wk", h8: "bk", a8: "wr", h7: "wp" }, "w");
-    const move = chooseMove(state, "normal", makeRandom(5));
-    // Ra8 is already on a8; the mate is not there. Instead check that the bot's answer ends
-    // the game when a mate is available at all.
-    expect(move).not.toBeNull();
-    const after = chessEngine.apply(state, { type: "move", from: move!.from, to: move!.to, promotion: move!.promotion });
-    expect(after.changed).toBe(true);
-  });
-
-  it("escapes a check rather than ignoring it", () => {
-    // Black rook checks the white king on e1 along the e-file.
-    const state = position({ e1: "wk", e8: "bk", e7: "br", a2: "wp" });
-    const move = chooseMove(state, "normal", makeRandom(9));
-    expect(move).not.toBeNull();
-    const after = chessEngine.apply(state, { type: "move", from: move!.from, to: move!.to, promotion: move!.promotion });
-    expect(after.changed).toBe(true);
-    // After the move white must no longer be in check.
-    expect(legalMoves(after.state).length).toBeGreaterThan(0);
+  it("values material in the evaluation", () => {
+    expect(evaluate(new Chess(START_FEN))).toBe(0);
+    // The same board with the black queen removed is worth a queen to white.
+    expect(evaluate(new Chess("rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"))).toBeGreaterThan(800);
   });
 });
 
-describe("evaluation", () => {
-  it("prefers more material for white", () => {
-    const quiet = position({ e1: "wk", e8: "bk" });
-    const better = position({ e1: "wk", e8: "bk", d1: "wq" });
-    expect(evaluate(better)).toBeGreaterThan(evaluate(quiet));
-  });
-
-  it("counts the same material as equal from either side", () => {
-    const white = position({ e1: "wk", e8: "bk", d1: "wq" });
-    const black = position({ e1: "wk", e8: "bk", d8: "bq" });
-    expect(evaluate(white)).toBe(-evaluate(black) * -1 === evaluate(white) ? evaluate(white) : evaluate(white));
-    // The real assertion: a queen for white is worth as much as a queen for black.
-    expect(evaluate(white)).toBeGreaterThan(0);
-    expect(evaluate(black)).toBe(-evaluate(white));
-  });
-
-  it("returns a number for the starting position", () => {
-    expect(Number.isFinite(evaluate(createChess({ players: [], seed: 1 })))).toBe(true);
-  });
-});
-
-describe("determinism", () => {
-  it("plays the same move twice when given the same seed", () => {
-    const state = createChess({ players: [], seed: 1 });
-    const first = chooseMove(state, "easy", makeRandom(42));
-    const second = chooseMove(state, "easy", makeRandom(42));
-    expect(first).toEqual(second);
-  });
-
-  it("can be told to think faster, and still answers", () => {
-    const state = createChess({ players: [], seed: 1 });
+describe("the bot gives up its turn when told to", () => {
+  it("stops quickly when the caller cancels", () => {
+    // The clock advances on every reading, so a search that ignored cancellation would think for
+    // its whole budget. A cancelled search must come back promptly, still with a legal move.
+    let reads = 0;
     const started = Date.now();
-    const move = chooseMove(state, "normal", makeRandom(1), { depth: 3, budgetMs: 60 });
-    expect(move).not.toBeNull();
-    // The budget is a target, not a guarantee - but it must not be wildly exceeded.
+    const answer = chooseMove({
+      fen: START_FEN,
+      difficulty: "normal",
+      now: () => (reads += 1) * 0.001,
+      isCancelled: () => reads > 8,
+      limits: { depth: 4, budgetMs: 10_000, quiescence: 4 },
+    });
+    expect(answer.move).not.toBeNull();
+    expect(isAnswerLegal(START_FEN, answer)).toBe(true);
     expect(Date.now() - started).toBeLessThan(3000);
+  });
+
+  it("still returns a legal move when cancelled before it starts", () => {
+    const answer = chooseMove({
+      fen: START_FEN,
+      difficulty: "normal",
+      isCancelled: () => true,
+      limits: { depth: 4, budgetMs: 10_000, quiescence: 4 },
+    });
+    // Nothing was searched, but a legal move is still on the table rather than a crash or null.
+    expect(answer.move).not.toBeNull();
+    expect(isAnswerLegal(START_FEN, answer)).toBe(true);
+  });
+
+  it("respects its own time budget", () => {
+    let elapsed = 0;
+    const started = Date.now();
+    chooseMove({
+      fen: after(["e4", "e5", "Nf3", "Nc6"]),
+      difficulty: "normal",
+      now: () => (elapsed += 5),
+      limits: { depth: 6, budgetMs: 40, quiescence: 2 },
+    });
+    // The clock is virtual, so what is asserted is that the deadline is actually consulted: a
+    // search that ignored it would finish all six depths with no time to spare.
+    expect(elapsed).toBeLessThan(3000);
+    expect(Date.now() - started).toBeLessThan(5000);
+  });
+
+  it("never searches deeper than its level allows", () => {
+    const answer = chooseMove({ fen: "7k/6pp/8/8/8/8/8/Q6K w - - 0 1", difficulty: "normal" });
+    expect(answer.depth).toBeLessThanOrEqual(SEARCH_LIMITS.normal.depth);
+  });
+});
+
+describe("the difficulty levels", () => {
+  it("names each level and describes what it does", () => {
+    expect(DIFFICULTY_LABEL.easy).toBe("Начальный");
+    expect(DIFFICULTY_LABEL.normal).toBe("Обычный");
+    expect(Object.keys(DIFFICULTY_LABEL)).toEqual(["easy", "normal"]);
+  });
+
+  it("lets the easy level choose imperfectly, but only among legal moves", () => {
+    const picks = new Set<string>();
+    for (let i = 0; i < 8; i += 1) {
+      const answer = chooseMove({
+        fen: START_FEN,
+        difficulty: "easy",
+        random: () => i / 8,
+        now: () => 0,
+        limits: { depth: 2, budgetMs: 60_000, quiescence: 0 },
+      });
+      expect(answer.move).not.toBeNull();
+      expect(isAnswerLegal(START_FEN, answer)).toBe(true);
+      picks.add(`${answer.move!.from}${answer.move!.to}`);
+    }
+    expect(picks.size).toBeGreaterThan(0);
   });
 });

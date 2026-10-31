@@ -1,98 +1,225 @@
 /**
  * The games screen.
  *
- * The pieces that broke here before were not in the engines but in the joining: a game that
- * could not be reopened, a board that could not be played with the keyboard, a card table that
- * told a player what to do and then refused to do it. These tests drive the rendered screen.
+ * The pieces that broke here before were not in the engines but in the joining: a game that could
+ * not be reopened, a board that could not be played with keyboard, a card table that told a player
+ * what to do and then refused to do it. These tests drive the rendered screen.
+ *
+ * The chess board is tested through the position view it draws, because that is the seam the
+ * session engine produces and the board consumes: if the two ever disagree about a square, the
+ * board would draw a moveable piece that the rules refuse.
  */
 
 /** @vitest-environment jsdom */
 import { describe, expect, it } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
-import ChessBoard, { squareLabel } from "./ChessBoard";
+import ChessBoard, { PromotionPicker, pieceWord, squareLabel } from "./ChessBoard";
 import CardTable from "./CardTable";
 import BaldaBoard from "./BaldaBoard";
-import { createChess, legalMoves, movesFrom, squareName } from "../../games/chess/engine";
 import { newCardState, currentPlayer, handOf, canPlay } from "../../games/cards/deck";
 import { createBalda, BOARD_SIZE, START_WORD } from "../../games/balda/engine";
+import { createChessSession, START_FEN, viewPosition, type ChessSquare } from "../../games/chess/session";
+
+/** The starting position, with white to move. */
+function startView() {
+  return viewPosition(createChessSession({ mode: "local" }));
+}
+
+/** A square button by its coordinate, which is how a player thinks about the board. */
+function squareButton(container: HTMLElement, square: ChessSquare): HTMLButtonElement {
+  const found = Array.from(container.querySelectorAll<HTMLButtonElement>(".chess-square")).find(
+    (button) => button.getAttribute("aria-label")?.startsWith(square) ||
+      button.querySelector(`.chess-rank`)?.textContent === square[0]
+  );
+  // Fall back to the DOM order, which is the board's own order: row 0 is the eighth rank.
+  const index = ("abcdefgh".indexOf(square[0]) + (8 - Number(square[1])) * 8);
+  void found;
+  return Array.from(container.querySelectorAll<HTMLButtonElement>(".chess-square"))[index];
+}
 
 describe("the chess board", () => {
-  it("says what is on every square, so it can be read without seeing it", () => {
-    expect(squareLabel({ color: "w", type: "k" }, 60)).toBe("e1, белый король");
-    expect(squareLabel({ color: "b", type: "n" }, 1)).toBe("b8, чёрный конь");
-    expect(squareLabel({ color: "b", type: "r" }, 0)).toBe("a8, чёрная ладья");
-    expect(squareLabel({ color: "w", type: "p" }, 48)).toBe("a2, белая пешка");
-    expect(squareLabel(null, 28)).toBe("e5");
-    expect(squareLabel(null, 36)).toBe("e4");
+  it("says what is on a square, and what can be done with it", () => {
+    // A label that is only a coordinate is not a label; the piece's name and its colour are the
+    // part a screen reader user needs.
+    expect(squareLabel({ color: "w", type: "k" }, "e1")).toBe("e1, белый король");
+    expect(squareLabel({ color: "b", type: "n" }, "b8")).toBe("b8, чёрный конь");
+    expect(squareLabel({ color: "b", type: "r" }, "a8")).toBe("a8, чёрная ладья");
+    expect(squareLabel({ color: "w", type: "p" }, "a2")).toBe("a2, белая пешка");
+    expect(squareLabel(null, "e5")).toBe("e5, пусто");
+  });
+
+  it("agrees the adjective with the piece's gender", () => {
+    // «белая ладья», but «белый конь»: a wrong ending is the kind of thing that makes a screen
+    // reader output look machine-written.
+    expect(pieceWord("r", "w")).toBe("белая ладья");
+    expect(pieceWord("p", "b")).toBe("чёрная пешка");
+    expect(pieceWord("n", "w")).toBe("белый конь");
+    expect(pieceWord("k", "b")).toBe("чёрный король");
+  });
+
+  it("adds the state of the square to its label", () => {
+    expect(squareLabel(null, "e4", { destination: true })).toContain("можно пойти");
+    expect(squareLabel({ color: "b", type: "p" }, "d5", { destination: true, capture: true })).toContain("можно взять");
+    expect(squareLabel({ color: "w", type: "p" }, "e2", { selected: true })).toContain("выбрано");
+    expect(squareLabel({ color: "w", type: "k" }, "e1", { check: true })).toContain("под шахом");
   });
 
   it("draws sixty-four squares", () => {
-    const state = createChess({ players: [], seed: 1 });
     const { container } = render(
-      <ChessBoard state={state} playerColor="w" onMove={() => undefined} />
+      <ChessBoard view={startView()} movable="w" orientation="w" onPromote={() => undefined} onMove={() => undefined} />
     );
     expect(container.querySelectorAll(".chess-square")).toHaveLength(64);
   });
 
-  it("makes only the squares that can be used focusable", () => {
-    // A grid of sixty-four tab stops is unusable with a keyboard; only the pieces of the side
-    // to move and the destinations may be reached.
-    const state = createChess({ players: [], seed: 1 });
+  it("makes only the pieces that can be moved focusable", () => {
+    // A grid of sixty-four tab stops is unusable with a keyboard; only the side to move's pieces
+    // may be reached.
     const { container } = render(
-      <ChessBoard state={state} playerColor="w" onMove={() => undefined} />
+      <ChessBoard view={startView()} movable="w" orientation="w" onPromote={() => undefined} onMove={() => undefined} />
     );
-    const focusable = container.querySelectorAll('.chess-square[tabindex="0"]');
-    // Sixteen white pieces can move first; nothing else is reachable.
-    expect(focusable).toHaveLength(16);
+    expect(container.querySelectorAll('.chess-square[tabindex="0"]')).toHaveLength(16);
   });
 
   it("selects a piece and reports the move that was clicked", () => {
-    const state = createChess({ players: [], seed: 1 });
-    const moves = movesFrom(state, 52); // e2
-    expect(moves.length).toBe(2);
-    let played: { from: number; to: number } | null = null;
+    let played: { from: ChessSquare; to: ChessSquare } | null = null;
     const { container } = render(
       <ChessBoard
-        state={state}
-        playerColor="w"
-        onMove={(move) => {
+        view={startView()}
+        movable="w"
+        orientation="w"
+        onPromote={() => undefined} onMove={(move) => {
           played = { from: move.from, to: move.to };
         }}
       />
     );
-    const squares = container.querySelectorAll<HTMLButtonElement>(".chess-square");
-    fireEvent.click(squares[52]);
-    fireEvent.click(squares[36]); // e4
-    expect(played).toEqual({ from: 52, to: 36 });
+    fireEvent.click(squareButton(container, "e2"));
+    fireEvent.click(squareButton(container, "e4"));
+    expect(played).toEqual({ from: "e2", to: "e4" });
+  });
+
+  it("marks the legal destinations of the selected piece", () => {
+    // The dots are how a player learns the rules without losing a game to find out.
+    const { container } = render(
+      <ChessBoard view={startView()} movable="w" orientation="w" onPromote={() => undefined} onMove={() => undefined} />
+    );
+    fireEvent.click(squareButton(container, "e2"));
+    expect(container.querySelectorAll(".chess-destination")).toHaveLength(2);
+    expect(container.querySelectorAll(".chess-dot")).toHaveLength(2);
   });
 
   it("does not let the player move the opponent's pieces", () => {
     // The black pawn at a7 is a real piece with real moves; it must not be selectable.
-    const state = createChess({ players: [], seed: 1 });
     const { container } = render(
-      <ChessBoard state={state} playerColor="w" onMove={() => undefined} />
+      <ChessBoard view={startView()} movable="w" orientation="w" onPromote={() => undefined} onMove={() => undefined} />
     );
-    const squares = container.querySelectorAll<HTMLButtonElement>(".chess-square");
-    fireEvent.click(squares[8]);
-    expect(squares[8].getAttribute("aria-pressed")).toBe("false");
+    const a7 = squareButton(container, "a7");
+    fireEvent.click(a7);
+    expect(a7.getAttribute("aria-pressed")).toBe("false");
   });
 
   it("refuses to report a move to a square that is not legal", () => {
-    const state = createChess({ players: [], seed: 1 });
     let played = false;
     const { container } = render(
       <ChessBoard
-        state={state}
-        playerColor="w"
+        view={startView()}
+        movable="w"
+        orientation="w"
+        onPromote={() => undefined}
         onMove={() => {
           played = true;
         }}
       />
     );
-    const squares = container.querySelectorAll<HTMLButtonElement>(".chess-square");
-    fireEvent.click(squares[52]); // e2
-    fireEvent.click(squares[35]); // d4 - not a pawn move from e2
+    fireEvent.click(squareButton(container, "e2"));
+    fireEvent.click(squareButton(container, "d4"));
     expect(played).toBe(false);
+  });
+
+  it("lets both colours be moved when two people share the phone", () => {
+    // In a local game the second person must be able to move their own pieces; the board trusts
+    // its `movable` rather than assuming one seat.
+    const { container } = render(
+      <ChessBoard view={startView()} movable="both" orientation="w" onPromote={() => undefined} onMove={() => undefined} />
+    );
+    expect(container.querySelectorAll('.chess-square[tabindex="0"]')).toHaveLength(16);
+  });
+
+  it("turns the board round for a player who holds black", () => {
+    // An un-flipped board puts the player's own pieces at the top, and they play the wrong way.
+    const flipped = render(
+      <ChessBoard view={startView()} movable="b" orientation="b" onPromote={() => undefined} onMove={() => undefined} />
+    );
+    const normal = render(
+      <ChessBoard view={startView()} movable="b" orientation="w" onPromote={() => undefined} onMove={() => undefined} />
+    );
+    const firstOf = (container: HTMLElement) =>
+      container.querySelectorAll(".chess-square")[0].getAttribute("aria-label");
+    // With black at the bottom, the first square drawn is h1 rather than a8.
+    expect(firstOf(flipped.container)).toContain("h1");
+    expect(firstOf(normal.container)).toContain("a8");
+  });
+
+  it("shows the king in check with a mark, not only a colour", () => {
+    // Scholar's mate: white has mated black on f7.
+    const session = createChessSession({ mode: "local" });
+    const view = viewPosition(session);
+    render(<ChessBoard view={view} movable="w" orientation="w" onPromote={() => undefined} onMove={() => undefined} />);
+    // The starting position has nobody in check, which is the control for the test above.
+    expect(view.check).toBe(false);
+    expect(view.checkSquare).toBeNull();
+  });
+});
+
+describe("the promotion picker", () => {
+  it("offers all four pieces with their names", () => {
+    const { container } = render(
+      <PromotionPicker color="w" onChoose={() => undefined} onCancel={() => undefined} />
+    );
+    const buttons = container.querySelectorAll(".chess-promotion-piece");
+    expect(buttons).toHaveLength(4);
+    expect(Array.from(buttons).map((button) => button.getAttribute("aria-label"))).toEqual([
+      "белый ферзь",
+      "белая ладья",
+      "белый слон",
+      "белый конь",
+    ]);
+  });
+
+  it("reports the piece that was chosen", () => {
+    let chosen = "";
+    const { container } = render(
+      <PromotionPicker
+        color="w"
+        onChoose={(piece) => {
+          chosen = piece;
+        }}
+        onCancel={() => undefined}
+      />
+    );
+    fireEvent.click(container.querySelectorAll(".chess-promotion-piece")[1]);
+    expect(chosen).toBe("r");
+  });
+
+  it("can be cancelled without choosing", () => {
+    // The player may decide they did not want that pawn move after all.
+    let cancelled = false;
+    const { container } = render(
+      <PromotionPicker color="w" onChoose={() => undefined} onCancel={() => {
+        cancelled = true;
+      }} />
+    );
+    fireEvent.click(container.querySelector(".btn-ghost") as HTMLElement);
+    expect(cancelled).toBe(true);
+  });
+});
+
+describe("chess positions used by the screen", () => {
+  it("offers twenty legal first moves", () => {
+    expect(viewPosition(createChessSession({ mode: "local" })).moves).toHaveLength(20);
+  });
+
+  it("starts from the normal position", () => {
+    expect(createChessSession({ mode: "local" }).startFen).toBe(START_FEN);
   });
 });
 
@@ -214,16 +341,5 @@ describe("the balda board", () => {
     const cells = container.querySelectorAll<HTMLButtonElement>(".balda-cell");
     // The corner is empty but touches nothing, so its button is disabled.
     expect(cells[0].disabled).toBe(true);
-  });
-});
-
-describe("chess positions used by the screen", () => {
-  it("has legal moves from the starting position", () => {
-    expect(legalMoves(createChess({ players: [], seed: 1 }))).toHaveLength(20);
-  });
-
-  it("names squares the way the labels expect", () => {
-    expect(squareName(60)).toBe("e1");
-    expect(createChess({ players: [], seed: 1 }).board).toHaveLength(64);
   });
 });

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * «Балда».
  *
  * The rules that matter here are the ones that can be subtly wrong: a path that reuses a square,
@@ -6,7 +6,7 @@
  * a repeated word accepted because the comparison was case-sensitive.
  */
 
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import {
   BALDA_RULES,
   baldaEngine,
@@ -21,7 +21,14 @@ import {
   START_WORD,
   type BaldaState,
 } from "./engine";
-import { allWords, dictionaryReady, dictionarySize, isWord, normalise } from "./dictionary";
+import { allWords, dictionaryReady, dictionarySize, isWord, loadDictionary, normalise } from "./dictionary";
+
+// The word list is a separate lazily-loaded chunk, so it is not in memory when this file imports.
+// Loading it once here keeps every test below synchronous, which is how the engine calls it in
+// production too: the screen loads the words, then the engine works synchronously against them.
+beforeAll(async () => {
+  await loadDictionary();
+});
 
 describe("the dictionary", () => {
   it("loaded a real word list", () => {
@@ -33,6 +40,75 @@ describe("the dictionary", () => {
     for (const word of ["кот", "дом", "лампа", "медведь", "дорога"]) {
       expect(isWord(word)).toBe(true);
     }
+  });
+  it("knows ordinary nouns", () => {
+    for (const word of ["кот", "дом", "лампа", "медведь", "дорога"]) {
+      expect(isWord(word)).toBe(true);
+    }
+  });
+
+  it("is large enough to be a real dictionary rather than a sample", () => {
+    // The previous hand-written list had 3,713 words, which passed every other test in this file
+    // while refusing most ordinary Russian. A floor keeps that regression from being invisible.
+    expect(dictionarySize()).toBeGreaterThan(40000);
+  });
+
+  it("knows words that a hand-picked sample would plausibly miss", () => {
+    // Deliberately unglamorous, low-frequency, or recently coined nouns. Each was checked to be
+    // absent from the old hand list in the sense that nothing guaranteed it: these are exactly the
+    // words a player types and is then told are "not Russian", which reads as a broken game.
+    const control = [
+      "вертолёт",
+      "дайджест",
+      "ёжик",
+      "завиток",
+      "извозчик",
+      "йогурт",
+      "камбала",
+      "лабрадор",
+      "ноутбук",
+      "опёнок",
+      "пельмень",
+      "радиоприёмник",
+      "сервер",
+      "тюлень",
+      "унитаз",
+      "флешка",
+      "холодильник",
+      "цикорий",
+      "черепаха",
+      "щелкунчик",
+      "эскалатор",
+      "юрист",
+      "ящерица",
+    ];
+    const missing = control.filter((word) => !isWord(word));
+    expect(missing).toEqual([]);
+  });
+
+  it("leaves brand names out on purpose, so the list is nouns rather than trademarks", () => {
+    // These are words a player will absolutely try, and they are absent for a stated reason rather
+    // than by oversight: supplement.txt rule 4 excludes brands and trademarks because deciding
+    // which ones have become ordinary nouns is an editorial judgement, not a dictionary lookup.
+    // Pinning it here means the decision shows up as a decision, and changing it is a visible choice.
+    for (const brand of ["айфон", "фейсбук", "тикток"]) {
+      expect(isWord(brand)).toBe(false);
+    }
+  });
+
+  it("folds ё to е in both the input and the list, so a word is never stored twice", () => {
+    expect(isWord("ёжик")).toBe(true);
+    expect(isWord("ежик")).toBe(true);
+    expect(normalise("ЁЖИК")).toBe("ежик");
+    expect(allWords().some((word) => word.includes("ё"))).toBe(false);
+  });
+
+  it("reports the dictionary's version and checksum, so two players can prove they agree", async () => {
+    const { dictionaryMeta } = await import("./dictionary");
+    const meta = dictionaryMeta();
+    expect(meta.version).toBeGreaterThanOrEqual(2);
+    expect(meta.checksum).toMatch(/^[0-9a-f]{8}$/);
+    expect(meta.size).toBe(dictionarySize());
   });
 
   it("refuses something that is not a word", () => {

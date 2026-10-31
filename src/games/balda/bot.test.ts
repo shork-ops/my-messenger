@@ -1,4 +1,4 @@
-/**
+﻿/**
  * The «Балда» bot.
  *
  * Two things it must never do: freeze the tab, and play a word that is not on the board. The
@@ -6,10 +6,15 @@
  * index was added - so the timing test here is not decoration.
  */
 
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { allLegalWords, baldaEngine, createBalda, findPath, readPath, type BaldaState } from "./engine";
 import { chooseBaldaMove, hintsFor, checkWord } from "./bot";
-import { isWord, normalise } from "./dictionary";
+import { isWord, loadDictionary, normalise } from "./dictionary";
+
+// The word list is a lazily-loaded chunk; load it once so the tests below stay synchronous.
+beforeAll(async () => {
+  await loadDictionary();
+});
 import { makeRandom } from "../core/types";
 
 describe("finding words is fast enough to use", () => {

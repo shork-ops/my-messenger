@@ -74,11 +74,23 @@ describe("what the card says", () => {
     expect(invitationText(invitation, true)).toContain("Uno");
   });
 
-  it("says honestly that the game is local for now", () => {
+  it("says the game is local when the invitation carries no server game", () => {
     // A card that implies a shared board wastes the other player's time: they accept and find
-    // their own separate game.
+    // their own separate game. An invitation with no id - from a signed-out sender, or from an
+    // older client - is exactly that case, and the note has to admit it.
+    const local = { kind: "chess" as const, from: "Аня", to: "Борис", gameId: null };
+    expect(invitationNote(local)).toContain("на вашем устройстве");
+    expect(invitationNote(local)).toContain("по сети");
+    // Called with no argument at all, it must not claim the opposite of the safe default.
     expect(invitationNote()).toContain("на вашем устройстве");
-    expect(invitationNote()).toContain("по сети");
+  });
+
+  it("says the game is shared when the invitation carries a server game", () => {
+    // The other half of the same promise: when there *is* a shared game, saying "local only" would
+    // undersell a working feature and make players not try it.
+    const online = { kind: "chess" as const, from: "Аня", to: "Борис", gameId: "8f14e45f-ceea-467a-9c2e-1b" };
+    expect(invitationNote(online)).toContain("сервер");
+    expect(invitationNote(online)).not.toContain("пока не подключена");
   });
 
   it("gives the chat list a readable line", () => {

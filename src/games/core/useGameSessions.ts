@@ -5,6 +5,11 @@
  * when it is written to storage. The three game screens are then drawings of this state rather
  * than three separate piles of `useState` that each grow their own rules - which is how the
  * placeholders became unplayable in the first place.
+ *
+ * Chess is held to a higher standard than the other two here, because the plan asks for it: the
+ * position, the scoresheet and the repetition history are all saved, so a reload lands on the same
+ * game rather than on a plausible-looking new one; the bot's move is asked for through a search
+ * that can be abandoned; and nothing is written under a key that is not the signed-in account.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -16,6 +21,7 @@ import {
   prune,
   removeSession,
   STORAGE_VERSION,
+  takeLegacySessions,
   unfinishedByKind,
   upsertSession,
   type GameStorage,
@@ -29,34 +35,38 @@ import {
 } from "../balda/engine";
 import { chooseBaldaMove, type BaldaDifficulty } from "../balda/bot";
 import { DICTIONARY_VERSION } from "../balda/dictionary";
-import { chessEngine, createChess, type ChessAction, type ChessState } from "../chess/engine";
-import { chooseMove as chooseChessMove, botColour, type Difficulty as ChessDifficulty } from "../chess/bot";
+import {
+  applyChessCommand,
+  botColorFrom,
+  CHESS_RULES_VERSION,
+  createChessSession,
+  summaryOf as chessSummary,
+  type ChessCommand,
+  type ChessSession,
+  type Color as ChessColor,
+} from "../chess/session";
+import type { Difficulty as ChessDifficulty } from "../chess/bot";
 import { newCardState, applyCardAction, type CardAction, type CardState } from "../cards/deck";
 import { playBotTurn, type CardDifficulty } from "../cards/bot";
 
 export type OpenGame =
-  | { kind: "chess"; state: ChessState; gameId: string; mode: PlayMode; difficulty: ChessDifficulty }
+  | { kind: "chess"; state: ChessSession; gameId: string; mode: PlayMode; difficulty: ChessDifficulty }
   | { kind: "cards"; state: CardState; gameId: string; mode: PlayMode; difficulty: CardDifficulty }
   | { kind: "balda"; state: BaldaState; gameId: string; mode: PlayMode; difficulty: BaldaDifficulty };
 
 export type GameSummary = Partial<Record<GameKind, SavedSession>>;
 
-type AnyState = ChessState | CardState | BaldaState;
+type AnyState = ChessSession | CardState | BaldaState;
 
 function rulesVersionOf(kind: GameKind): number {
-  if (kind === "chess") return chessEngine.rulesVersion;
+  if (kind === "chess") return CHESS_RULES_VERSION;
   if (kind === "cards") return 1;
   return baldaEngine.rulesVersion;
 }
 
 /** A line for the catalogue card, written from the state rather than stored separately. */
 export function summarize(kind: GameKind, state: AnyState): string {
-  if (kind === "chess") {
-    const chess = state as ChessState;
-    if (chess.result) return "партия закончена";
-    const side = chess.turn === "w" ? "белые" : "чёрные";
-    return `${side}, ${Math.max(1, chess.fullmove)}-й ход`;
-  }
+  if (kind === "chess") return chessSummary(state as ChessSession);
   if (kind === "cards") {
     const cards = state as CardState;
     if (cards.result) return "раунд закончен";
@@ -69,13 +79,47 @@ export function summarize(kind: GameKind, state: AnyState): string {
 }
 
 function resultOf(kind: GameKind, state: AnyState): GameResult | null {
-  if (kind === "chess") return (state as ChessState).result;
+  if (kind === "chess") return (state as ChessSession).result;
   if (kind === "cards") return (state as CardState).result;
   return (state as BaldaState).result;
 }
 
-export function useGameSessions(storage: GameStorage = browserStorage()) {
-  const [sessions, setSessions] = useState<SavedSession[]>(() => storage.read());
+/** How the chess screen should name its two seats, given who is sitting at it. */
+function chessPlayers(viewerName: string): { white: string; black: string } {
+  return { white: viewerName, black: "Бот" };
+}
+
+export type StartOptions = {
+  mode?: PlayMode;
+  difficulty?: "easy" | "normal";
+  /** For chess: which colour the person at the screen plays. The bot takes the other one. */
+  playerColor?: ChessColor;
+  /** The display name put on the white seat, so a saved game is still recognisably yours. */
+  playerName?: string;
+};
+
+/**
+ * The games screen's state for one account.
+ *
+ * The account is passed in rather than read from a module, so the storage key and the state are
+ * chosen together: a screen that has already loaded one account's games can never write them back
+ * under another account's key.
+ */
+export function useGameSessions(
+  accountId: string | null = null,
+  storage: GameStorage = browserStorage(accountId)
+) {
+  const [sessions, setSessions] = useState<SavedSession[]>(() => {
+    const own = storage.read();
+    if (own.length > 0) return own;
+    // A player who had a game in progress before games were per-account keeps it: the old shared
+    // key is adopted once, here, and only by a signed-in account.
+    const adopted = takeLegacySessions(accountId);
+    if (adopted.length === 0) return own;
+    const pruned = prune(adopted);
+    storage.write(pruned);
+    return pruned;
+  });
   const [open, setOpen] = useState<OpenGame | null>(null);
   const [notice, setNotice] = useState("");
   const storageRef = useRef(storage);
@@ -118,11 +162,20 @@ export function useGameSessions(storage: GameStorage = browserStorage()) {
   const unfinished: GameSummary = useMemo(() => unfinishedByKind(sessions), [sessions]);
 
   const start = useCallback(
-    (kind: GameKind, mode: PlayMode = "bot", difficulty: "easy" | "normal" = "normal") => {
+    (kind: GameKind, options: StartOptions = {}) => {
+      const mode = options.mode ?? "bot";
+      const difficulty = options.difficulty ?? "normal";
       const gameId = shortId("game");
       setNotice("");
       if (kind === "chess") {
-        const state = createChess({ players: [], seed: Math.floor(Math.random() * 2 ** 31) });
+        const playerColor = options.playerColor ?? "w";
+        const state = createChessSession({
+          mode,
+          // The bot takes whichever colour the person at the screen does not.
+          botColor: playerColor === "w" ? "b" : "w",
+          difficulty,
+          players: chessPlayers(options.playerName ?? "Вы"),
+        });
         const opened: OpenGame = { kind, state, gameId, mode, difficulty: difficulty as ChessDifficulty };
         setOpen(opened);
         save(kind, state, gameId, mode);
@@ -155,9 +208,14 @@ export function useGameSessions(storage: GameStorage = browserStorage()) {
       }
       setNotice("");
       const state = session.state as AnyState;
-      if (kind === "chess") setOpen({ kind, state: state as ChessState, gameId: session.gameId, mode: session.mode, difficulty: "normal" });
-      else if (kind === "cards") setOpen({ kind, state: state as CardState, gameId: session.gameId, mode: session.mode, difficulty: "normal" });
-      else setOpen({ kind, state: state as BaldaState, gameId: session.gameId, mode: session.mode, difficulty: "normal" });
+      if (kind === "chess") {
+        const chess = state as ChessSession;
+        setOpen({ kind, state: chess, gameId: session.gameId, mode: session.mode, difficulty: chess.difficulty });
+      } else if (kind === "cards") {
+        setOpen({ kind, state: state as CardState, gameId: session.gameId, mode: session.mode, difficulty: "normal" });
+      } else {
+        setOpen({ kind, state: state as BaldaState, gameId: session.gameId, mode: session.mode, difficulty: "normal" });
+      }
       return true;
     },
     [unfinished]
@@ -179,10 +237,16 @@ export function useGameSessions(storage: GameStorage = browserStorage()) {
     []
   );
 
+  /**
+   * Applies a chess command.
+   *
+   * A refused command keeps the same session object, so the screen can tell "nothing happened"
+   * from "the position changed" without comparing FENs.
+   */
   const applyChess = useCallback(
-    (action: ChessAction) => {
+    (command: ChessCommand) => {
       if (!open || open.kind !== "chess") return;
-      const outcome = chessEngine.apply(open.state, action);
+      const outcome = applyChessCommand(open.state, command);
       if (!outcome.changed) {
         setNotice(outcome.reason ?? "Так ходить нельзя");
         return;
@@ -224,35 +288,10 @@ export function useGameSessions(storage: GameStorage = browserStorage()) {
     [open, save]
   );
 
-  /** Plays the bot's move for the game in progress, when it is the bot's turn. */
+  /** Plays one move for the bot in Uno or Балда. Chess goes through the cancellable search. */
   const playBot = useCallback(() => {
     if (!open) return;
     if (open.mode !== "bot") return;
-
-    if (open.kind === "chess") {
-      // The bot plays whichever colour the second seat holds; the player always has the first.
-      const colour = botColour(
-        [
-          { id: "player-1", seat: "player-1", bot: false },
-          { id: "player-2", seat: "player-2", bot: true },
-        ],
-        "player-1"
-      );
-      if (!colour) return;
-      if (open.state.turn !== colour || open.state.result) return;
-      const move = chooseChessMove(open.state, open.difficulty as ChessDifficulty);
-      if (!move) return;
-      const outcome = chessEngine.apply(open.state, {
-        type: "move",
-        from: move.from,
-        to: move.to,
-        promotion: move.promotion,
-      });
-      if (!outcome.changed) return;
-      setOpen({ ...open, state: outcome.state });
-      save("chess", outcome.state, open.gameId, open.mode);
-      return;
-    }
 
     if (open.kind === "cards") {
       const next = playBotTurn(open.state, open.difficulty as CardDifficulty);
@@ -261,6 +300,7 @@ export function useGameSessions(storage: GameStorage = browserStorage()) {
       save("cards", next, open.gameId, open.mode);
       return;
     }
+    if (open.kind !== "balda") return;
 
     const move = chooseBaldaMove(open.state, open.difficulty as BaldaDifficulty);
     if (!move) return;
@@ -299,6 +339,19 @@ export function useGameSessions(storage: GameStorage = browserStorage()) {
     applyCards,
     applyBalda,
     playBot,
+    /** Starts a new game of the same kind and mode, for the «Новая партия» button. */
+    restart: useCallback(
+      (kind: GameKind, mode: PlayMode, difficulty: "easy" | "normal", playerColor: ChessColor = "w") =>
+        start(kind, { mode, difficulty, playerColor }),
+      [start]
+    ),
+    /** The seat the person at the screen holds in the open chess game. */
+    viewerColor: useMemo<ChessColor | "both">(() => {
+      if (!open || open.kind !== "chess") return "both";
+      if (open.state.botColor === null) return "both";
+      return open.state.botColor === "w" ? "b" : "w";
+    }, [open]),
+    botColorOf: botColorFrom,
   };
 }
 
