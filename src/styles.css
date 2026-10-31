@@ -1479,6 +1479,11 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .window-item { display: contents; }
 
 
+.delivery-status { display: block; margin-top: 5px; color: var(--fg-secondary); font-size: 12px; text-align: right; }
+.delivery-retry { min-height: 44px; padding: 8px 12px; margin-top: 6px; border: 1px solid var(--danger); border-radius: 10px; color: var(--danger); background: var(--surface-1); }
+
+.connection-status { position: fixed; z-index: 100; top: env(safe-area-inset-top, 0px); left: 50%; transform: translateX(-50%); width: min(560px, calc(100vw - 24px)); padding: 10px 14px; border: 1px solid var(--yellow); border-radius: 0 0 12px 12px; background: var(--surface-1); color: var(--fg); font-size: 13px; line-height: 1.4; box-shadow: 0 6px 20px #0005; pointer-events: none; }
+
 /* Keep the message field spacious while secondary actions live in popovers. */
 .message-body { white-space: pre-wrap; }
 .composer { align-items: flex-end; }

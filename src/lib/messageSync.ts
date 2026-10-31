@@ -28,6 +28,8 @@ type AttachmentMeta = {
   height?: number;
   duration?: number;
   waveform?: number[];
+  viewOnce?: boolean;
+  bucket?: "chat-media" | "view-once-media";
 };
 
 type MapOptions = {
@@ -51,8 +53,9 @@ export function toAttachment(meta: AttachmentMeta, data: string, expiresAt?: num
     size: meta.size || 0,
     data,
     ...(meta.path ? { path: meta.path } : {}),
+    ...(meta.viewOnce ? { viewOnce: true, bucket: meta.bucket, data: "" } : {}),
     ...(expiresAt ? { expiresAt } : {}),
-    ...(meta.thumbnail ? { thumbnail: meta.thumbnail } : {}),
+    ...(meta.thumbnail && !meta.viewOnce ? { thumbnail: meta.thumbnail } : {}),
     ...(typeof meta.width === "number" ? { width: meta.width } : {}),
     ...(typeof meta.height === "number" ? { height: meta.height } : {}),
     ...(typeof meta.duration === "number" ? { duration: meta.duration } : {}),
@@ -71,7 +74,7 @@ export async function mapMessageRow(row: ChatMessageRow, options: MapOptions): P
   if (attachmentMeta && supabase) {
     let data = "";
     let expiresAt: number | undefined;
-    if (attachmentMeta.path) {
+    if (attachmentMeta.path && !attachmentMeta.viewOnce) {
       const { data: signed } = await supabase.storage
         .from("chat-media")
         .createSignedUrl(attachmentMeta.path, SIGNED_URL_TTL_SECONDS);

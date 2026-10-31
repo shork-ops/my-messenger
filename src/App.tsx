@@ -10,6 +10,7 @@ import type { ChangeEvent } from "react";
 import { Shield, X } from "lucide-react";
 import PasscodeLock from "./components/PasscodeLock";
 import Rail from "./components/Rail";
+import ConnectionStatus from "./components/ConnectionStatus";
 import ChatListPanel from "./components/ChatListPanel";
 import ConversationPanel from "./components/ConversationPanel";
 import RightPanel from "./components/RightPanel";
@@ -186,6 +187,7 @@ export default function App() {
     selectChat,
     selfAvatarUrl,
     sendMessage,
+    retryMessage,
     sendSticker,
     scheduleMessage,
     serverSearch,
@@ -294,6 +296,7 @@ export default function App() {
 
   return (
     <main className={`app-shell ${mobileView === "chat" ? "mobile-chat" : "mobile-list"}`}>
+      <ConnectionStatus />
       <header className="mobile-list-header">
         <strong><span>N</span> Nexus</strong>
         <button type="button" onClick={() => { setSettingsSection("profile"); setProfileOpen(true); }} aria-label="Мой профиль">{profileName || "Мой профиль"}</button>
@@ -430,6 +433,7 @@ export default function App() {
         onToggleActions={(messageId) => setOpenMessageActionsId((current) => (current === messageId ? null : messageId))}
         onVote={(messageId, optionId) => void votePoll(messageId, optionId)}
         onToggleReaction={(messageId, emoji) => void toggleReaction(messageId, emoji)}
+        onRetry={retryMessage}
         onReply={replyToMessage}
         onCopy={copyMessage}
         onForward={(message) => void forwardMessage(message)}

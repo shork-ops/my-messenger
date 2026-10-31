@@ -38,6 +38,7 @@ export type Attachment = {
    * table so it travels with the message through every path that already handles attachments.
    */
   viewOnce?: boolean;
+  bucket?: "chat-media" | "view-once-media";
 };
 
 export type ReplyPreview = { author: string; text: string };
@@ -51,6 +52,7 @@ export type AlbumItem = Attachment;
 export type Message = {
   id: number;
   remoteId?: string;
+  delivery?: "sending" | "failed" | "sent";
   author: string;
   text: string;
   time: string;
@@ -85,6 +87,7 @@ import type { ChannelDesign, ChannelRole } from "./lib/channels";
 export type Chat = {
   id: number;
   remoteId?: string;
+  peerId?: string;
   name: string;
   avatar: string;
   /** Storage path of the other person's photo in a direct chat; groups have none. */

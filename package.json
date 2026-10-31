@@ -19,7 +19,9 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "qa:demo": "node scripts/qa-demo.mjs",
-    "qa:cloud": "node scripts/qa-cloud.mjs"
+    "qa:cloud": "node scripts/qa-cloud.mjs",
+    "test:db": "node scripts/check-view-once.mjs",
+    "deploy:reliability": "node scripts/deploy-reliability.mjs"
   },
   "dependencies": {
     "@capacitor/core": "^7.6.10",
@@ -32,6 +34,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^7.6.10",
+    "@electric-sql/pglite": "^0.5.13",
     "@playwright/test": "^1.64.1",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",

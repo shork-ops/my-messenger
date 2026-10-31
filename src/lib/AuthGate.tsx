@@ -62,7 +62,10 @@ export default function AuthGate({ children }: AuthGateProps) {
 
   // Demo mode runs entirely on local data, so there is nothing to authenticate.
   if (isDemoMode) return <>{children}</>;
-  if (!isSupabaseConfigured || !supabase) return <>{children}</>;
+  if (!isSupabaseConfigured || !supabase) {
+    if (!import.meta.env.PROD) return <>{children}</>;
+    return <main style={styles.page}><section style={styles.card} role="alert"><div style={styles.mark}>N</div><h1 style={styles.title}>Сервис временно недоступен</h1><p style={styles.subtitle}>Не удалось настроить подключение. Попробуйте зайти позже.</p></section></main>;
+  }
   if (loading) {
     return (
       <main style={styles.page}>

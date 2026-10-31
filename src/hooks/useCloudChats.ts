@@ -112,6 +112,7 @@ export function useCloudChats({
         return {
           id: numericId(row.id),
           remoteId: row.id,
+          peerId: row.is_group ? undefined : other?.id,
           name: row.is_group ? row.title : other?.display_name || row.title,
           avatar: row.is_group ? "👥" : other?.avatar || other?.display_name?.slice(0, 1) || "N",
           avatarPath: row.is_group ? null : other?.avatar_path ?? null,

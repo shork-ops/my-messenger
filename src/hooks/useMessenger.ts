@@ -39,14 +39,19 @@ import { analyseWaveform } from "../lib/voice";
 import { GalleryModal, MuteModal, NewChatModal, PollModal } from "../components/Modals";
 import { friends, isDemoMode } from "../lib/constants";
 import { clockTime, numericId } from "../lib/format";
-import { appendMessage, applyReadStamp, directChatFromSearch, mapMessages, markRead, removeChat, removeMessage, restoreMessage, updateChat } from "../lib/chats";
+import { appendMessage, applyReadStamp, directChatFromSearch, findDirectChatByPeer, mapMessages, markRead, removeChat, removeMessage, restoreMessage, updateChat } from "../lib/chats";
 import { placeNewMessage } from "../lib/messageOrder";
-import { isTransientError, withRetry } from "../lib/retry";
+import { sendText } from "../lib/sendText";
+
 import { toggleLocalVote } from "../lib/polls";
 import { useNotice } from "../hooks/useNotice";
 import { useTheme } from "../hooks/useTheme";
 import { useProfile } from "../hooks/useProfile";
 import { useAvatar } from "../hooks/useAvatar";
+import { usePeerProfiles } from "./usePeerProfiles";
+import { useTextOutbox } from "./useTextOutbox";
+import { viewOnceReady } from "../lib/viewOnceCloud";
+import { exceedsMessageLimit, MESSAGE_TOO_LONG } from "../lib/messageLimits";
 import { useGames } from "../hooks/useGames";
 import { useChatCollection } from "../hooks/useChatCollection";
 import { useUserSearch } from "../hooks/useUserSearch";
@@ -236,6 +241,8 @@ export function useMessenger() {
 
   // Mirrors the chat list for timers and callbacks that must not be rebuilt
   // every time a message arrives.
+  const { queueText, retryMessage } = useTextOutbox({ accountId, profileName, chats, setChats });
+  usePeerProfiles({ accountId, chats, setChats });
   const chatsRef = useRef(chats);
   chatsRef.current = chats;
     const reloadChatsRef = useRef<(() => void) | null>(null);
@@ -568,9 +575,9 @@ export function useMessenger() {
       action("Войди в аккаунт, чтобы начать переписку");
       return;
     }
-    const existing = chats.find((chat) => chat.members?.some((member) => member === user.display_name || member === `@${user.username}`) && !chat.group);
+    const existing = findDirectChatByPeer(chats, user.id);
     if (existing) {
-      setActiveId(existing.id);
+      selectChat(existing);
       setSearch("");
       setActiveNav("Чаты");
       return;
@@ -583,10 +590,19 @@ export function useMessenger() {
       return;
     }
     const remoteId = data as string;
+    const known = chats.find((chat) => chat.remoteId === remoteId);
+    if (known) {
+      setChats((current) => updateChat(current, known.id, (chat) => ({ ...chat, peerId: user.id, avatarPath: user.avatar_path ?? null })));
+      selectChat(known);
+      setSearch("");
+      return;
+    }
     const created = directChatFromSearch(remoteId, user, profileName);
     const localId = created.id;
     setChats((current) => (current.some((chat) => chat.remoteId === remoteId) ? current : [created, ...current]));
     setActiveId(localId);
+    setMobileView("chat");
+    setOpenedChatId(localId);
     setSearch("");
     setDraft("");
     setActiveNav("Чаты");
@@ -630,8 +646,13 @@ export function useMessenger() {
 
     setUploadProgress({ name: uploadName, percent: Math.round((percentFrom + percentTo) / 2), stage: "Отправляю файл…" });
     const path = buildStoragePath(chatRemoteId, ownerId, uploadName, crypto.randomUUID());
-    const uploaded = await client.storage.from("chat-media").upload(path, payload, { contentType: meta.type });
+    const bucket = viewOnce ? "view-once-media" : "chat-media";
+    const uploaded = await client.storage.from(bucket).upload(path, payload, { contentType: meta.type, cacheControl: viewOnce ? "0" : "3600" });
     if (uploaded.error) return null;
+    if (viewOnce) {
+      const { thumbnail: _preview, ...safe } = meta;
+      return { meta: { ...safe, path, data: "", viewOnce: true, bucket: "view-once-media" }, path };
+    }
     const signed = await client.storage.from("chat-media").createSignedUrl(path, 3600);
     if (signed.error || !signed.data?.signedUrl) {
       // A stored file whose message is never written is an orphan; remove it rather than
@@ -668,6 +689,10 @@ export function useMessenger() {
       return;
     }
 
+    if (viewOnce && (!chosen[0].type.startsWith("image/") || !await viewOnceReady())) {
+      action("Одноразовые фото пока недоступны: требуется серверное обновление. Обычные вложения работают.");
+      return;
+    }
     // Every file is checked before anything is uploaded: a selection that fails halfway
     // would leave half an album in the bucket and half in the conversation.
     for (const file of chosen) {
@@ -709,7 +734,7 @@ export function useMessenger() {
       if (failed) {
         // Nothing half-sent: the whole group is undone, or the conversation would show a
         // message that is missing the picture the person meant to send.
-        await client.storage.from("chat-media").remove(paths);
+        await client.storage.from(viewOnce ? "view-once-media" : "chat-media").remove(paths);
         setUploadProgress(null);
         action("Не удалось загрузить файл. Проверь миграцию online_media в Supabase.");
         return;
@@ -726,7 +751,7 @@ export function useMessenger() {
         .select("id, created_at")
         .single();
       if (inserted.error || !inserted.data) {
-        await client.storage.from("chat-media").remove(paths);
+        await client.storage.from(viewOnce ? "view-once-media" : "chat-media").remove(paths);
         setUploadProgress(null);
         action("Не удалось отправить вложение");
         return;
@@ -1215,6 +1240,7 @@ export function useMessenger() {
     if (editingMessageId !== null) {
       const text = editDraft.trim();
       if (!text) return;
+      if (exceedsMessageLimit(text)) { action(MESSAGE_TOO_LONG); return; }
       const editingChat = chats.find((chat) => chat.id === activeId);
       const editingMessage = editingChat?.messages.find((message) => message.id === editingMessageId);
       if (editingChat?.remoteId && editingMessage?.remoteId) {
@@ -1245,6 +1271,7 @@ export function useMessenger() {
     }
     const text = draft.trim();
     if (!text) return;
+    if (exceedsMessageLimit(text)) { action(MESSAGE_TOO_LONG); return; }
     // The server's clock decides the order, so its timestamp is what gets stored.
     // Falling back to this device is only for chats that live in this browser.
     let createdAt = Date.now();
@@ -1258,21 +1285,12 @@ export function useMessenger() {
         action("Нужно войти в аккаунт, чтобы отправить сообщение");
         return;
       }
-      // A dropped connection is ordinary on a phone; retrying saves the user from
-      // retyping a message that would have gone through a second later. The query
-      // builder is a thenable rather than a promise, so it is awaited here.
-      const inserted = await withRetry(
-        async () =>
-          client.from("messages").insert({ chat_id: targetChat.remoteId, sender_id: accountId, body: text }).select("id, created_at").single(),
-        { shouldRetry: (error) => isTransientError(error) }
-      ).catch((error: unknown) => ({ error }));
-      const { data, error } = inserted as { data?: { id: string; created_at: string } | null; error?: unknown };
-      if (error || !data) {
-        action("Сообщение не отправлено. Проверь подключение и права Supabase.");
-        return;
-      }
-      remoteMessageId = data.id;
-      createdAt = new Date(data.created_at).getTime();
+      queueText(targetChat, text, replyTo);
+      setDraft("");
+      setDrafts((current) => ({ ...current, [activeId]: "" }));
+      setReplyDrafts((current) => ({ ...current, [activeId]: { author: "", text: "" } }));
+      setReplyTarget(null);
+      return;
     } else if (client && accountId) {
       action("Этот чат локальный. Начни переписку, выбрав пользователя по @username.");
       return;
@@ -1323,24 +1341,9 @@ export function useMessenger() {
         action("Нужно войти в аккаунт, чтобы отправить стикер");
         return;
       }
-      // The body carries the id, so the message needs no new column: a column per kind of
-      // content would mean a migration every time a kind is added.
-      const inserted = await withRetry(
-        async () =>
-          client
-            .from("messages")
-            .insert({ chat_id: targetChat.remoteId, sender_id: accountId, body: stickerMarkup(stickerId) })
-            .select("id, created_at")
-            .single(),
-        { shouldRetry: (error) => isTransientError(error) }
-      ).catch((error: unknown) => ({ error }));
-      const { data, error } = inserted as { data?: { id: string; created_at: string } | null; error?: unknown };
-      if (error || !data) {
-        action("Стикер не отправлен. Проверь подключение и права Supabase.");
-        return;
-      }
-      remoteMessageId = data.id;
-      createdAt = new Date(data.created_at).getTime();
+      queueText(targetChat, sticker.label, undefined, { body: stickerMarkup(stickerId), stickerId });
+      setStickerOpen(false);
+      return;
     } else if (client && accountId) {
       action("Этот чат локальный. Начни переписку, выбрав пользователя по @username.");
       return;
@@ -1394,15 +1397,9 @@ export function useMessenger() {
       return;
     }
     const body = sticker ? stickerMarkup(sticker.id) : text;
-    const inserted = await withRetry(
-      async () =>
-        client
-          .from("messages")
-          .insert({ chat_id: targetChat.remoteId, sender_id: accountId, body, send_at: at.toISOString() })
-          .select("id, created_at")
-          .single(),
-      { shouldRetry: (error) => isTransientError(error) }
-    ).catch((error: unknown) => ({ error }));
+    const inserted = await sendText(client, {
+      id: crypto.randomUUID(), chat_id: targetChat.remoteId, sender_id: accountId, body, send_at: at.toISOString(),
+    }).then(data => ({ data })).catch((error: unknown) => ({ error }));
     const { data, error } = inserted as { data?: { id: string; created_at: string } | null; error?: unknown };
     if (error || !data) {
       action("Не удалось отложить сообщение. Проверь подключение и права Supabase.");
@@ -2270,6 +2267,7 @@ export function useMessenger() {
     selectChat,
     selfAvatarUrl,
     sendMessage,
+    retryMessage,
     sendSticker,
     scheduleMessage,
     serverSearch,

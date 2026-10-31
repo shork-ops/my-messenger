@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent, MutableRefObject } from "react";
 import { CheckCheck, Clock, EyeOff, Image, Mic, Paperclip, Plus, Send, Smile, Sticker, Users, Video, X } from "lucide-react";
 import type { Message } from "../types";
+import { SUPPORTED_TYPES } from "../lib/media";
 
 type ComposerProps = {
   draft: string;
@@ -150,7 +151,7 @@ export default function Composer({
           type="file"
           className="hidden-file-input"
           multiple
-          accept="image/*,video/*,audio/*,.pdf,.txt,.doc,.docx,.zip,.csv"
+          accept={SUPPORTED_TYPES.join(",")}
           aria-label="Прикрепить файл"
           onChange={onAttachment}
         />

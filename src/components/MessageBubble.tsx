@@ -25,6 +25,7 @@ import {
   viewOnceWarning,
   type ViewOnceState,
 } from "../lib/viewOnce";
+import { openViewOnce } from "../lib/viewOnceCloud";
 import type { Message, MessageEffect, Poll } from "../types";
 
 type VoteHandler = (optionId: string) => void;
@@ -80,8 +81,12 @@ function PollCard({ poll, accountId, profileName, onVote }: { poll: Poll; accoun
 function ViewOnceCard({
   attachment,
   messageKey,
+  remoteId,
+  mine,
 }: {
   attachment: NonNullable<Message["attachment"]>;
+  remoteId?: string;
+  mine?: boolean;
   /** Identifies this piece of media across unmounts, so "already opened" survives them. */
   messageKey: string;
 }) {
@@ -89,6 +94,27 @@ function ViewOnceCard({
   // must not offer a photo that has already been opened.
   const [state, setState] = useState<ViewOnceState>(() => (isSpent(messageKey) ? "spent" : "closed"));
   const [left, setLeft] = useState(VIEW_ONCE_SECONDS);
+  const [cloudUrl, setCloudUrl] = useState("");
+  const [opening, setOpening] = useState(false);
+  const [openError, setOpenError] = useState("");
+  const openedRef = useRef(false);
+  const cloud = Boolean(remoteId);
+  const open = async () => {
+    if (opening || openedRef.current) return;
+    openedRef.current = true;
+    setOpenError("");
+    if (cloud) {
+      setOpening(true);
+      const result = await openViewOnce(remoteId!);
+      setOpening(false);
+      if (result.spent) { setState("spent"); return; }
+      if (!result.url) { openedRef.current = false; setOpenError(result.error || "Фото недоступно"); return; }
+      setCloudUrl(result.url);
+    }
+    openedRef.current = true;
+    markSpent(messageKey);
+    setState("open");
+  };
   const [startedAt, setStartedAt] = useState(0);
 
   useEffect(() => {
@@ -102,12 +128,14 @@ function ViewOnceCard({
       if (remaining === 0) {
         window.clearInterval(tick);
         markSpent(messageKey);
+        setCloudUrl("");
         setState(nextViewOnceState("open"));
       }
     }, 250);
     return () => window.clearInterval(tick);
   }, [state, messageKey]);
 
+  if (mine && cloud) return <div className="view-once-card">Одноразовое фото отправлено</div>;
   if (state === "spent") {
     return (
       <div className="view-once-card is-spent" role="status">
@@ -118,22 +146,23 @@ function ViewOnceCard({
 
   if (state === "open" && viewOnceVisible("open")) {
     return (
-      <div className="view-once-card is-open">
-        <img className="attachment-image" src={attachment.thumbnail || attachment.data} alt={attachment.name} />
+      <button type="button" className="view-once-card is-open" aria-label="Закрыть одноразовое фото" onClick={() => { setCloudUrl(""); setState("spent"); }}>
+        <img className="attachment-image" src={cloud ? cloudUrl : attachment.thumbnail || attachment.data} alt={attachment.name} />
         <span className="view-once-countdown" role="timer" aria-live="polite">
           Осталось {left} с
         </span>
         <span className="view-once-hint" data-started={startedAt}>
           Чтобы закрыть раньше, нажмите
         </span>
-      </div>
+      </button>
     );
   }
 
   return (
     <div className="view-once-card is-closed">
       <p className="view-once-warning">{viewOnceWarning()}</p>
-      <button type="button" className="view-once-open" onClick={() => setState(nextViewOnceState("closed"))}>
+      {openError && <p role="alert">{openError}</p>}
+      <button type="button" className="view-once-open" disabled={opening} onClick={() => void open()}>
         1 раз · Открыть фото
       </button>
     </div>
@@ -144,8 +173,12 @@ function AttachmentCard({
   attachment,
   autoload,
   messageKey,
+  remoteId,
+  mine,
 }: {
   attachment: NonNullable<Message["attachment"]>;
+  remoteId?: string;
+  mine?: boolean;
   /** False when the download policy says this picture waits for a tap. */
   autoload: boolean;
   /** Identifies the message, so "already opened" is remembered per message, not per file. */
@@ -155,7 +188,7 @@ function AttachmentCard({
   const show = autoload || revealed;
 
   if (isViewOnce({ viewOnce: attachment.viewOnce })) {
-    return <ViewOnceCard attachment={attachment} messageKey={messageKey} />;
+    return <ViewOnceCard attachment={attachment} messageKey={messageKey} remoteId={remoteId} mine={mine} />;
   }
 
   return (
@@ -234,6 +267,7 @@ type MessageBubbleProps = {
   onVote: (optionId: string) => void;
   onToggleReaction: (emoji: string) => void;
   onReply: () => void;
+  onRetry?: () => void;
   onCopy: () => void;
   onForward: () => void;
   onFavourite: () => void;
@@ -264,6 +298,7 @@ export default function MessageBubble({
   onVote,
   onToggleReaction,
   onReply,
+  onRetry,
   onCopy,
   onForward,
   onFavourite,
@@ -424,7 +459,9 @@ export default function MessageBubble({
             <AttachmentCard
               attachment={message.attachment}
               autoload={autoloadMedia}
-              messageKey={message.remoteId || String(message.id)}
+              messageKey={`${accountId || "local"}:${message.remoteId || String(message.id)}`}
+              remoteId={message.remoteId}
+              mine={message.mine}
             />
           ) : (
             <div className="message-body">
@@ -445,7 +482,7 @@ export default function MessageBubble({
                 {message.time}
               </>
             )}
-            {!pendingSend && receipt && (
+            {!pendingSend && !message.delivery?.match(/sending|failed/) && receipt && (
               <span className={`message-receipt ${receipt === "read" ? "read" : ""}`} aria-label={receipt === "read" ? "Прочитано" : "Отправлено"}>
                 {receipt === "read" ? "✓✓" : "✓"}
               </span>
@@ -458,6 +495,9 @@ export default function MessageBubble({
           )}
         </div>
 
+        {message.delivery === "sending" && <small className="delivery-status" role="status">Отправляется…</small>}
+        {message.delivery === "failed" && <button type="button" className="delivery-retry" onClick={onRetry}>Не отправлено · Повторить</button>}
+        {message.delivery === "sent" && <small className="delivery-status">Принято сервером</small>}
         {message.reactions && message.reactions.length > 0 && (
           <div className="reaction-list">
             {message.reactions.map((emoji, reactionIndex) => (

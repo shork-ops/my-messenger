@@ -21,7 +21,7 @@ export function collectExpiringAttachments(chats: Chat[], now: number, marginMs 
   for (const chat of chats) {
     for (const message of chat.messages) {
       const attachment = message.attachment;
-      if (!attachment?.path || !attachment.expiresAt) continue;
+      if (attachment?.viewOnce || !attachment?.path || !attachment.expiresAt) continue;
       if (attachment.expiresAt - now > marginMs) continue;
       due.push({ chatId: chat.id, messageId: message.id, path: attachment.path, expiresAt: attachment.expiresAt });
     }
@@ -40,6 +40,7 @@ export function nextRefreshDelay(chats: Chat[], now: number, marginMs = SIGNED_U
   let soonest = Number.POSITIVE_INFINITY;
   for (const chat of chats) {
     for (const message of chat.messages) {
+      if (message.attachment?.viewOnce) continue;
       const expiresAt = message.attachment?.expiresAt;
       if (!expiresAt) continue;
       const dueAt = expiresAt - marginMs;
@@ -80,7 +81,7 @@ export function withRefreshedUrl(
 
 /** True when a refresh is worth attempting: the path is known and the URL is stale or empty. */
 export function needsRefresh(attachment: Attachment | undefined, now: number, marginMs = SIGNED_URL_REFRESH_MARGIN_MS): boolean {
-  if (!attachment?.path) return false;
+  if (attachment?.viewOnce || !attachment?.path) return false;
   if (!attachment.data) return true;
   if (!attachment.expiresAt) return false;
   return attachment.expiresAt - now <= marginMs;

@@ -24,6 +24,7 @@ type ConversationPanelProps = {
   chat: Chat;
   /** Returns from the conversation to the chat list. Phones only. */
   onBack: () => void;
+  onRetry?: (messageId: number) => void;
   isDemoMode: boolean;
   /** What this browser is allowed to draw about the reader and the other side. */
   privacy: PrivacyPrefs;
@@ -97,6 +98,7 @@ type ConversationPanelProps = {
 export default function ConversationPanel({
   chat,
   onBack,
+  onRetry,
   isDemoMode,
   /** Whether this browser draws read receipts and the other side's last-seen line. */
   privacy: privacyValue,
@@ -591,6 +593,7 @@ export default function ConversationPanel({
                 onToggleActions={() => onToggleActions(message.id)}
                 onVote={(optionId) => onVote(message.id, optionId)}
                 onToggleReaction={(emoji) => onToggleReaction(message.id, emoji)}
+                onRetry={() => onRetry?.(message.id)}
                 onReply={() => onReply(message)}
                 onCopy={() => onCopy(message)}
                 onForward={() => onForward(message)}

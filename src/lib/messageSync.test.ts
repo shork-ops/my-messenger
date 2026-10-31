@@ -7,6 +7,13 @@ import { toAttachment } from "./messageSync";
  * photo, while the receiver got a flat waveform and no preview.
  */
 describe("toAttachment", () => {
+  it("never exposes a single-view thumbnail or ordinary signed URL", () => {
+    const attachment = toAttachment({ path:"chat/user/photo.jpg",type:"image/jpeg",viewOnce:true,bucket:"view-once-media",thumbnail:"inline-secret" },"ordinary-signed-url");
+    expect(attachment.viewOnce).toBe(true);
+    expect(attachment.bucket).toBe("view-once-media");
+    expect(attachment.data).toBe("");
+    expect(attachment.thumbnail).toBeUndefined();
+  });
   it("carries every voice-message field through the round trip", () => {
     const attachment = toAttachment(
       {

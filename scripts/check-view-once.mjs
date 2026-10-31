@@ -1,0 +1,53 @@
+import { PGlite } from '@electric-sql/pglite';
+import { readFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const db = new PGlite();
+await db.exec(`
+create role authenticated; create role anon;
+create schema auth; create schema storage;
+create table auth.users(id uuid primary key);
+create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true),'')::uuid $$;
+grant usage on schema auth,public,storage to authenticated,anon; grant execute on function auth.uid() to authenticated,anon;
+create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
+create table storage.objects(bucket_id text,name text);
+alter table storage.objects enable row level security;
+grant select,insert,delete on storage.objects to authenticated;
+create function storage.foldername(text) returns text[] language sql immutable as $$ select string_to_array($1,'/'); $$;
+create table public.chat_members(chat_id uuid,user_id uuid);
+grant select on public.chat_members to authenticated;
+create table public.blocks(a uuid,b uuid);
+create function public.is_chat_member(uuid) returns boolean language sql stable security definer as $$ select exists(select 1 from public.chat_members where chat_id=$1 and user_id=auth.uid()); $$;
+create function public.is_blocked_between(uuid,uuid) returns boolean language sql stable security definer as $$ select exists(select 1 from public.blocks where (a=$1 and b=$2) or (a=$2 and b=$1)); $$;
+create table public.messages(id uuid primary key,chat_id uuid,sender_id uuid,attachment jsonb,send_at timestamptz,deleted_at timestamptz);
+grant select,insert,update on public.messages to authenticated;
+`);
+await db.exec(await readFile(new URL('../supabase/migrations/20261050_view_once.sql',import.meta.url),'utf8'));
+const [a,b,c,chat,msg,future]=[1,2,3,10,20,21].map(n=>`00000000-0000-0000-0000-${String(n).padStart(12,'0')}`);
+await db.exec(`insert into auth.users values('${a}'),('${b}'),('${c}'); insert into chat_members values('${chat}','${a}'),('${chat}','${b}');`);
+const path=`${chat}/${a}/photo.jpg`;
+await db.query('insert into messages values($1,$2,$3,$4,null,null)',[msg,chat,a,{viewOnce:true,bucket:'view-once-media',path,thumbnail:'must-be-removed',data:'must-be-removed'}]);
+await db.query('insert into messages values($1,$2,$3,$4,now()+interval \'1 day\',null)',[future,chat,a,{viewOnce:true,bucket:'view-once-media',path}]);
+assert.equal((await db.query('select attachment from messages where id=$1',[msg])).rows[0].attachment.thumbnail,undefined);
+async function as(user,fn) {
+  await db.exec('begin; set local role authenticated;');
+  await db.query("select set_config('request.jwt.claim.sub',$1,true)",[user]);
+  try { const result=await fn();await db.exec('commit');return result; } catch(e) {await db.exec('rollback');throw e;}
+}
+await assert.rejects(()=>as(c,()=>db.query('select claim_view_once_message($1)',[msg])));
+await assert.rejects(()=>as(a,()=>db.query('select claim_view_once_message($1)',[msg])));
+await assert.rejects(()=>as(b,()=>db.query('select claim_view_once_message($1)',[future])));
+await as(a,()=>db.query('insert into storage.objects values($1,$2)',['view-once-media',path]));
+assert.equal((await as(b,()=>db.query('select * from storage.objects'))).rows.length,0);
+assert.equal((await as(a,()=>db.query('select * from storage.objects'))).rows.length,0);
+await assert.rejects(()=>as(b,()=>db.query('insert into storage.objects values($1,$2)',['view-once-media',path])));
+const first=await as(b,()=>db.query('select claim_view_once_message($1) as media',[msg]));
+assert.equal(first.rows[0].media.path,path);
+await assert.rejects(()=>as(b,()=>db.query('select claim_view_once_message($1)',[msg])));
+await assert.rejects(()=>as(b,()=>db.query('delete from view_once_receipts')));
+assert.equal((await as(c,()=>db.query('select * from view_once_receipts'))).rows.length,0);
+await assert.rejects(()=>db.query('update messages set attachment=$1 where id=$2',[{path},msg]));
+await db.exec('begin; set local role anon;');
+await assert.rejects(()=>db.query('select claim_view_once_message($1)',[msg]));
+await db.exec('rollback');
+console.log('PASS: server receipt persists across sessions, repeated claim denied, sender/outsider/future/anonymous denied, receipts protected, private bucket unreadable, wrong-owner upload denied, inline preview stripped.');
+await db.close();

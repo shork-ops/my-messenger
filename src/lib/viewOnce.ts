@@ -1,18 +1,5 @@
-/**
- * Media that can be looked at once.
- *
- * Two honest limits decide the design.
- *
- * The first: a browser cannot stop a screenshot. It can notice one in a narrow case (the
- * visibility change when the system screenshot UI covers the tab), and it cannot be trusted to.
- * So there is no "screenshot detected!" alarm - there is a notice that this kind of media is
- * meant to be seen once, shown before it is opened, and a statement afterwards that it is gone.
- *
- * The second: "deleted after viewing" has to mean something. Since the bytes are fetched by
- * the client, the only real deletion is the sender's blob and the copy on screen; a viewer who
- * saved the file with the developer console has it. The promise made in the interface is what
- * is true: the message is removed from the conversation and cannot be opened again.
- */
+/** Single-view UI helpers. Cloud media is claimed through viewOnceCloud and a server receipt.
+ * Browser storage below is only a local UI/demo hint; it is never the cloud access control. */
 
 /** A message whose attachment is marked single-view. */
 export const VIEW_ONCE_KEY = "viewOnce";
@@ -65,17 +52,7 @@ export function viewOnceVisible(state: ViewOnceState): boolean {
   return state === "open";
 }
 
-/**
- * Which single-view media has already been opened.
- *
- * Kept in the browser rather than in the message row, because the row belongs to the sender
- * too and this is a fact about the reader. In memory, a component that is unmounted when the
- * reader switches to another chat comes back believing the photo is still unopened - which is
- * exactly the failure that makes the promise meaningless.
- *
- * The honest limit: a different device, or cleared storage, starts over. Since the picture is
- * fetched by the client, that was never a guarantee a server could keep either.
- */
+/** Local UI/demo hint. Real cloud access is enforced by the server per account/message. */
 const SPENT_KEY = "nexus-view-once-spent";
 
 function readSpent(): Set<string> {

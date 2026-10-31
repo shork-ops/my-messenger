@@ -10,7 +10,7 @@
  * properties. What is checked is the decision the component makes - which theme class the
  * time carries - because that decision is exactly what was wrong.
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { VIEW_ONCE_SECONDS } from "../lib/viewOnce";
 import { EFFECTS } from "../lib/effects";
@@ -176,6 +176,7 @@ describe("an effect belongs to whoever wrote the message", () => {
 });
 
 describe("a photo that may be opened once", () => {
+  beforeEach(() => window.localStorage.clear());
   const photo = {
     name: "фото.jpg",
     type: "image/jpeg",

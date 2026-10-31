@@ -3,6 +3,7 @@ import type { Chat, Message } from "../types";
 import {
   appendMessage,
   directChatFromSearch,
+  findDirectChatByPeer,
   filterChats,
   getGalleryImages,
   getVisibleMessages,
@@ -24,6 +25,11 @@ function message(overrides: Partial<Message> = {}): Message {
 }
 
 describe("a new account opens a direct chat", () => {
+  it("does not confuse two people who use the same display name", () => {
+    const sameName = [chat({ id: 1, peerId: "alice", name: "Саша" }), chat({ id: 2, peerId: "bob", name: "Саша" })];
+    expect(findDirectChatByPeer(sameName, "bob")?.id).toBe(2);
+    expect(findDirectChatByPeer(sameName, "unknown")).toBeUndefined();
+  });
   it("keeps the existing account's photo before any cloud reload", () => {
     const peer = { id: "old-user", username: "anya", display_name: "Аня", avatar: "А", avatar_path: "old-user/photo.webp" };
     const created = directChatFromSearch("00000000-0000-0000-0000-000000000001", peer, "Новый аккаунт");

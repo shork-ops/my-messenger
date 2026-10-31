@@ -6,6 +6,7 @@ export function directChatFromSearch(remoteId: string, user: UserSearchResult, s
   return {
     id: numericId(remoteId),
     remoteId,
+    peerId: user.id,
     name: user.display_name,
     avatar: user.avatar || Array.from(user.display_name)[0]?.toUpperCase() || "N",
     avatarPath: user.avatar_path ?? null,
@@ -15,6 +16,10 @@ export function directChatFromSearch(remoteId: string, user: UserSearchResult, s
     messages: [],
     members: [selfName, user.display_name],
   };
+}
+
+export function findDirectChatByPeer(chats: Chat[], peerId: string): Chat | undefined {
+  return chats.find(chat => !chat.group && chat.peerId === peerId);
 }
 
 export function sortChats(chats: Chat[]): Chat[] {
@@ -63,7 +68,7 @@ export function getVisibleMessages(messages: Message[], query: string): Message[
 export function getGalleryImages(chats: Chat[]): (Message & { chatName: string })[] {
   return chats.flatMap((chat) =>
     chat.messages
-      .filter((message) => message.attachment?.type.startsWith("image/"))
+      .filter((message) => !message.attachment?.viewOnce && message.attachment?.type.startsWith("image/"))
       .map((message) => ({ ...message, chatName: chat.name }))
   );
 }

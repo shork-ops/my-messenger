@@ -13,6 +13,7 @@
 // Invoke with the service role key (a scheduled job), never from the browser.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { maintenanceAuthorized } from "../_shared/maintenanceAuth.ts";
 
 const MIN_AGE_HOURS = 24;
 const PAGE_SIZE = 1000;
@@ -29,6 +30,9 @@ Deno.serve(async (request) => {
     return Response.json({ error: "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required" }, { status: 500 });
   }
 
+  if (!await maintenanceAuthorized(request.headers.get("Authorization"), serviceKey)) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
   const supabase = createClient(url, serviceKey, {
     auth: { persistSession: false },
   });
@@ -86,6 +90,11 @@ Deno.serve(async (request) => {
             continue;
           }
           if (referencing && referencing.length > 0) continue;
+          // Albums keep paths inside items, not at the root of the JSON object.
+          const { data: albumReferences, error: albumError } = await supabase.from("messages")
+            .select("id").contains("attachment", { items: [{ path }] }).limit(1);
+          if (albumError) { failures.push({ path, reason: albumError.message }); continue; }
+          if (albumReferences && albumReferences.length > 0) continue;
 
           const { error: removeError } = await supabase.storage.from("chat-media").remove([path]);
           if (removeError) failures.push({ path, reason: removeError.message });

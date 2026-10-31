@@ -28,6 +28,8 @@ jobs:
         run: npx tsc -b
       - name: Unit tests
         run: npm test
+      - name: Single-view database permissions
+        run: npm run test:db
 
   e2e:
     runs-on: ubuntu-latest
