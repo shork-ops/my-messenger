@@ -5,6 +5,31 @@ import type { Attachment, ChatMessageRow, Message } from "../types";
 const MESSAGE_COLUMNS = "id, chat_id, sender_id, body, attachment, effect, poll, reply_to, created_at, edited_at, deleted_at";
 
 /**
+ * Set once the server says messages have no `expires_at` column: migration 20261052 has not
+ * run there. Asking for the column again would fail every page, and a failed page shows as
+ * an empty chat, so history is loaded without deadlines instead.
+ */
+let expiryColumnMissing = false;
+
+function messageColumns(): string {
+  return expiryColumnMissing ? MESSAGE_COLUMNS : `${MESSAGE_COLUMNS}, expires_at`;
+}
+
+export function isMissingExpiryColumn(error: { code?: string; message?: string } | null | undefined): boolean {
+  return Boolean(error && (/^(42703|PGRST204)$/.test(error.code ?? "") || /expires_at/.test(error.message ?? "")));
+}
+
+type PageResult = { data: unknown[] | null; error: { code?: string; message?: string } | null };
+
+/** Runs a page query, once more without `expires_at` if the server does not have it yet. */
+async function selectPage(run: (columns: string) => PromiseLike<PageResult>): Promise<PageResult> {
+  const first = await run(messageColumns());
+  if (!first.error || expiryColumnMissing || !isMissingExpiryColumn(first.error)) return first;
+  expiryColumnMissing = true;
+  return run(messageColumns());
+}
+
+/**
  * How long a signed attachment URL stays valid.
  *
  * An hour used to be enough because history was only mapped on load, but a tab
@@ -94,6 +119,7 @@ export async function mapMessageRow(row: ChatMessageRow, options: MapOptions): P
     mine,
     createdAt: created.getTime(),
     edited: Boolean(row.edited_at),
+    ...(row.expires_at && !Number.isNaN(Date.parse(row.expires_at)) ? { disappearsAt: Date.parse(row.expires_at) } : {}),
     ...(row.effect ? { effect: row.effect } : {}),
     ...(row.poll ? { poll: row.poll as Message["poll"] } : {}),
     ...(attachment ? { attachment } : {}),
@@ -118,13 +144,16 @@ export async function fetchHiddenMessageIds(messageIds: string[]): Promise<Set<s
 /** Loads the newest page of a chat (keyset pagination sorted newest first). */
 export async function fetchLatestMessages(chatId: string, limit: number): Promise<ChatMessageRow[] | null> {
   if (!supabase) return null;
-  const { data, error } = await supabase
-    .from("messages")
-    .select(MESSAGE_COLUMNS)
-    .eq("chat_id", chatId)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(limit);
+  const client = supabase;
+  const { data, error } = await selectPage((columns) =>
+    client
+      .from("messages")
+      .select(columns)
+      .eq("chat_id", chatId)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(limit)
+  );
   if (error) return null;
   const rows = (data ?? []) as ChatMessageRow[];
   const hidden = await fetchHiddenMessageIds(rows.map((row) => row.id));
@@ -142,14 +171,17 @@ export async function fetchOlderMessages(
   limit: number
 ): Promise<ChatMessageRow[] | null> {
   if (!supabase) return null;
-  const { data, error } = await supabase
-    .from("messages")
-    .select(MESSAGE_COLUMNS)
-    .eq("chat_id", chatId)
-    .or(`created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(limit);
+  const client = supabase;
+  const { data, error } = await selectPage((columns) =>
+    client
+      .from("messages")
+      .select(columns)
+      .eq("chat_id", chatId)
+      .or(`created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(limit)
+  );
   if (error) return null;
   const rows = (data ?? []) as ChatMessageRow[];
   const hidden = await fetchHiddenMessageIds(rows.map((row) => row.id));

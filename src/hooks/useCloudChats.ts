@@ -59,10 +59,16 @@ export function useCloudChats({
         setChats([]);
         return;
       }
-      const [{ data: cloudChatRows, error: chatsError }, { data: profileRows }] = await Promise.all([
+      const [{ data: cloudChatRows, error: chatsError }, { data: profileRows }, timers] = await Promise.all([
         client.from("chats").select("id, title, is_group, invite_code, created_at").in("id", chatIds).order("updated_at", { ascending: false }),
         client.from("chat_members").select("chat_id, user_id, last_read_at").in("chat_id", chatIds),
+        // Asked separately so a server without the timer column still loads every chat.
+        import("../lib/disappearingLive").then(
+          (module) => module.fetchChatTimers(client, chatIds),
+          () => new Map<string, number>()
+        ),
       ]);
+      const loadedAt = Date.now();
       if (!alive) return;
       if (chatsError) {
         notify("Не удалось загрузить список чатов");
@@ -131,6 +137,7 @@ export function useCloudChats({
             ? Date.parse(myMembership.get(row.id as string)!.muted_until as string)
             : null,
           archived: Boolean(myMembership.get(row.id as string)?.archived_at),
+          ...(timers.has(row.id) ? { messageTtlSeconds: timers.get(row.id), messageTtlSince: loadedAt } : {}),
           members: chatMembers.map(
             (member) =>
               member.user_id === accountId
