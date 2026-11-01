@@ -775,3 +775,29 @@ a:focus-visible,
     border: 1px solid CanvasText;
   }
 }
+/* Interface polish (November 2026). */
+
+/* Filters stay on one line and scroll sideways: wrapped, they took three rows of the
+   list on a desktop before the first chat. */
+.chat-filters { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
+.chat-filters::-webkit-scrollbar { display: none; }
+.chat-filters button { flex-shrink: 0; }
+
+/* Deleting is the one action in the menu that cannot be taken back. */
+.message-actions button.danger-action { color: var(--danger); }
+.message-actions button.danger-action:hover { border-color: var(--danger); color: var(--danger); }
+.message-actions .more-reactions { color: var(--fg-secondary); }
+
+/* A disabled menu item carries the reason under its name. */
+.attach-menu .menu-item-label { display: flex; flex-direction: column; gap: 1px; }
+.attach-menu .menu-item-label small { color: var(--fg-muted); font-size: 12px; white-space: nowrap; }
+/* Faded to 45%, the reason was as hard to read as the item; the muted colour says "not now". */
+.attach-menu button:disabled { opacity: 1; color: var(--fg-muted); }
+
+/* Game picker: "Играть" was 21px tall yellow text; now a button of full size. */
+.game-modal-header > button { width: 44px; height: 44px; }
+.game-play-label,
+.game-picker-card .btn { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 44px; padding: 0 16px; border-radius: 11px; font-size: 14px; font-weight: 700; }
+.game-play-label,
+.game-picker-card .btn-primary { border: 1px solid transparent; background: var(--accent-fill, var(--yellow)); color: #1a1400; }
+.game-picker-card .btn-ghost { border: 1px solid var(--border-strong); background: transparent; color: var(--fg); }

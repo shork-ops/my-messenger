@@ -102,7 +102,7 @@ export function useProfile({ notify }: UseProfileOptions) {
       return;
     }
     if (!/^[a-z0-9_]{3,20}$/.test(normalized)) {
-      notify("Username: 3–20 символов, только латиница, цифры и _");
+      notify("Имя пользователя: 3–20 символов, только латиница, цифры и _");
       return;
     }
     setUsernameSaving(true);
@@ -115,7 +115,7 @@ export function useProfile({ notify }: UseProfileOptions) {
       return;
     }
     setUsername(normalized);
-    notify("Username сохранён — по нему тебя можно будет найти");
+    notify("Имя пользователя сохранено — по нему тебя можно будет найти");
   }
 
   async function saveAbout(next: string) {
