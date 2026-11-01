@@ -48,6 +48,8 @@ export default function App() {
   // The complaint dialog needs the chat and message ids from the server, not the local ones:
   // only a stored message can be pointed at. Kept here because it outlives one bubble.
   const [reportTarget, setReportTarget] = useState<{ chatId: string; messageId: string | null } | null>(null);
+  // The message a reaction is being picked for in the full emoji picker.
+  const [reactionPickFor, setReactionPickFor] = useState<number | null>(null);
   const {
     about,
     accountId,
@@ -423,6 +425,10 @@ export default function App() {
         onToggleActions={(messageId) => setOpenMessageActionsId((current) => (current === messageId ? null : messageId))}
         onVote={(messageId, optionId) => void votePoll(messageId, optionId)}
         onToggleReaction={(messageId, emoji) => void toggleReaction(messageId, emoji)}
+        onMoreReactions={(messageId) => {
+          setOpenMessageActionsId(null);
+          setReactionPickFor(messageId);
+        }}
         onRetry={retryMessage}
         onReply={replyToMessage}
         onCopy={copyMessage}
@@ -556,6 +562,16 @@ export default function App() {
             setEmojiOpen(false);
           }}
           onClose={() => setEmojiOpen(false)}
+        />
+      )}
+
+      {reactionPickFor !== null && (
+        <EmojiPicker
+          onPick={(char) => {
+            void toggleReaction(reactionPickFor, char);
+            setReactionPickFor(null);
+          }}
+          onClose={() => setReactionPickFor(null)}
         />
       )}
 

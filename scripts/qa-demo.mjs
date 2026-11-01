@@ -205,11 +205,11 @@ const notice = (page) => page.locator('[class*="toast"], [role="status"]').allTe
 {
   const { page, context } = await open();
   const rows = await page.locator(".chat-row").count();
-  await page.locator('input[placeholder*="Поиск чатов"]').fill("Макс");
+  await page.locator('input[aria-label*="Поиск чатов"]').fill("Макс");
   await page.waitForTimeout(600);
   const filtered = await page.locator(".chat-row").count();
   record("поиск по чатам", filtered < rows && filtered > 0, `${rows} → ${filtered}`);
-  await page.locator('input[placeholder*="Поиск чатов"]').fill("");
+  await page.locator('input[aria-label*="Поиск чатов"]').fill("");
 
   await page.getByRole("button", { name: "Поиск по переписке" }).click();
   await page.waitForTimeout(500);

@@ -195,7 +195,12 @@ export default function Composer({
                 onClick={() => runFromMenu(onSchedule)}
                 disabled={value.trim() === ""}
               >
-                <Clock size={18} /> Отправить позже
+                <Clock size={18} />
+                {/* A disabled item says why, instead of leaving the reader to guess. */}
+                <span className="menu-item-label">
+                  Отправить позже
+                  {value.trim() === "" && <small>Сначала напиши сообщение</small>}
+                </span>
               </button>
             </div>
           )}

@@ -66,6 +66,7 @@ type ConversationPanelProps = {
   onToggleActions: (messageId: number) => void;
   onVote: (messageId: number, optionId: string) => void;
   onToggleReaction: (messageId: number, emoji: string) => void;
+  onMoreReactions?: (messageId: number) => void;
   onReply: (message: Message) => void;
   onCopy: (message: Message) => void;
   onForward: (message: Message) => void;
@@ -139,6 +140,7 @@ export default function ConversationPanel({
   onToggleActions,
   onVote,
   onToggleReaction,
+  onMoreReactions,
   onReply,
   onCopy,
   onForward,
@@ -603,6 +605,7 @@ export default function ConversationPanel({
                 onReport={() => onReportMessage(chat.remoteId ?? null, message.remoteId ?? null)}
                 onVote={(optionId) => onVote(message.id, optionId)}
                 onToggleReaction={(emoji) => onToggleReaction(message.id, emoji)}
+                onMoreReactions={onMoreReactions ? () => onMoreReactions(message.id) : undefined}
                 onRetry={() => onRetry?.(message.id)}
                 onReply={() => onReply(message)}
                 onCopy={() => onCopy(message)}

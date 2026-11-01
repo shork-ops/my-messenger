@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Flag, Forward, MessageCircle, MoreVertical, Paperclip, PencilLine, Pin, Send, Star, Trash2, X } from "lucide-react";
 import Avatar from "./Avatar";
 import VoicePlayer from "./VoicePlayer";
+import { Plus } from "lucide-react";
 import { friends } from "../lib/constants";
 import { hasUserVoted, pollPercent, pollTotal } from "../lib/polls";
 import { splitForward } from "../lib/messageActions";
@@ -243,6 +244,9 @@ function AttachmentCard({
   );
 }
 
+/** The row offered in the message menu; anything else is one tap further, in the picker. */
+const QUICK_REACTIONS = ["❤️", "👍", "😂", "😮", "😢", "🔥"];
+
 /** The mark drawn on a message that carries an effect: the same symbol the menu shows. */
 function effectMark(effect: MessageEffect): string {
   return effectByKey(effect)?.symbol ?? "";
@@ -267,6 +271,8 @@ type MessageBubbleProps = {
   onToggleActions: () => void;
   onVote: (optionId: string) => void;
   onToggleReaction: (emoji: string) => void;
+  /** Opens the full emoji picker to react with something not in the quick row. */
+  onMoreReactions?: () => void;
   onReply: () => void;
   onRetry?: () => void;
   onCopy: () => void;
@@ -299,6 +305,7 @@ export default function MessageBubble({
   onToggleActions,
   onVote,
   onToggleReaction,
+  onMoreReactions,
   onReply,
   onRetry,
   onCopy,
@@ -543,12 +550,16 @@ export default function MessageBubble({
                 <Pin size={13} /> {pinned ? "Открепить" : "Закрепить"}
               </button>
               <span className="message-actions-group" role="group" aria-label="Реакции">
-                <button type="button" onClick={() => onToggleReaction("❤️")} aria-label="Реакция ❤️">
-                  ❤️
-                </button>
-                <button type="button" onClick={() => onToggleReaction("👍")} aria-label="Реакция 👍">
-                  👍
-                </button>
+                {QUICK_REACTIONS.map((emoji) => (
+                  <button key={emoji} type="button" onClick={() => onToggleReaction(emoji)} aria-label={`Реакция ${emoji}`}>
+                    {emoji}
+                  </button>
+                ))}
+                {onMoreReactions && (
+                  <button type="button" className="more-reactions" onClick={onMoreReactions} aria-label="Другая реакция" title="Другая реакция">
+                    <Plus size={14} />
+                  </button>
+                )}
               </span>
               {/* An effect decorates the message it is attached to, so it belongs to whoever
                   wrote it. Offering the stickers on someone else's message invited a choice
@@ -579,12 +590,12 @@ export default function MessageBubble({
               )}
               {/* Everyone can clear a message from their own view; only the
                   author can take it away from everyone else. */}
-              <button type="button" onClick={onDeleteLocal} aria-label="Удалить у себя">
-                <X size={13} /> У себя
+              <button type="button" className="danger-action" onClick={onDeleteLocal} aria-label="Удалить у себя">
+                <X size={13} /> Удалить у себя
               </button>
               {message.mine && (
-                <button type="button" onClick={onDelete} aria-label="Удалить у всех">
-                  <Trash2 size={13} /> У всех
+                <button type="button" className="danger-action" onClick={onDelete} aria-label="Удалить у всех">
+                  <Trash2 size={13} /> Удалить у всех
                 </button>
               )}
               {/* Only other people's messages can be reported: complaining about yourself is a

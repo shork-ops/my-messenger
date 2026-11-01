@@ -302,7 +302,7 @@ function ProfileSection({
         <input value={name} maxLength={32} onChange={(event) => onNameChange(event.target.value)} />
       </label>
       <label>
-        Username — уникальный
+        Имя пользователя (@username)
         <input
           value={username}
           maxLength={20}
@@ -312,7 +312,7 @@ function ProfileSection({
           onChange={(event) => onUsernameChange(event.target.value.toLowerCase())}
           placeholder="например, alex_2026"
         />
-        <small className="modal-help">3–20 символов: латиница, цифры и _. Username должен быть уникальным.</small>
+        <small className="modal-help">3–20 символов: латиница, цифры и _. По нему тебя находят, поэтому оно должно быть уникальным.</small>
       </label>
       <button type="button" className="save-settings" disabled={usernameSaving} onClick={onSaveUsername}>
         {usernameSaving ? "Сохраняю..." : "Сохранить username"}
