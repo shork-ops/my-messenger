@@ -116,7 +116,7 @@ export default function GameModal({ open, onClose }: GameModalProps) {
                       className="game-play-label"
                       onClick={() => kind && sessions.start(kind, "bot")}
                     >
-                      Играть <ChevronRight size={15} />
+                      Играть <ChevronRight size={16} />
                     </button>
                   )}
                 </div>
