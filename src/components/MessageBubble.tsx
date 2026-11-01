@@ -337,9 +337,15 @@ export default function MessageBubble({
   // Whether a finger is on the message. Touch events keep coming while the page scrolls;
   // pointer events stop at its first pixel, so they cannot tell this.
   const fingerDown = useRef(false);
+  // Where the thread was when the menu opened. Kept across renders: the thread re-renders as
+  // it scrolls, and a baseline reset on each render would never see the distance add up.
+  const openedScrollTop = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!actionsOpen) return;
+    if (!actionsOpen) {
+      openedScrollTop.current = null;
+      return;
+    }
     const toggle = toggleRef.current;
     const menu = menuRef.current;
     if (!toggle || !menu) return;
@@ -355,10 +361,14 @@ export default function MessageBubble({
       actionsOpenRef.current = false;
       onToggleActions();
     };
+    if (area && openedScrollTop.current === null) openedScrollTop.current = area.scrollTop;
     const onScroll = () => {
       // The finger that has just opened the menu is still down, and a phone turns the
       // slightest drift of it into a scroll. That is not the reader leaving the message.
       if (fingerDown.current && longPressed.current) return;
+      // Nor is the short glide that drift leaves behind once the finger lifts, or the page
+      // settling by a few pixels: the message is still right there.
+      if (area && Math.abs(area.scrollTop - (openedScrollTop.current ?? area.scrollTop)) < 48) return;
       close();
     };
     // Like any popover, it closes on a press anywhere else. On a phone the menu is a sheet
