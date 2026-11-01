@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent, MutableRefObject } from "react";
-import { CheckCheck, Clock, EyeOff, Image, Mic, Paperclip, Plus, Send, Smile, Sticker, Users, Video, X, Gamepad2 } from "lucide-react";
+import { CheckCheck, Clock, EyeOff, Image, Mic, Paperclip, Plus, Send, Smile, Sparkles, Sticker, Users, Video, X, Gamepad2 } from "lucide-react";
 import type { Message } from "../types";
 import { SUPPORTED_TYPES } from "../lib/media";
+import { maskSpoilers } from "../lib/hidden";
 
 type ComposerProps = {
   draft: string;
@@ -32,6 +33,9 @@ type ComposerProps = {
   onSchedule: () => void;
   /** Picks a photo to be looked at once, rather than to be sent as an ordinary picture. */
   onViewOnce: () => void;
+  /** The next message goes out hidden, opened by a tap. */
+  hidden: boolean;
+  onToggleHidden: () => void;
 };
 
 export default function Composer({
@@ -59,6 +63,8 @@ export default function Composer({
   onOpenPoll,
   onSchedule,
   onViewOnce,
+  hidden,
+  onToggleHidden,
 }: ComposerProps) {
   const value = editing ? editDraft : draft;
   const [attachOpen, setAttachOpen] = useState(false);
@@ -142,14 +148,28 @@ export default function Composer({
         <div className="reply-banner">
           <span>
             <strong>Ответ для {replyTarget.author}</strong>
-            <small>{replyTarget.text}</small>
+            <small>{maskSpoilers(replyTarget.text)}</small>
           </span>
           <button type="button" onClick={onCancelReply} aria-label="Отменить ответ">
             <X size={15} />
           </button>
         </div>
       )}
-      <form className="composer" onSubmit={onSubmit}>
+      {hidden && !editing && (
+        <div className="hidden-banner">
+          <span className="hidden-banner-dust" aria-hidden="true">
+            <span className="hidden-ink">скрыто</span>
+          </span>
+          <span>
+            <strong>Скрытое сообщение</strong>
+            <small>Откроется только по нажатию</small>
+          </span>
+          <button type="button" onClick={onToggleHidden} aria-label="Отправить обычным сообщением">
+            <X size={15} />
+          </button>
+        </div>
+      )}
+      <form className={hidden && !editing ? "composer composer-hidden" : "composer"} onSubmit={onSubmit}>
         <input
           ref={fileInputRef}
           type="file"
@@ -189,6 +209,16 @@ export default function Composer({
               <button type="button" role="menuitem" onClick={() => runFromMenu(onViewOnce)}>
                 <EyeOff size={18} /> Посмотреть один раз
               </button>
+              {!editing && (
+                <button
+                  type="button"
+                  role="menuitemcheckbox"
+                  aria-checked={hidden}
+                  onClick={() => runFromMenu(onToggleHidden)}
+                >
+                  <Sparkles size={18} /> {hidden ? "Отправить обычным" : "Скрытое сообщение"}
+                </button>
+              )}
               <button
                 type="button"
                 role="menuitem"
@@ -221,7 +251,7 @@ export default function Composer({
             }}
             title="На компьютере: Enter — отправить, Shift+Enter — новая строка"
             onChange={(event) => onChangeText(event.target.value)}
-            placeholder={editing ? "Изменить…" : "Текст…"}
+            placeholder={editing ? "Изменить…" : hidden ? "Скрытый текст…" : "Текст…"}
             aria-label="Текст сообщения"
           />
           {mentionOpen && mentionMatches.length > 0 && (
