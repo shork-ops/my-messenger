@@ -316,15 +316,78 @@
   color: inherit;
   cursor: pointer;
   border-radius: 4px;
-  background: currentColor;
+  background: transparent;
   text-align: left;
 }
-.markup-spoiler > *,
-.markup-spoiler { color: transparent; }
-.markup-spoiler.revealed { background: transparent; }
-.markup-spoiler.revealed,
-.markup-spoiler.revealed > * { color: inherit; }
 .markup-spoiler:focus-visible { outline: 2px solid var(--accent, #f0b429); outline-offset: 2px; }
+
+/* Spoilers and hidden messages wear the same moving dust, as in Telegram. It used to be a
+   bar of currentColor on text made transparent - which made the bar transparent too, so a
+   spoiler showed as a gap. The dust is drawn on the text itself with its letters cleared
+   instead: it lies over exactly the lines the text takes, nothing shifts when it opens, and
+   the dots take the text colour, so they read on every bubble and theme. */
+.markup-spoiler:not(.revealed),
+.hidden-ink {
+  -webkit-text-fill-color: transparent;
+  /* Four layers whose tiles share no common size, drifting four ways: the eye finds no grid
+     in them. The second list fades some of the dots, where the browser can mix colours. */
+  background-image:
+    radial-gradient(circle at 30% 40%, currentColor 0 0.6px, transparent 1.1px),
+    radial-gradient(circle at 70% 20%, currentColor 0 0.5px, transparent 1px),
+    radial-gradient(circle at 20% 80%, currentColor 0 0.7px, transparent 1.2px),
+    radial-gradient(circle at 60% 60%, currentColor 0 0.5px, transparent 1px);
+  background-image:
+    radial-gradient(circle at 30% 40%, currentColor 0 0.6px, transparent 1.1px),
+    radial-gradient(circle at 70% 20%, color-mix(in srgb, currentColor 75%, transparent) 0 0.5px, transparent 1px),
+    radial-gradient(circle at 20% 80%, color-mix(in srgb, currentColor 55%, transparent) 0 0.8px, transparent 1.3px),
+    radial-gradient(circle at 60% 60%, color-mix(in srgb, currentColor 40%, transparent) 0 0.5px, transparent 1px);
+  background-size: 7px 5px, 9px 11px, 13px 7px, 5px 13px;
+  background-position: 0 0, 0 0, 0 0, 0 0;
+  background-color: color-mix(in srgb, currentColor 8%, transparent);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  border-radius: 4px;
+  animation: dust-drift 3s linear infinite;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.markup-spoiler:not(.revealed) * { -webkit-text-fill-color: transparent; }
+@keyframes dust-drift {
+  to { background-position: 7px -5px, -9px 11px, 13px 7px, -5px -13px; }
+}
+.hidden-message { display: block; border-radius: 6px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.hidden-message:focus-visible { outline: 2px solid var(--accent, #f0b429); outline-offset: 3px; }
+.hidden-message.covered:hover .hidden-ink { animation-duration: 1.2s; }
+/* Opening: the dust thins out and blows apart while the letters come through. */
+.hidden-message.opening .hidden-ink {
+  -webkit-text-fill-color: currentColor;
+  transition: -webkit-text-fill-color 0.42s ease-in;
+  animation: dust-scatter 0.42s ease-out forwards;
+}
+@keyframes dust-scatter {
+  to {
+    background-size: 28px 20px, 36px 44px, 52px 28px, 20px 52px;
+    background-position: -14px -10px, 18px -22px, -26px 14px, 10px 26px;
+    background-color: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .markup-spoiler:not(.revealed), .hidden-ink { animation: none; }
+}
+
+/* The composer, when the next message goes out hidden. */
+.hidden-banner { display: flex; align-items: center; gap: 10px; margin: 0 14px; padding: 8px 12px; border: 1px solid #3d3560; border-bottom: 0; border-radius: 10px 10px 0 0; background: #15131f; color: #c9b8ff; }
+.hidden-banner > span:not(.hidden-banner-dust) { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
+.hidden-banner strong { font-size: 12px; }
+.hidden-banner small { overflow: hidden; color: #a59cc4; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.hidden-banner button { display: grid; place-items: center; width: 32px; height: 32px; border: 0; background: transparent; color: inherit; }
+.hidden-banner-dust { flex-shrink: 0; padding: 3px 8px; border-radius: 8px; background: #221d36; font-size: 13px; }
+.reply-banner + .hidden-banner,
+.hidden-banner + .composer { margin-top: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
+.composer.composer-hidden { border-color: #3d3560; }
+@media (max-width: 760px) {
+  .hidden-banner { margin: 0 7px; }
+}
 
 /* The jump button floats over the conversation, above the composer. It is deliberately
    small and quiet: it answers "where are the unread ones" without competing with them. */
