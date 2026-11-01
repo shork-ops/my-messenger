@@ -16,6 +16,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:install": "node scripts/check-install.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "qa:demo": "node scripts/qa-demo.mjs",
