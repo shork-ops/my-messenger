@@ -6,7 +6,8 @@ import { Plus } from "lucide-react";
 import { friends } from "../lib/constants";
 import { hasUserVoted, pollPercent, pollTotal } from "../lib/polls";
 import { splitForward } from "../lib/messageActions";
-import MessageBody from "./MessageBody";
+import MessageBody, { HiddenBody } from "./MessageBody";
+import { hiddenBody, isHidden, maskSpoilers } from "../lib/hidden";
 import { EFFECTS, effectByKey } from "../lib/effects";
 import { stickerById } from "../lib/stickers";
 import { firstLink } from "../lib/links";
@@ -433,17 +434,21 @@ export default function MessageBubble({
   }
   // Forwarded bodies carry a marker line, which renders as a label instead of text.
   const forwardRelease = splitForward(message.text);
+  const bodyText = forwardRelease.label ? forwardRelease.body : message.text;
+  // A hidden message is opened by the reader, so nothing may be drawn from it before that:
+  // a link card would show the address and the page the text is hiding.
+  const hidden = isHidden(bodyText);
   // A sticker id from a newer build resolves to nothing; the message then falls back to
   // its text rather than rendering an empty bubble.
   const sticker = message.stickerId ? stickerById(message.stickerId) : undefined;
   const pendingSend = message.sendAt !== undefined && message.sendAt > Date.now();
   // One card per message, for the first link. Two cards for two links in one sentence turn a
   // message into a feed.
-  const cardUrl = !message.poll && !message.attachment && !message.stickerId ? firstLink(message.text) : null;
+  const cardUrl = !message.poll && !message.attachment && !message.stickerId && !hidden ? firstLink(message.text) : null;
   const linkCard = useLinkCard(cardUrl, Boolean(cardUrl));
   // An invitation is recognised from the message text, so it survives a reload and arrives
   // from the other side as an ordinary message rather than as a separate kind of event.
-  const invitation = !message.poll && !message.attachment && !message.stickerId ? parseInvitation(message.text) : null;
+  const invitation = !message.poll && !message.attachment && !message.stickerId && !hidden ? parseInvitation(message.text) : null;
   return (
     <div
       data-remote-id={message.remoteId ?? undefined}
@@ -523,7 +528,7 @@ export default function MessageBubble({
           {message.replyTo && (
             <div className="reply-quote">
               <strong>{message.replyTo.author}</strong>
-              <span>{message.replyTo.text}</span>
+              <span>{maskSpoilers(message.replyTo.text)}</span>
             </div>
           )}
           {/* A forward is a normal message whose body starts with a marker line. */}
@@ -555,7 +560,7 @@ export default function MessageBubble({
             />
           ) : (
             <div className="message-body">
-              <MessageBody text={forwardRelease.label ? forwardRelease.body : message.text} />
+              {hidden ? <HiddenBody text={hiddenBody(bodyText)} /> : <MessageBody text={bodyText} />}
             </div>
           )}
           {linkCard.status === "ready" && <LinkPreview card={linkCard.card} />}
