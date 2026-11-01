@@ -140,10 +140,10 @@ test.describe("Nexus messenger smoke", () => {
     const chats = page.locator(".chat-list .chat-row");
     const before = await chats.count();
 
-    await page.getByPlaceholder(/Поиск чатов/).fill("щщщщнеттакого");
+    await page.getByLabel(/Поиск чатов/).fill("щщщщнеттакого");
     await expect(chats).toHaveCount(0);
 
-    await page.getByPlaceholder(/Поиск чатов/).fill("");
+    await page.getByLabel(/Поиск чатов/).fill("");
     await expect.poll(() => chats.count()).toBe(before);
   });
 
