@@ -12,7 +12,12 @@ import type { MessageEffect } from "../types";
 
 export type EffectDefinition = {
   key: MessageEffect;
-  /** Shown on the button. Every symbol is distinct, so the row reads at a glance. */
+  /**
+   * Shown on the button and on the message. Every symbol is distinct, so the row reads at a
+   * glance, and every one is an emoji from the first emoji sets (2010), so it is drawn on any
+   * phone or computer: rarer symbols like ✦ or 🫧 showed as empty squares where the fonts lack
+   * them.
+   */
   symbol: string;
   /** The Russian name, used for the tooltip and the accessible label. */
   label: string;
@@ -25,28 +30,28 @@ export type EffectDefinition = {
 export const EFFECTS: EffectDefinition[] = [
   {
     key: "sparkle",
-    symbol: "✦",
+    symbol: "✨",
     label: "искры",
     description: "Мелкие искры вокруг сообщения",
     tone: "sparkle",
   },
   {
     key: "hearts",
-    symbol: "♥",
+    symbol: "💕",
     label: "сердечки",
     description: "Сердечки всплывают над пузырём",
     tone: "hearts",
   },
   {
     key: "fireworks",
-    symbol: "✧",
+    symbol: "🎆",
     label: "салют",
     description: "Короткий залп, как в праздник",
     tone: "fireworks",
   },
   {
     key: "glow",
-    symbol: "✺",
+    symbol: "🌟",
     label: "сияние",
     description: "Тихое свечение в цвете темы",
     tone: "glow",
@@ -60,7 +65,7 @@ export const EFFECTS: EffectDefinition[] = [
   },
   {
     key: "snow",
-    symbol: "❄",
+    symbol: "❄️",
     label: "снег",
     description: "Медленные снежинки",
     tone: "snow",
@@ -81,9 +86,9 @@ export const EFFECTS: EffectDefinition[] = [
   },
   {
     key: "bounce",
-    symbol: "🫧",
-    label: "пузыри",
-    description: "Лёгкое покачивание с пузырями",
+    symbol: "🎈",
+    label: "шарик",
+    description: "Сообщение покачивается, как воздушный шарик",
     tone: "bounce",
   },
   {
