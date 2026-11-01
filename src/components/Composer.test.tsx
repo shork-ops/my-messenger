@@ -58,6 +58,8 @@ const renderComposer = (overrides: Partial<ComponentProps<typeof Composer>> = {}
       onAttachment={noop}
       onOpenGallery={noop}
       onOpenPoll={noop}
+      hidden={false}
+      onToggleHidden={noop}
       {...overrides}
     />
   );
@@ -99,6 +101,33 @@ describe("composer controls", () => {
   it("names the message field, so a screen reader says what it is for", () => {
     renderComposer();
     expect(screen.getByLabelText("Текст сообщения")).toBeTruthy();
+  });
+
+  it("offers to send the next message hidden, from the attachment menu", () => {
+    const onToggleHidden = vi.fn();
+    renderComposer({ onToggleHidden });
+    fireEvent.click(screen.getByLabelText("Прикрепить"));
+    const item = screen.getByRole("menuitemcheckbox", { name: /Скрытое сообщение/ });
+    expect(item.getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(item);
+    expect(onToggleHidden).toHaveBeenCalledOnce();
+  });
+
+  it("says plainly that the next message goes out hidden, and lets it go back", () => {
+    const onToggleHidden = vi.fn();
+    const { container } = renderComposer({ hidden: true, onToggleHidden });
+    expect(container.querySelector(".hidden-banner")?.textContent).toContain("Скрытое сообщение");
+    expect(container.querySelector("form")?.className).toContain("composer-hidden");
+    expect(screen.getByLabelText("Текст сообщения").getAttribute("placeholder")).toBe("Скрытый текст…");
+    fireEvent.click(screen.getByLabelText("Отправить обычным сообщением"));
+    expect(onToggleHidden).toHaveBeenCalledOnce();
+  });
+
+  it("does not offer hiding while an old message is being edited", () => {
+    const { container } = renderComposer({ hidden: true, editing: true });
+    expect(container.querySelector(".hidden-banner")).toBeNull();
+    fireEvent.click(screen.getByLabelText("Прикрепить"));
+    expect(screen.queryByRole("menuitemcheckbox")).toBeNull();
   });
 
   it("names every button it renders", () => {

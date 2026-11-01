@@ -1,5 +1,6 @@
 import { ChevronDown } from "lucide-react";
 import { splitHeadline } from "../lib/messageSearch";
+import { HIDDEN_LABEL } from "../lib/hidden";
 import type { SearchHit } from "../lib/messageSearch";
 
 type SearchHitsProps = {
@@ -37,11 +38,17 @@ export default function SearchHits({ hits, loading, hasMore, error, authorOf, ti
             <strong>
               {authorOf(hit.senderId)} · {timeOf(hit.createdAt)}
             </strong>
-            <span>
-              {splitHeadline(hit.headline).map((part, index) =>
-                part.marked ? <mark key={index}>{part.text}</mark> : <span key={index}>{part.text}</span>
-              )}
-            </span>
+            {/* A match inside a hidden message or a spoiler says where it is, not what it is:
+                the fragment would read out the very text the sender covered. */}
+            {hit.headline.includes("||") ? (
+              <span className="search-hit-hidden">{HIDDEN_LABEL}</span>
+            ) : (
+              <span>
+                {splitHeadline(hit.headline).map((part, index) =>
+                  part.marked ? <mark key={index}>{part.text}</mark> : <span key={index}>{part.text}</span>
+                )}
+              </span>
+            )}
           </span>
         </button>
       ))}
