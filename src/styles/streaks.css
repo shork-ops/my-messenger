@@ -1,0 +1,69 @@
+/* «Огонёк дружбы»: the card opened from the chat header. Loaded with it. */
+.streak-backdrop { z-index: 55; }
+.streak-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(380px, 100%);
+  max-height: calc(100vh - 36px);
+  margin: auto;
+  padding: 16px 18px 16px;
+  overflow-y: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 18px;
+  background:
+    radial-gradient(120% 70% at 50% 0%, #ff8a3d2e, transparent 60%),
+    var(--surface-1);
+  color: var(--fg);
+  box-shadow: 0 30px 90px #000b;
+  animation: streak-rise .22s ease-out;
+}
+.streak-card-out { background: radial-gradient(120% 70% at 50% 0%, #4cc9f026, transparent 60%), var(--surface-1); }
+.streak-card-header { display: flex; align-items: center; justify-content: space-between; }
+.streak-card-header h2 { margin: 0; font-size: 16px; }
+.streak-close { display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 10px; background: transparent; color: var(--fg-secondary); cursor: pointer; }
+.streak-close:hover { background: var(--surface-2); }
+
+.streak-hero { display: grid; justify-items: center; gap: 2px; text-align: center; }
+.streak-flame { display: inline-block; font-size: 64px; line-height: 1.1; filter: drop-shadow(0 6px 18px #ff8a3d66); transform-origin: 50% 90%; animation: streak-flicker 2.2s ease-in-out infinite; }
+.streak-card-out .streak-flame { filter: drop-shadow(0 6px 18px #4cc9f055); animation: none; }
+.streak-hero strong { font-size: 22px; }
+.streak-level { color: var(--fg-secondary); font-size: 13px; }
+
+.streak-progress { display: grid; gap: 6px; }
+.streak-progress-label { display: flex; justify-content: space-between; gap: 10px; color: var(--fg-secondary); font-size: 12px; }
+.streak-progress-track { height: 8px; overflow: hidden; border-radius: 999px; background: var(--surface-2); }
+.streak-progress-track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #ffd400, #ff8a3d, #ff3b30); transition: width .6s ease-out; }
+
+.streak-today { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
+.streak-today-title { color: var(--fg-muted); font-size: 12px; }
+.streak-people { display: flex; flex-wrap: wrap; gap: 6px; }
+.streak-people span { max-width: 100%; overflow: hidden; padding: 4px 10px; border: 1px solid var(--border-strong); border-radius: 999px; color: var(--fg-secondary); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.streak-people span.done { border-color: #45e5a188; background: #45e5a11a; color: var(--fg); }
+.streak-today p { margin: 0; font-size: 13px; line-height: 1.45; }
+.streak-today p.streak-risk { color: #ff8a3d; font-weight: 600; }
+
+.streak-ladder { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin: 0; padding: 0; list-style: none; }
+.streak-ladder li { display: grid; justify-items: center; gap: 1px; padding: 6px 0 4px; border-radius: 10px; opacity: .35; filter: grayscale(1); }
+.streak-ladder li span { font-size: 20px; line-height: 1.1; }
+.streak-ladder li small { color: var(--fg-muted); font-size: 11px; }
+.streak-ladder li.reached { opacity: 1; filter: none; }
+.streak-ladder li.current { background: #ff8a3d1f; box-shadow: inset 0 0 0 1px #ff8a3d66; }
+
+.streak-rule { margin: 0; color: var(--fg-muted); font-size: 12px; line-height: 1.5; }
+
+@keyframes streak-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes streak-flicker {
+  0%, 100% { transform: scale(1) rotate(0); }
+  30% { transform: scale(1.06, .97) rotate(-2deg); }
+  60% { transform: scale(.97, 1.05) rotate(2deg); }
+}
+
+@media (max-width: 640px) {
+  .streak-backdrop { place-items: end center; padding: 0; }
+  .streak-card { width: 100%; margin: auto 0 0; padding-bottom: calc(16px + env(safe-area-inset-bottom)); border-width: 1px 0 0; border-radius: 20px 20px 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .streak-card, .streak-flame { animation: none; }
+}
