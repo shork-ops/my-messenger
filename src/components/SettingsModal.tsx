@@ -18,9 +18,10 @@ import { formatMinute, parseMinute, type NotificationPrefs } from "../lib/notifi
 import type { PrivacyPrefs } from "../lib/privacyPrefs";
 import { plural, storageSummary } from "../lib/storageUsage";
 import { LANGUAGES, type Language } from "../lib/i18n";
-import { type SessionRecord, lastSeenLabel } from "../lib/sessions";
+import type { SessionRecord } from "../lib/sessions";
 import { avatarFallback } from "../lib/avatar";
 import TwoFactorPanel from "./TwoFactorPanel";
+import DevicesPanel from "./DevicesPanel";
 import { WALLPAPERS, type WallpaperId, wallpaperBackground, wallpaperSize } from "../lib/wallpaper";
 import { MEDIA_POLICIES, type MediaPolicy } from "../lib/mediaPolicy";
 import { accountLabel, canAddAccount, type SavedAccount } from "../lib/accounts";
@@ -707,7 +708,6 @@ function DataSection({
   mediaPolicy,
   onMediaPolicyChange,
 }: DataSectionProps) {
-  const now = Date.now();
   const [codeDraft, setCodeDraft] = useState("");
   return (
     <>
@@ -766,21 +766,9 @@ function DataSection({
       />
 
       <div className="settings-divider" />
-      <div className="settings-row">
-        <span>
-          <strong>Устройства</strong>
-          <small>
-            {devices.length === 1
-              ? "Только это устройство"
-              : `${devices.length} ${plural(devices.length, "устройство", "устройства", "устройств")}`}
-          </small>
-        </span>
-        {devices.length > 1 && (
-          <button type="button" className="settings-action danger" disabled={signingOut} onClick={onSignOutOthers}>
-            {signingOut ? "Выхожу…" : "Выйти на других"}
-          </button>
-        )}
-      </div>
+      <DevicesPanel localDevices={devices} currentDeviceId={currentDeviceId} onSignOutOthers={onSignOutOthers} signingOut={signingOut} />
+
+      <div className="settings-divider" />
       <div className="settings-row">
         <span>
           <strong>Код доступа</strong>
@@ -820,20 +808,6 @@ function DataSection({
           </div>
         )}
       </div>
-
-      <ul className="device-list">
-        {devices.map((device) => (
-          <li key={device.deviceId}>
-            <span>
-              <strong>
-                {device.label} · {device.platform}
-              </strong>
-              <small>{lastSeenLabel(device.lastSeen, now)}</small>
-            </span>
-            {device.deviceId === currentDeviceId && <b className="device-current">это устройство</b>}
-          </li>
-        ))}
-      </ul>
     </>
   );
 }
