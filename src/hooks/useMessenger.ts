@@ -9,7 +9,6 @@ import RightPanel from "../components/RightPanel";
 import GameModal from "../components/GameModal";
 import { useChatMembers } from "../hooks/useChatMembers";
 import { useServerSearch } from "../hooks/useServerSearch";
-import PrivacyModal from "../components/PrivacyModal";
 import SettingsModal from "../components/SettingsModal";
 import { CallOverlay } from "../components/CallOverlay";
 import { useCallController } from "./useCallController";
@@ -88,7 +87,6 @@ import { useBackSwipe } from "../hooks/useBackSwipe";
 import ShortcutHelp from "../components/ShortcutHelp";
 import type { Shortcut } from "../lib/shortcuts";
 import { exportAsText, exportFileName, pluralMessages } from "../lib/exportChat";
-import { archiveName, buildAccountArchive, chatAsText, chatAsTextCount, downloadText, pluralFor } from "../lib/exportAccount";
 import { useChatFolders } from "../hooks/useChatFolders";
 import { chatsInFolder } from "../lib/chatFolders";
 import FolderPicker from "../components/FolderPicker";
@@ -457,7 +455,9 @@ export function useMessenger() {
    * The text format is the default because a backup is only worth having if it can be
    * read years later by something other than this app.
    */
-  function exportChat(chat: Chat) {
+  async function exportChat(chat: Chat) {
+    // The export code is loaded on first use: it is not needed to open the app.
+    const { chatAsText, chatAsTextCount, downloadText, pluralFor } = await import("../lib/exportAccount");
     const text = chatAsText(chat);
     downloadText(exportFileName(chat.name, Date.now(), "txt"), text, "text/plain;charset=utf-8");
     action(`Переписка выгружена: ${pluralFor(chatAsTextCount(chat))}`);
@@ -479,7 +479,8 @@ export function useMessenger() {
    */
 
 
-  function exportEverything() {
+  async function exportEverything() {
+    const { archiveName, buildAccountArchive, downloadText } = await import("../lib/exportAccount");
     const archive = buildAccountArchive({
       profileName,
       chats,

@@ -11,7 +11,7 @@ import {
   type CallRow,
 } from "../lib/calls";
 import type { Message } from "../types";
-import { CallSession, type MediaState } from "../lib/callMedia";
+import type { CallSession, MediaState } from "../lib/callMedia";
 import { fetchCallToken } from "../lib/calls";
 
 type UseCallsOptions = {
@@ -158,6 +158,9 @@ export function useCalls({ accountId, enabled, notify }: UseCallsOptions): UseCa
         setMedia({ ...INITIAL_MEDIA_STATE, error: token.error ?? "Не удалось подключиться к звонку" });
         return;
       }
+      // The call code is fetched with the first call, not with the app itself.
+      const { CallSession } = await import("../lib/callMedia");
+      if (sessionRef.current) return;
       const session = new CallSession({
         onState: (state) => setMedia(state),
         onRemoteVideo: (track) => {
