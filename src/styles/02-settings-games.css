@@ -205,6 +205,14 @@
 .settings-modal header { display: flex; align-items: center; justify-content: space-between; font-size: 16px; }
 .settings-modal header button { display: grid; place-items: center; border: 0; background: transparent; color: var(--fg-secondary); }
 .settings-modal label { display: flex; flex-direction: column; gap: 7px; color: var(--fg-secondary); font-size: 12px; }
+/* A switch row is a label as well, and the rule above stacked its text over the switch in a
+   centred column. It is a row: text on the left, the switch on the right. */
+.settings-modal label.settings-row { flex-direction: row; align-items: center; gap: 12px; color: inherit; font-size: inherit; }
+/* The text size choice had no styles at all and drew as three grey browser buttons. */
+.text-size-row { display: flex; gap: 8px; }
+.text-size-option { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 58px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-0); color: var(--fg-secondary); font: inherit; font-size: 12px; cursor: pointer; }
+.text-size-option span { color: var(--fg); line-height: 1.1; }
+.text-size-option.active { border-color: var(--yellow); color: var(--yellow); }
 .settings-modal input, .settings-modal select { width: 100%; height: 42px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: 10px; outline: 0; background: var(--surface-0); color: var(--fg); font: inherit; }
 /* The photo picker hides behind its button. The field rule above stretched it to full width
    with no clipping box around it, so the whole dialog could be scrolled sideways. */

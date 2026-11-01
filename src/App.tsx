@@ -6,7 +6,7 @@
  * three things at once.
  */
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import type { ChangeEvent } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import { Shield, X } from "lucide-react";
 import PasscodeLock from "./components/PasscodeLock";
 import Rail from "./components/Rail";
@@ -25,6 +25,9 @@ import { useMessenger } from "./hooks/useMessenger";
 import { useCallRecording } from "./hooks/useCallRecording";
 import { useAccounts } from "./hooks/useAccounts";
 import { pendingForChat } from "./lib/retryQueue";
+import { setCoolDownEnabled, shouldCoolDown } from "./lib/coolDown";
+import { FAVOURITES_CHAT_ID } from "./lib/messageActions";
+import { atHour } from "./lib/scheduling";
 import "./styles.css";
 import { useMobileViewport } from "./hooks/useMobileViewport";
 
@@ -45,6 +48,8 @@ const NewChatModal = lazy(() => import("./components/Modals").then((m) => ({ def
 const PollModal = lazy(() => import("./components/Modals").then((m) => ({ default: m.PollModal })));
 // Seen once per account, on its first visit; never in demo mode.
 const WelcomeModal = lazy(() => import("./components/WelcomeModal"));
+// «Анти-ссора»: only someone who shouts downloads it.
+const CoolDownSheet = lazy(() => import("./components/CoolDownSheet"));
 
 export default function App() {
   const [settingsSection, setSettingsSection] = useState<SettingsSectionId | null>(null);
@@ -55,6 +60,10 @@ export default function App() {
   const [galleryScope, setGalleryScope] = useState<string | null>(null);
   // The message a reaction is being picked for in the full emoji picker.
   const [reactionPickFor, setReactionPickFor] = useState<number | null>(null);
+  // The shouted draft the «Анти-ссора» sheet is open for, and the softened text it put back:
+  // sending that one does not ask again, even if an abbreviation or two kept it "heated".
+  const [coolDownText, setCoolDownText] = useState<string | null>(null);
+  const cooledDraft = useRef<string | null>(null);
   const {
     about,
     accountId,
@@ -279,6 +288,28 @@ export default function App() {
   // Recording belongs to the call surface, but the chat name - which names the saved file - is
   // known here. The accounts list describes this browser, so it lives beside the call.
   useMobileViewport();
+  /**
+   * The composer's send, with one stop before it: a draft with more than three words in
+   * capitals opens «Анти-ссора» instead of leaving. Edits are not asked about - the message
+   * is already out, and an edit that removes the shouting is the thing to encourage.
+   */
+  function submitComposer(event: FormEvent) {
+    const text = draft.trim();
+    if (editingMessageId === null && text && text !== cooledDraft.current && shouldCoolDown(text, activeChat, FAVOURITES_CHAT_ID)) {
+      event.preventDefault();
+      setCoolDownText(text);
+      return;
+    }
+    cooledDraft.current = null;
+    void sendMessage(event);
+  }
+
+  function closeCoolDown() {
+    setCoolDownText(null);
+    // Back to the text, where the person was typing.
+    window.setTimeout(() => document.querySelector<HTMLTextAreaElement>(".composer textarea")?.focus(), 0);
+  }
+
   // A file that failed in one conversation is not offered in another.
   const pendingUploadsForChat = pendingForChat(failedUploads, activeChat.id);
   const callRecording = useCallRecording(activeChat.name);
@@ -499,7 +530,7 @@ export default function App() {
   onSchedule: () => setScheduleOpen(true),
           onVideoNote: () => setNoteOpen(true),
           onToggleVoice: () => void startVoiceRecording(),
-          onSubmit: sendMessage,
+          onSubmit: submitComposer,
         onGameInvite: (kind: "chess" | "cards" | "balda") => void sendGameInvitation(kind),
           onCancelEdit: () => {
             setEditingMessageId(null);
@@ -560,6 +591,33 @@ export default function App() {
             void handleAttachment({ target: input } as unknown as ChangeEvent<HTMLInputElement>);
           }}
           onClose={() => setNoteOpen(false)}
+        />
+      )}
+
+      {coolDownText !== null && (
+        <CoolDownSheet
+          text={coolDownText}
+          morning={activeChat.remoteId ? atHour(new Date(), 9) : null}
+          onCool={(cooled, degrees) => {
+            changeDraft(cooled);
+            cooledDraft.current = cooled.trim();
+            closeCoolDown();
+            action(`Остыло до ${degrees} 🧊 Проверьте и отправьте`);
+          }}
+          onSendAnyway={() => {
+            setCoolDownText(null);
+            void sendMessage({ preventDefault() {} } as FormEvent);
+          }}
+          onMorning={(at) => {
+            setCoolDownText(null);
+            void scheduleMessage(at);
+          }}
+          onDisable={() => {
+            setCoolDownEnabled(false);
+            closeCoolDown();
+            action("«Анти-ссора» выключена. Вернуть: Настройки → Оформление");
+          }}
+          onClose={closeCoolDown}
         />
       )}
 

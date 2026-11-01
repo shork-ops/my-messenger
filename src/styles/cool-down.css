@@ -1,0 +1,126 @@
+/* «Анти-ссора». Loaded with its sheet, so the first screen does not carry it. */
+.cool-backdrop { z-index: 55; }
+.cool-sheet {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(460px, 100%);
+  max-height: calc(100vh - 36px);
+  margin: auto;
+  padding: 18px 18px 14px;
+  overflow-y: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 18px;
+  background: var(--surface-1);
+  color: var(--fg);
+  box-shadow: 0 30px 90px #000b;
+  animation: cool-rise .22s ease-out;
+}
+.cool-header { display: flex; align-items: center; gap: 10px; }
+.cool-header h2 { flex: 1; margin: 0; font-size: 18px; line-height: 1.25; }
+.cool-icon { display: inline-block; font-size: 26px; line-height: 1; }
+.cool-hot .cool-icon { animation: cool-simmer 1.4s ease-in-out infinite; }
+.cool-close { display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 10px; background: transparent; color: var(--fg-secondary); cursor: pointer; }
+.cool-close:hover { background: var(--surface-2); }
+.cool-lead { margin: 0; color: var(--fg-secondary); font-size: var(--text-caption); line-height: 1.5; }
+
+/* The thermometer: blue for calm, through yellow, to red. */
+.cool-meter { display: grid; gap: 6px; }
+.cool-meter-label { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; color: var(--fg-secondary); }
+.cool-meter-label strong { color: var(--fg); font-size: 20px; font-variant-numeric: tabular-nums; }
+.cool-track { position: relative; height: 10px; border-radius: 999px; background: linear-gradient(90deg, #4cc9f0 0%, #45e5a1 22%, #ffd400 52%, #ff8a3d 76%, #ff3b30 100%); }
+.cool-needle {
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  border: 3px solid var(--surface-1);
+  border-radius: 50%;
+  background: var(--fg);
+  box-shadow: 0 2px 8px #0008;
+  transform: translate(-50%, -50%);
+  transition: left .9s cubic-bezier(.2, .9, .25, 1.15);
+}
+.cool-needle-slow { transition: left 16s linear; }
+
+.cool-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cool-compare figure { min-width: 0; margin: 0; padding: 9px 11px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
+.cool-compare figcaption { margin-bottom: 4px; color: var(--fg-muted); font-size: 12px; }
+.cool-compare p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+.cool-compare figure:first-child { border-color: #ff7b7255; }
+.cool-compare-calm { border-color: #4cc9f066 !important; }
+
+.cool-options { display: grid; gap: 6px; }
+.cool-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cool-option:hover, .cool-option:focus-visible { background: var(--surface-2); }
+.cool-option > span:first-child { font-size: 22px; line-height: 1; }
+.cool-option > span:last-child { display: grid; gap: 2px; min-width: 0; }
+.cool-option strong { font-size: 15px; }
+.cool-option small { color: var(--fg-muted); font-size: 12px; line-height: 1.35; }
+.cool-option-ice { border-color: #4cc9f088; background: #4cc9f014; }
+.cool-option-fire strong { color: var(--danger); }
+.cool-disable { align-self: center; padding: 4px 8px; border: 0; background: transparent; color: var(--fg-muted); font-size: 12px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+
+/* The pause: a circle that breathes with you. */
+.cool-breath { display: grid; justify-items: center; gap: 8px; padding: 8px 0 4px; }
+.cool-breath-circle {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #bdf3ff, #4cc9f0 55%, #1f7fb8);
+  box-shadow: 0 0 40px #4cc9f055;
+  transition: transform 4s ease-in-out;
+}
+.cool-breath-circle.cool-in { transform: scale(1); animation: cool-inhale 4s ease-in-out forwards; }
+.cool-breath-circle.cool-out { transform: scale(.55); animation: cool-exhale 4s ease-in-out forwards; }
+.cool-breath-word { margin: 4px 0 0; font-size: 20px; font-weight: 600; }
+.cool-breath small { color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+.cool-skip { padding: 6px 12px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: var(--fg-secondary); cursor: pointer; }
+
+@keyframes cool-rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes cool-simmer { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-2px) rotate(-6deg); } }
+@keyframes cool-inhale { from { transform: scale(.55); } to { transform: scale(1); } }
+@keyframes cool-exhale { from { transform: scale(1); } to { transform: scale(.55); } }
+
+/* On a phone the sheet comes up from the bottom, within reach of the thumb. */
+@media (max-width: 640px) {
+  .cool-backdrop { place-items: end center; padding: 0; }
+  .cool-sheet {
+    width: 100%;
+    max-height: calc(100dvh - 24px);
+    margin: auto 0 0;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+    border-width: 1px 0 0;
+    border-radius: 20px 20px 0 0;
+  }
+  .cool-compare { grid-template-columns: 1fr; }
+  .cool-compare p { -webkit-line-clamp: 3; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cool-sheet, .cool-hot .cool-icon, .cool-breath-circle.cool-in, .cool-breath-circle.cool-out { animation: none; }
+  .cool-needle, .cool-needle-slow { transition: none; }
+}

@@ -30,7 +30,7 @@ export type SchedulePreset = {
 };
 
 /** The first moment that is comfortably in the future, today or tomorrow. */
-function atHour(now: Date, hour: number, minute = 0): Date {
+export function atHour(now: Date, hour: number, minute = 0): Date {
   const target = new Date(now);
   target.setHours(hour, minute, 0, 0);
   if (target.getTime() <= now.getTime()) target.setDate(target.getDate() + 1);
