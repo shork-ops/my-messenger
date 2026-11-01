@@ -40,6 +40,7 @@ const ShortcutHelp = lazy(() => import("./components/ShortcutHelp"));
 const CallOverlay = lazy(() => import("./components/CallOverlay").then((m) => ({ default: m.CallOverlay })));
 const GalleryModal = lazy(() => import("./components/Modals").then((m) => ({ default: m.GalleryModal })));
 const MuteModal = lazy(() => import("./components/Modals").then((m) => ({ default: m.MuteModal })));
+const DisappearingModal = lazy(() => import("./components/Modals").then((m) => ({ default: m.DisappearingModal })));
 const NewChatModal = lazy(() => import("./components/Modals").then((m) => ({ default: m.NewChatModal })));
 const PollModal = lazy(() => import("./components/Modals").then((m) => ({ default: m.PollModal })));
 
@@ -60,6 +61,10 @@ export default function App() {
     addEmoji,
     answerCall,    applyMessageEffect,
     applyMute,
+    applyDisappearing,
+    closeDisappearing,
+    disappearingChatId,
+    openDisappearing,
     askForNotifications,
     attachRemoteScreen,
     attachRemoteVideo,
@@ -403,6 +408,10 @@ export default function App() {
           setChatMenuOpen(false);
           setMuteChatId(activeChat.id);
         }}
+        onDisappearing={() => {
+          setChatMenuOpen(false);
+          openDisappearing(activeChat.id);
+        }}
         onUnmute={() => {
           setChatMenuOpen(false);
           void saveChatSettings(activeChat.id, { mutedUntil: null }).then((ok) => ok && action("Звук включён"));
@@ -611,6 +620,15 @@ export default function App() {
           chatName={chats.find((chat) => chat.id === muteChatId)?.name ?? ""}
           onPick={(optionId) => void applyMute(optionId)}
           onClose={() => setMuteChatId(null)}
+        />
+      )}
+
+      {disappearingChatId === activeChat.id && (
+        <DisappearingModal
+          chat={activeChat}
+          role={myChatRole}
+          onPick={(seconds) => void applyDisappearing(seconds)}
+          onClose={closeDisappearing}
         />
       )}
 

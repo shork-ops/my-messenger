@@ -1,7 +1,9 @@
 import type { FormEvent } from "react";
-import { BellOff, X } from "lucide-react";
+import { BellOff, Check, Timer, X } from "lucide-react";
 import { MUTE_OPTIONS, type MuteOptionId } from "../lib/chatSettings";
-import type { Message } from "../types";
+import { DISAPPEARING_OPTIONS, type DisappearingSeconds } from "../lib/disappearing";
+import { canChangeTimer } from "../lib/disappearingLive";
+import type { Chat, Message } from "../types";
 
 type NewChatModalProps = {
   open: boolean;
@@ -167,6 +169,62 @@ export function MuteModal({ open, chatName, onPick, onClose }: MuteModalProps) {
             </button>
           ))}
         </div>
+      </section>
+    </div>
+  );
+}
+
+type DisappearingModalProps = {
+  chat: Chat;
+  /** This account's role in the chat (owner, admin, member), when it is a cloud group. */
+  role: string | null;
+  onPick: (seconds: DisappearingSeconds | null) => void;
+  onClose: () => void;
+};
+
+export function DisappearingModal({ chat, role, onPick, onClose }: DisappearingModalProps) {
+  const current = chat.messageTtlSeconds ?? null;
+  const canChange = canChangeTimer(chat, role);
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <section
+        className="mute-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Исчезающие сообщения"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header>
+          <strong>Исчезающие сообщения</strong>
+          <button type="button" onClick={onClose} aria-label="Закрыть">
+            <X size={18} />
+          </button>
+        </header>
+        <p className="mute-hint">
+          Новые сообщения в чате «{chat.name}» будут удаляться у всех через выбранное время. Уже отправленные останутся как есть.
+        </p>
+        <div className="mute-options">
+          {DISAPPEARING_OPTIONS.map((option) => {
+            const selected = current === option.seconds;
+            return (
+              <button
+                key={option.label}
+                type="button"
+                aria-pressed={selected}
+                disabled={!canChange}
+                onClick={() => onPick(option.seconds)}
+              >
+                <Timer size={17} />
+                {option.label}
+                {selected && <Check size={16} className="option-check" aria-hidden="true" />}
+              </button>
+            );
+          })}
+        </div>
+        {!canChange && <p className="mute-hint disappearing-note">Таймер здесь меняют только владелец и админы.</p>}
+        <p className="mute-hint disappearing-note">
+          Это не защита от скриншотов и пересылки: пока сообщение не исчезло, его можно сохранить.
+        </p>
       </section>
     </div>
   );

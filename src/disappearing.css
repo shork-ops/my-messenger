@@ -1,0 +1,8 @@
+/* Disappearing messages: the chooser marks the current timer, the banner says it is on.
+   Kept apart from styles.css, which is past the size the GitHub tools can edit in one go. */
+.mute-options button:disabled { opacity: .6; pointer-events: none; }
+.mute-options button[aria-pressed="true"] { border-color: var(--yellow); color: var(--yellow); opacity: 1; }
+.option-check { margin-left: auto; }
+.disappearing-note { margin: 12px 0 0; }
+.disappearing-banner { display: flex; flex-shrink: 0; align-items: center; justify-content: center; gap: 6px; margin: 0; padding: 6px 12px; border-bottom: 1px solid var(--border); background: var(--surface-1); color: var(--fg-muted); font-size: 12px; }
+.message-timer { margin-right: 4px; vertical-align: -1px; }
