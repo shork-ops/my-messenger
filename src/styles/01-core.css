@@ -245,6 +245,11 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .chat-menu-wrap { position: relative; display: flex; }
 .chat-menu { position: absolute; z-index: 60; top: calc(100% + 8px); right: 0; display: flex; flex-direction: column; min-width: 210px; padding: 6px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-1); box-shadow: 0 14px 40px #000a; }
 .chat-menu button { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: var(--fg); font-size: 14px; text-align: left; }
+/* The header sizes its own icon buttons to 44px. The menu inside it holds full-width rows:
+   without this the rule above squeezed each row to 44px, words wrapped one per line and the
+   icons were squeezed out. */
+.conversation-tools .chat-menu button { width: 100%; height: auto; }
+.conversation-tools .chat-menu svg { flex-shrink: 0; width: 18px; height: 18px; }
 .chat-menu button:hover, .chat-menu button:focus-visible { background: var(--surface-2); color: var(--yellow); }
 .chat-menu button.danger { color: #ff8c86; }
 .chat-menu button.danger:hover, .chat-menu button.danger:focus-visible { background: #2a1719; color: #ff9d97; }
