@@ -5,6 +5,7 @@ import AuthGate from "./lib/AuthGate";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { initMonitoring } from "./lib/monitoring";
 import "./styles.css";
+import "./disappearing.css";
 
 initMonitoring();
 

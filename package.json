@@ -24,7 +24,8 @@
     "deploy:reliability": "node scripts/deploy-reliability.mjs",
     "check:bundle": "node scripts/check-bundle-budget.mjs",
     "bench": "node scripts/bench-conversations.mjs",
-    "test:reports": "node scripts/check-reports.mjs"
+    "test:reports": "node scripts/check-reports.mjs",
+    "test:disappearing": "node scripts/check-disappearing.mjs"
   },
   "dependencies": {
     "@capacitor/core": "^7.6.10",
