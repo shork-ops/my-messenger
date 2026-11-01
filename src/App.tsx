@@ -42,6 +42,8 @@ const GalleryModal = lazy(() => import("./components/Modals").then((m) => ({ def
 const MuteModal = lazy(() => import("./components/Modals").then((m) => ({ default: m.MuteModal })));
 const NewChatModal = lazy(() => import("./components/Modals").then((m) => ({ default: m.NewChatModal })));
 const PollModal = lazy(() => import("./components/Modals").then((m) => ({ default: m.PollModal })));
+// Seen once per account, on its first visit; never in demo mode.
+const WelcomeModal = lazy(() => import("./components/WelcomeModal"));
 
 export default function App() {
   const [settingsSection, setSettingsSection] = useState<SettingsSectionId | null>(null);
@@ -263,6 +265,8 @@ export default function App() {
     votePoll,
     wallpaper,
     wideLayout,
+    welcomeOpen,
+    finishWelcome,
   } = useMessenger();
 
   // Recording belongs to the call surface, but the chat name - which names the saved file - is
@@ -772,6 +776,21 @@ export default function App() {
         }}
         onForgetAccount={accounts.forget}
         accountsSwitching={accounts.switching}
+        />
+      )}
+
+      {welcomeOpen && (
+        <WelcomeModal
+          name={profileName}
+          username={username}
+          photoUrl={selfAvatarUrl}
+          uploading={avatarUploading}
+          saving={usernameSaving}
+          onNameChange={setProfileName}
+          onUsernameChange={setUsername}
+          onPhoto={(file) => void uploadAvatar(file)}
+          onSaveUsername={saveUsername}
+          onFinish={finishWelcome}
         />
       )}
       </Suspense>

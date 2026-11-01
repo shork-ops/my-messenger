@@ -1,0 +1,6 @@
+/* The first-run card. Loaded with the card, not with the first screen. */
+.welcome-actions { display: flex; gap: 10px; }
+.welcome-actions > button { flex: 1; min-height: 44px; }
+.welcome-later { border: 1px solid var(--border-strong); border-radius: 11px; background: transparent; color: var(--fg); font: inherit; font-weight: 600; cursor: pointer; }
+.welcome-later:hover { background: var(--surface-2); }
+.welcome-modal .welcome-error { color: var(--danger); }

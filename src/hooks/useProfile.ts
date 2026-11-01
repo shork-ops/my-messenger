@@ -10,6 +10,9 @@ export function useProfile({ notify }: UseProfileOptions) {
   const [avatarPath, setAvatarPath] = useState<string | null>(null);
   const [about, setAbout] = useState("");
   const [username, setUsername] = useState("");
+  // What the server holds, as opposed to what is being typed: the first-run card asks
+  // only accounts that have never chosen a username.
+  const [savedUsername, setSavedUsername] = useState("");
   const [usernameSaving, setUsernameSaving] = useState(false);
   const [accountId, setAccountId] = useState<string | null>(null);
   const [profileReady, setProfileReady] = useState(false);
@@ -56,6 +59,7 @@ export function useProfile({ notify }: UseProfileOptions) {
         setProfileName(existingProfile.display_name || metadataName || "Пользователь");
         setProfileAvatar(existingProfile.avatar || metadataName.slice(0, 1).toUpperCase() || "N");
         setUsername(existingProfile.username || "");
+        setSavedUsername(existingProfile.username || "");
         setAvatarPath(existingProfile.avatar_path || null);
         setAbout(existingProfile.about || "");
       } else {
@@ -94,16 +98,17 @@ export function useProfile({ notify }: UseProfileOptions) {
     void saveProfile();
   }, [profileName, profileAvatar, accountId, profileReady, notify]);
 
-  async function saveUsername() {
+  /** Resolves to whether the username is now stored; the reason for a failure is shown as a notice. */
+  async function saveUsername(): Promise<boolean> {
     const client = supabase;
     const normalized = username.trim().toLowerCase();
     if (!client || !accountId) {
       notify("Вход через Google необходим для сохранения username");
-      return;
+      return false;
     }
     if (!/^[a-z0-9_]{3,20}$/.test(normalized)) {
       notify("Имя пользователя: 3–20 символов, только латиница, цифры и _");
-      return;
+      return false;
     }
     setUsernameSaving(true);
     const { error } = await client.from("profiles").update({ username: normalized }).eq("id", accountId);
@@ -112,10 +117,12 @@ export function useProfile({ notify }: UseProfileOptions) {
       if (error.code === "23505") notify("Этот username уже занят. Выбери другой.");
       else if (error.code === "42703" || error.message.toLowerCase().includes("username")) notify("Сначала выполни SQL-миграцию username в Supabase");
       else notify("Не удалось сохранить username");
-      return;
+      return false;
     }
     setUsername(normalized);
+    setSavedUsername(normalized);
     notify("Имя пользователя сохранено — по нему тебя можно будет найти");
+    return true;
   }
 
   async function saveAbout(next: string) {
@@ -148,6 +155,7 @@ export function useProfile({ notify }: UseProfileOptions) {
     username,
     setUsername,
     usernameSaving,
+    savedUsername,
     accountId,
     profileReady,
     saveUsername,

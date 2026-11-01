@@ -234,7 +234,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .game-row > span:last-child { display: flex; flex-direction: column; gap: 6px; }
 .game-row strong { font-size: 12px; font-weight: 500; }
 .game-row small { color: var(--fg-muted); font-size: 12px; }
-.toast { position: fixed; right: 28px; bottom: 24px; z-index: 10; display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 32px); padding: 14px 16px; border: 1px solid var(--border-strong); border-radius: 12px; background: #171711; box-shadow: 0 12px 45px #000b; color: #f5e7a0; font-size: 12px; }
+.toast { position: fixed; right: 28px; bottom: 24px; z-index: 70; display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 32px); padding: 14px 16px; border: 1px solid var(--border-strong); border-radius: 12px; background: #171711; box-shadow: 0 12px 45px #000b; color: #f5e7a0; font-size: 12px; }
 .toast button { display: grid; place-items: center; border: 0; background: transparent; color: #c7c7c7; }
 .back-button { display: none; }
 /* Attachments collapse into one "+" button with a menu, so the text field keeps

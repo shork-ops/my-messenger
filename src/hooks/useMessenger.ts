@@ -54,6 +54,7 @@ import { toggleLocalVote } from "../lib/polls";
 import { useNotice } from "../hooks/useNotice";
 import { useTheme } from "../hooks/useTheme";
 import { useProfile } from "../hooks/useProfile";
+import { useWelcome } from "../hooks/useWelcome";
 import { useAvatar } from "../hooks/useAvatar";
 import { usePeerProfiles } from "./usePeerProfiles";
 import { useTextOutbox } from "./useTextOutbox";
@@ -193,11 +194,13 @@ export function useMessenger() {
     accountId,
     profileReady,
     saveUsername,
+    savedUsername,
     avatarPath,
     setAvatarPath,
     about,
     saveAbout,
   } = useProfile({ notify: action });
+  const welcome = useWelcome({ accountId, profileReady, savedUsername });
 
   const { avatarUrl: selfAvatarUrl, uploading: avatarUploading, upload: uploadAvatar, remove: removeAvatar } = useAvatar({
     userId: accountId,
@@ -538,8 +541,9 @@ export function useMessenger() {
   // PWA install or a rotated endpoint would otherwise leave the user silently
   // unsubscribed until they pressed the bell again.
   usePushSubscriptionSync(accountId);
-  // Offer notifications once, on the first interaction after the app is ready.
-  useNotificationsPrompt({ accountId, enabled: profileReady, onNotice: action });
+  // Offer notifications once, on the first interaction after the app is ready - but not
+  // while the first-run card is open, or typing a name would raise the browser's prompt.
+  useNotificationsPrompt({ accountId, enabled: profileReady && !welcome.open, onNotice: action });
 
   const { members: chatMembers, reload: reloadMembers } = useChatMembers({
     chatId: activeChat.remoteId ?? null,
@@ -1351,6 +1355,8 @@ export function useMessenger() {
     votePoll,
     wallpaper,
     wideLayout,
+    welcomeOpen: welcome.open,
+    finishWelcome: welcome.finish,
   };
 }
 
