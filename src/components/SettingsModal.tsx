@@ -25,6 +25,7 @@ import DevicesPanel from "./DevicesPanel";
 import { WALLPAPERS, type WallpaperId, wallpaperBackground, wallpaperSize } from "../lib/wallpaper";
 import { MEDIA_POLICIES, type MediaPolicy } from "../lib/mediaPolicy";
 import { accountLabel, canAddAccount, type SavedAccount } from "../lib/accounts";
+import { coolDownEnabled, setCoolDownEnabled } from "../lib/coolDown";
 
 /** Sections in the order a person tends to look for them. */
 export const SETTINGS_SECTIONS = [
@@ -423,6 +424,9 @@ function AppearanceSection({
   wallpaper: WallpaperId;
   onWallpaperChange: (value: WallpaperId) => void;
 }) {
+  // Read and written here directly: the composer asks storage on every send, so there is
+  // no copy in the app to keep in step.
+  const [coolDown, setCoolDown] = useState(coolDownEnabled);
   return (
     <>
       <label>
@@ -489,6 +493,16 @@ function AppearanceSection({
           ))}
         </select>
       </label>
+
+      <ToggleRow
+        label="Анти-ссора 🧊"
+        hint="Предлагать остыть, если в сообщении больше трёх слов капсом"
+        checked={coolDown}
+        onChange={(checked) => {
+          setCoolDown(checked);
+          setCoolDownEnabled(checked);
+        }}
+      />
     </>
   );
 }
