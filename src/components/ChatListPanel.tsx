@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type WheelEvent } from "react";
 import { Archive, Bell, BellOff, FolderInput, Megaphone, MoreHorizontal, PencilLine, Pin, Search, Trash2 } from "lucide-react";
 import Avatar from "./Avatar";
 import UserAvatar from "./UserAvatar";
@@ -13,6 +13,11 @@ const FILTERS: { id: ChatFilter; label: string }[] = [
   { id: "pinned", label: "Закреплённые" },
   { id: "groups", label: "Группы" },
 ];
+
+function scrollSideways(event: WheelEvent<HTMLDivElement>) {
+  const row = event.currentTarget;
+  if (event.deltaX === 0 && event.deltaY !== 0 && row.scrollWidth > row.clientWidth) row.scrollLeft += event.deltaY;
+}
 
 /** The archive is its own place, so it is a tab of its own with its size shown. */
 const archivedCount = (chats: Chat[]) => chats.filter((chat) => chat.archived).length;
@@ -110,7 +115,7 @@ export default function ChatListPanel({
       <div className="search-row">
         <label className="search-box">
           <Search size={18} />
-          <input value={search} onChange={(event) => onSearchChange(event.target.value)} aria-label="Поиск чатов" placeholder="Поиск чатов или @username..." />
+          <input value={search} onChange={(event) => onSearchChange(event.target.value)} aria-label="Поиск чатов или людей по @username" placeholder="Поиск или @username" />
         </label>
         <button className="square-action" onClick={onNewChat} aria-label="Новый чат" title="Создать чат">
           <PencilLine size={20} />
@@ -150,7 +155,8 @@ export default function ChatListPanel({
         onMove={onMoveFolder}
       />
 
-      <div className="chat-filters">
+      {/* One scrolling line; a mouse wheel moves it sideways, as a trackpad already does. */}
+      <div className="chat-filters" onWheel={scrollSideways}>
         {FILTERS.map((item) => (
           <button key={item.id} className={`${filter === item.id ? "active" : ""} filter-${item.id}`} onClick={() => onFilterChange(item.id)}>
             {item.label}
