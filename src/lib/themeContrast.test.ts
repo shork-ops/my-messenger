@@ -16,7 +16,11 @@ import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const CSS = readFileSync(join(here, "..", "styles.css"), "utf8");
+/** styles.css with the parts it imports put in their place, as the build sees it. */
+function readStyles(file: string): string {
+  return readFileSync(file, "utf8").replace(/@import "(\.\/[^"]+\.css)";/g, (_, part: string) => readStyles(join(dirname(file), part)));
+}
+const CSS = readStyles(join(here, "..", "styles.css"));
 
 /** Every theme the app ships. "default" is what :root holds. */
 const THEMES = ["default", "light", "blue", "violet", "mint"] as const;
