@@ -60,7 +60,7 @@ export function formatSecret(secret: string): string {
 export function factorSummary(status: "verified" | "unverified" | null): string {
   if (status === "verified") return "Включена — код спрашивается при входе";
   if (status === "unverified") return "Незавершённое подключение";
-  return "Выключена — вход только по паролю";
+  return "Выключена — для входа хватает Google или кода из письма";
 }
 
 /**
@@ -71,4 +71,42 @@ export function factorSummary(status: "verified" | "unverified" | null): string 
  */
 export function needsSecondFactor(verifiedFactors: number, currentLevel: "aal1" | "aal2" | null): boolean {
   return verifiedFactors > 0 && currentLevel !== "aal2";
+}
+
+/**
+ * The assurance level written into a Supabase access token ("aal1" or "aal2").
+ *
+ * Read from the token itself because that is what the server checks. A token that cannot be
+ * read counts as no level at all, which keeps the second step in place for anyone who has a
+ * factor.
+ */
+export function accessLevel(accessToken: string | null | undefined): "aal1" | "aal2" | null {
+  if (!accessToken) return null;
+  try {
+    const part = accessToken.split(".")[1];
+    if (!part) return null;
+    const base64 = part.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(part.length / 4) * 4, "=");
+    const payload = JSON.parse(atob(base64)) as { aal?: unknown };
+    return payload.aal === "aal1" || payload.aal === "aal2" ? payload.aal : null;
+  } catch {
+    return null;
+  }
+}
+
+type SessionLike = {
+  access_token: string;
+  user?: { factors?: Array<{ id: string; factor_type: string; status: string }> | null } | null;
+};
+
+/**
+ * The factor to ask for before the app opens, or null when no second step is needed.
+ *
+ * Without this check the setting only enrolled a factor: a fresh sign-in through Google or an
+ * email code went straight into the chats although the settings screen promised a code.
+ */
+export function secondFactorFor(session: SessionLike | null | undefined): string | null {
+  if (!session) return null;
+  const verified = (session.user?.factors ?? []).filter((factor) => factor.factor_type === "totp" && factor.status === "verified");
+  if (!needsSecondFactor(verified.length, accessLevel(session.access_token))) return null;
+  return verified[0]?.id ?? null;
 }

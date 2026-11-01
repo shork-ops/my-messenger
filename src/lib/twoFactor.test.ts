@@ -6,6 +6,8 @@ import {
   formatSecret,
   isValidTotpCode,
   needsSecondFactor,
+  accessLevel,
+  secondFactorFor,
 } from "./twoFactor";
 
 describe("isValidTotpCode", () => {
@@ -104,5 +106,52 @@ describe("needsSecondFactor", () => {
 
   it("is required when the level is unknown but a factor exists", () => {
     expect(needsSecondFactor(2, null)).toBe(true);
+  });
+});
+
+/** A token with the given payload; the signature part is irrelevant to the client check. */
+function tokenWith(payload: Record<string, unknown>): string {
+  const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString("base64url");
+  return `${encode({ alg: "HS256", typ: "JWT" })}.${encode(payload)}.signature`;
+}
+
+describe("accessLevel", () => {
+  it("reads the level the server wrote into the token", () => {
+    expect(accessLevel(tokenWith({ aal: "aal1" }))).toBe("aal1");
+    expect(accessLevel(tokenWith({ aal: "aal2", sub: "u" }))).toBe("aal2");
+  });
+
+  it("treats a missing or unreadable token as no level", () => {
+    expect(accessLevel(null)).toBeNull();
+    expect(accessLevel("not-a-token")).toBeNull();
+    expect(accessLevel("a.%%%.c")).toBeNull();
+    expect(accessLevel(tokenWith({ aal: "aal9" }))).toBeNull();
+  });
+});
+
+describe("secondFactorFor", () => {
+  const verified = { id: "factor-1", factor_type: "totp", status: "verified" };
+
+  it("asks for the authenticator after a plain sign-in when a factor is verified", () => {
+    expect(secondFactorFor({ access_token: tokenWith({ aal: "aal1" }), user: { factors: [verified] } })).toBe("factor-1");
+  });
+
+  it("lets the session through once the code was entered", () => {
+    expect(secondFactorFor({ access_token: tokenWith({ aal: "aal2" }), user: { factors: [verified] } })).toBeNull();
+  });
+
+  it("ignores a setup that was never finished, or nobody could sign in after abandoning it", () => {
+    const unverified = { id: "factor-2", factor_type: "totp", status: "unverified" };
+    expect(secondFactorFor({ access_token: tokenWith({ aal: "aal1" }), user: { factors: [unverified] } })).toBeNull();
+  });
+
+  it("does nothing for accounts without two-factor", () => {
+    expect(secondFactorFor({ access_token: tokenWith({ aal: "aal1" }), user: { factors: [] } })).toBeNull();
+    expect(secondFactorFor({ access_token: tokenWith({ aal: "aal1" }), user: {} })).toBeNull();
+    expect(secondFactorFor(null)).toBeNull();
+  });
+
+  it("keeps the step when the token cannot be read", () => {
+    expect(secondFactorFor({ access_token: "broken", user: { factors: [verified] } })).toBe("factor-1");
   });
 });
