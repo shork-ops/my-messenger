@@ -78,27 +78,34 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .self-settings { color: var(--fg-muted); }
 .avatar { position: relative; display: grid; flex-shrink: 0; place-items: center; width: 44px; height: 44px; overflow: hidden; border: 1px solid var(--border-strong); border-radius: 50%; background: var(--surface-2); color: var(--fg); font-weight: 600; font-size: 17px; }
 .avatar.group { background: var(--fg); color: #111; border-color: var(--fg); font-size: 23px; }
-.avatar.blue { background: linear-gradient(145deg, #5b7b91, #18232d); }
-.avatar.pink { background: linear-gradient(145deg, #c58e89, #3b2229); }
-.avatar.olive { background: linear-gradient(145deg, #777967, #24261f); }
-.avatar.orange { background: linear-gradient(145deg, #bd7d45, #39271c); }
 .avatar.self { background: linear-gradient(145deg, #6c685a, var(--surface-2)); }
 .avatar.small { width: 42px; height: 42px; font-size: 14px; }
-/* The gradient fills are dark in every theme, so their letters are pale in every theme
-   rather than inheriting --fg, which is near-black on the light page. */
-.avatar.blue, .avatar.pink, .avatar.olive, .avatar.orange { color: #f4f4f5; }
+/* Each person has a colour of their own (lib/avatarTone), a light top over a deep bottom.
+   The deep end keeps the white letter at 4.6:1 or more in every theme; the same pair colours
+   the name above a group message: the light end on a dark page, the deep end on a light one. */
+:is(.avatar, .message-author).red { --tone-a: #e5574a; --tone-b: #c0362c; }
+:is(.avatar, .message-author).orange { --tone-a: #e07a1f; --tone-b: #b85a00; }
+:is(.avatar, .message-author).violet { --tone-a: #8173f2; --tone-b: #5a4bd8; }
+:is(.avatar, .message-author).green { --tone-a: #45a352; --tone-b: #2c7d37; }
+:is(.avatar, .message-author).teal { --tone-a: #23a094; --tone-b: #0f7a70; }
+:is(.avatar, .message-author).blue { --tone-a: #4089ea; --tone-b: #2066c9; }
+:is(.avatar, .message-author).pink { --tone-a: #d6559e; --tone-b: #ac387e; }
+:is(.avatar, .message-author).olive { --tone-a: #8f9f2e; --tone-b: #67761b; }
+.avatar:is(.red, .orange, .violet, .green, .teal, .blue, .pink, .olive) { border-color: transparent; background: linear-gradient(var(--tone-a), var(--tone-b)); color: #fff; text-shadow: 0 1px 2px #0003; }
+.message-author:is(.red, .orange, .violet, .green, .teal, .blue, .pink, .olive) { color: var(--tone-a); }
+[data-theme="light"] .message-author:is(.red, .orange, .violet, .green, .teal, .blue, .pink, .olive) { color: var(--tone-b); }
 [data-theme="light"] .avatar.self { color: #14161a; }
 .chat-list-panel { display: flex; flex-direction: column; background: var(--surface-1); border-right: 1px solid var(--line); }
 .search-row { display: flex; gap: 10px; padding: 22px 16px 18px; }
 .search-box { display: flex; flex: 1; align-items: center; gap: 9px; min-width: 0; padding: 0 13px; height: 44px; border: 1px solid var(--border); border-radius: 13px; background: var(--surface-1); color: #a7a8ae; }
 .search-box input { width: 100%; min-width: 0; height: 44px; border: 0; outline: 0; background: transparent; color: var(--fg); font-size: 14px; }
 .search-box input::placeholder { color: var(--fg-muted); }
-.square-action { display: grid; flex-shrink: 0; place-items: center; width: 43px; height: 43px; border: 1px solid #25262a; border-radius: 12px; background: var(--surface-1); color: var(--yellow); }
-.square-action:hover { background: #25230e; }
+.square-action { display: grid; flex-shrink: 0; place-items: center; width: 43px; height: 43px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-1); color: var(--yellow); }
+.square-action:hover { background: color-mix(in srgb, var(--yellow) 12%, var(--surface-1)); }
 .chat-list { flex: 1; overflow-y: auto; padding: 0 7px 15px; }
 .chat-row { display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; margin-bottom: 4px; padding: 12px 9px; border: 1px solid transparent; border-radius: 15px; background: transparent; text-align: left; }
-.chat-row:hover { background: var(--surface-1); }
-.chat-row.selected { border-color: var(--yellow); background: linear-gradient(100deg, #19190f, var(--surface-1)); }
+.chat-row:hover { background: var(--surface-2); }
+.chat-row.selected { border-color: var(--yellow); background: linear-gradient(100deg, color-mix(in srgb, var(--yellow) 9%, var(--surface-1)), var(--surface-1)); }
 .chat-row-copy { display: flex; flex: 1; flex-direction: column; gap: 6px; min-width: 0; }
 .chat-row-copy strong { overflow: hidden; color: var(--fg); font-size: var(--text-row); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .chat-row-copy small { overflow: hidden; color: var(--fg-secondary); font-size: var(--text-caption); text-overflow: ellipsis; white-space: nowrap; }
@@ -125,12 +132,14 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .conversation-tools button { display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 10px; background: transparent; color: var(--fg); }
 .conversation-tools button:hover { background: var(--border); color: var(--yellow); }
 .conversation-tools svg { width: 21px; height: 21px; }
-.messages-area { flex: 1 1 0; min-width: 0; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 24px; padding: 28px 24px 22px; scrollbar-gutter: stable; }
+.messages-area { flex: 1 1 0; min-width: 0; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; --row-gap: 10px; gap: var(--row-gap); padding: 28px 24px 22px; scrollbar-gutter: stable; }
 /* Where reading left off. Distinct from a date divider: the accent, not grey. */
 .unread-divider { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 10px 0 8px; color: var(--yellow); font-size: 12px; font-weight: 600; }
 .unread-divider::before, .unread-divider::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--yellow)); }
 .unread-divider::after { background: linear-gradient(90deg, var(--yellow), transparent); }
-.date-divider { display: flex; align-items: center; justify-content: center; margin-bottom: 1px; color: var(--fg-muted); font-size: 12px; }
+.date-divider { display: flex; align-items: center; justify-content: center; margin: 8px 0 4px; color: var(--fg-secondary); font-size: 12px; font-weight: 500; }
+/* A pill, as in Telegram and WhatsApp: it stays legible over a wallpaper. */
+.date-divider span { padding: 4px 12px; border-radius: 999px; background: color-mix(in srgb, var(--surface-2) 90%, transparent); }
 .message-line { display: flex; align-items: flex-start; gap: 12px; max-width: 100%; -webkit-touch-callout: none; transition: background .12s ease; }
 .message-line:active { background: #ffffff0d; }
 .message-line .bubble, .message-line .message-content { -webkit-user-select: text; user-select: text; }
@@ -154,8 +163,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .message-line.mid-run, .message-line.ends-run { margin-top: 0; }
 /* The list spaces its rows with row-gap, which a margin cannot override, so a run closes up
    by cancelling that gap rather than by asking for no margin. */
-.message-line.continues-run { margin-top: -20px; }
-.message-line.mid-run .avatar, .message-line.ends-run .avatar { visibility: hidden; }
+.message-line.continues-run { margin-top: calc(3px - var(--row-gap)); }
+/* In a group the face sits beside the last message of a run, the way Telegram draws it. */
+.message-line > .avatar { align-self: flex-end; }
+.message-line.mid-run > .avatar { visibility: hidden; }
 .bubble.bubble-mid { border-radius: 17px; }
 .message-line:not(.mine) .bubble.bubble-continues { border-top-left-radius: 4px; border-bottom-left-radius: 4px; }
 .message-line.mine .bubble.bubble-continues { border-top-right-radius: 4px; border-bottom-right-radius: 4px; }
@@ -168,6 +179,11 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 :root[data-theme="blue"] .mine-bubble .message-time,
 :root[data-theme="violet"] .mine-bubble .message-time,
 :root[data-theme="mint"] .mine-bubble .message-time { color: #14161a; }
+/* One to three emoji and nothing else: large, without a bubble, the time on a small pill.
+   Every theme repaints the bubble above, hence the weight here. */
+.bubble.bubble-emoji { padding: 0 0 26px !important; border-color: transparent !important; background: none !important; box-shadow: none !important; font-size: calc(var(--text-body) * 2.4); line-height: 1.2; }
+.bubble.bubble-emoji.emoji-1 { font-size: calc(var(--text-body) * 3.2); }
+.bubble.bubble-emoji .message-time { right: 0; bottom: 0; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--fg-secondary) !important; }
 [data-theme="light"] .mine-bubble .message-time { color: #6b4c00; }
 .message-receipt { margin-left: 4px; letter-spacing: -1px; }
 .message-receipt.read { color: #2f8f4e; }
@@ -189,7 +205,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .game-info strong { font-size: 13px; }
 .game-info small { color: var(--fg-muted); font-size: 12px; }
 .game-info button { display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--yellow); color: #151515; }
-.composer { display: flex; flex: 0 0 auto; align-items: center; gap: 10px; margin: 0 14px 14px; padding: 10px; border: 1px solid #292a2f; border-radius: 17px; background: #101113; }
+.composer { display: flex; flex: 0 0 auto; align-items: center; gap: 10px; margin: 0 14px 14px; padding: 10px; border: 1px solid var(--border); border-radius: 17px; background: #101113; }
 .composer textarea { flex: 1; width: 0; min-width: 0; height: 44px; padding: 0 14px; border: 1px solid var(--border-strong); border-radius: 14px; outline: none; background: #0b0c0e; color: white; font-size: var(--text-body); }
 .composer textarea:focus { border-color: #8a7510; }
 .composer textarea::placeholder { color: var(--fg-muted); }
@@ -236,7 +252,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .friend-avatar-wrap .avatar { width: 38px; height: 38px; }
 .friend-avatar-wrap i { position: absolute; right: -1px; bottom: 0; width: 10px; height: 10px; border: 2px solid var(--surface-0); }
 .invite-row { display: flex; align-items: center; gap: 13px; min-height: 44px; padding: 4px 0; border: 0; background: transparent; color: var(--fg-secondary); text-align: left; font-size: 12px; }
-.invite-row > span { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: var(--border); color: white; }
+.invite-row > span { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: color-mix(in srgb, var(--yellow) 14%, var(--surface-2)); color: var(--yellow); }
+.invite-row:hover { color: var(--fg); }
 .games-divider { margin-top: 17px; }
 .games-heading { display: flex; align-items: center; gap: 10px; min-height: 44px; margin: 16px 0 10px; padding: 0; border: 0; background: transparent; color: var(--yellow); text-align: left; }
 .games-heading strong { flex: 1; font-size: 14px; }
@@ -267,7 +284,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .conversation-tools .chat-menu svg { flex-shrink: 0; width: 18px; height: 18px; }
 .chat-menu button:hover, .chat-menu button:focus-visible { background: var(--surface-2); color: var(--yellow); }
 .chat-menu button.danger { color: #ff8c86; }
-.chat-menu button.danger:hover, .chat-menu button.danger:focus-visible { background: #2a1719; color: #ff9d97; }
+.chat-menu button.danger:hover, .chat-menu button.danger:focus-visible { background: color-mix(in srgb, var(--danger, #e5534b) 14%, var(--surface-1)); color: var(--danger-text, #ff9d97); }
 .attach-menu { position: absolute; z-index: 20; bottom: calc(100% + 10px); left: 0; display: flex; flex-direction: column; min-width: 190px; padding: 6px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-1); box-shadow: 0 14px 40px #000a; }
 .attach-menu button { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: var(--fg); font-size: 14px; text-align: left; }
 .attach-menu button:hover, .attach-menu button:focus-visible { background: var(--surface-2); color: var(--yellow); }
@@ -338,7 +355,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
   .conversation-title { min-width: 90px; }
   .conversation-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .conversation-tools svg { width: 18px; }
-  .messages-area { padding: 20px 11px; gap: 20px; }
+  .messages-area { padding: 20px 11px; --row-gap: 8px; }
   .message-line { gap: 7px; }
   .message-line > .avatar { width: 31px; height: 31px; }
   .message-content { max-width: 92%; }
@@ -356,7 +373,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 /* Message actions stay tucked away until explicitly opened. */
 .message-action-wrap { position: relative; display: flex; justify-content: flex-end; margin-top: 4px; }
 .message-menu-toggle { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--fg-muted); }
-.message-menu-toggle:hover, .message-menu-toggle:focus-visible { border-color: #38393f; background: var(--surface-2); color: var(--yellow); }
+.message-menu-toggle:hover, .message-menu-toggle:focus-visible { border-color: var(--border-strong); background: var(--surface-2); color: var(--yellow); }
 /* A fixed-width grid keeps the menu inside the panel no matter how many
    actions exist; a single row would overflow once real labels are added. */
 /* A search result jumps here, so the row is marked while the eye catches up. */
@@ -370,11 +387,13 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
   .message-line.message-revealed { animation: none; outline: 2px solid var(--yellow); outline-offset: 2px; }
 }
 
-.message-actions { position: absolute; z-index: 5; right: 0; bottom: 27px; display: grid; grid-template-columns: repeat(2, minmax(120px, 1fr)); gap: 4px; width: max-content; max-width: min(280px, 78vw); padding: 6px; border: 1px solid var(--border-strong); border-radius: 11px; background: var(--surface-1); box-shadow: 0 8px 24px #0009; }
+/* One list, reactions on top, the way Telegram and WhatsApp lay out a message menu. */
+.message-actions { position: absolute; z-index: 5; right: 0; bottom: 27px; display: flex; flex-direction: column; gap: 1px; width: 248px; max-width: 86vw; padding: 6px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-1); box-shadow: 0 12px 32px #0000005c; }
 /* Opened below the toggle when there is no room above it, which is the case for every
    message except the last few in a thread. */
 .message-actions.below { top: 27px; bottom: auto; }
-.message-actions button { display: inline-flex; align-items: center; gap: 5px; min-width: 0; padding: 7px 9px; border: 1px solid var(--border); border-radius: 7px; background: #18191c; color: #b9bac1; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.message-actions button { display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 40px; padding: 8px 12px; border: 0; border-radius: 9px; background: transparent; color: var(--fg); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.message-actions button svg { flex: none; width: 18px; height: 18px; color: var(--fg-secondary); }
 /* On a phone the menu is wider than the screen, so it is pinned to the panel instead of
    to the bubble: measured at 390px it ran from x=183 to x=441 and the last effect button
    was mostly off-screen with no way to scroll to it. */
@@ -388,24 +407,23 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
     max-width: none;
     bottom: 84px;
     top: auto;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
-.message-actions button:hover { border-color: var(--yellow); color: var(--yellow); }
+.message-actions button:hover { background: var(--surface-2); }
 /* Reactions and effects share a compact row so the menu stays narrow. */
-.message-actions-group { display: flex; gap: 4px; grid-column: span 2; }
-.message-actions-group button { flex: 1; justify-content: center; min-width: 0; padding-inline: 6px; }
-.message-actions button:last-child:hover { border-color: #a64b4b; color: #ff9696; }
+.message-actions-group { display: flex; gap: 2px; margin-bottom: 4px; padding-bottom: 5px; border-bottom: 1px solid var(--border); }
+.message-actions .message-actions-group button { flex: 1; justify-content: center; min-width: 0; padding: 0; border-radius: 999px; font-size: 20px; }
+.message-actions .message-actions-group button:hover { transform: scale(1.15); }
 .undo-toast { gap: 14px; }
 .undo-button { color: var(--yellow) !important; font-weight: 700; }
-.edit-banner { display: flex; align-items: center; justify-content: space-between; margin: 0 14px 0; padding: 8px 12px; border: 1px solid #51450e; border-bottom: 0; border-radius: 10px 10px 0 0; background: #19170b; color: var(--yellow); font-size: 12px; }
-.edit-banner button { display: grid; place-items: center; padding: 2px; border: 0; background: transparent; color: #d4c36a; }
-.edit-banner + .composer { margin-top: 0; border-color: #51450e; border-top-left-radius: 0; border-top-right-radius: 0; }
+.edit-banner { display: flex; align-items: center; justify-content: space-between; margin: 0 14px 0; padding: 8px 12px; border: 1px solid var(--banner-border); border-bottom: 0; border-radius: 10px 10px 0 0; background: var(--banner-bg); color: var(--yellow); font-size: 12px; }
+.edit-banner button { display: grid; place-items: center; padding: 2px; border: 0; background: transparent; color: var(--yellow-soft); }
+.edit-banner + .composer { margin-top: 0; border-color: var(--banner-border); border-top-left-radius: 0; border-top-right-radius: 0; }
 
 @media (max-width: 760px) {
   .message-menu-toggle { width: 44px; height: 44px; }
   .message-actions { bottom: 31px; }
-  .message-actions button { padding: 8px 9px; font-size: 12px; }
+  .message-actions button { min-height: 44px; font-size: 15px; }
 }
 
 
@@ -468,7 +486,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 [data-theme="light"] .send-button,
 [data-theme="light"] .save-settings,
 [data-theme="light"] .game-info button,
-[data-theme="light"] .chat-meta b { background: var(--accent-fill); color: #1a1400; }
+[data-theme="light"] .chat-meta b,
+[data-theme="light"] .mobile-bottom-nav b { background: var(--accent-fill); color: #1a1400; }
+[data-theme="light"] { --danger-text: #b42318; }
+[data-theme="light"] .online-heading b { border-color: #9fdcbc; background: #e6f7ee; color: #157347; }
 [data-theme="light"] .nav-link.active { background: linear-gradient(110deg, var(--accent-fill-soft), var(--accent-fill)); color: #1a1400; }
 /* The unread badge is a fill, with dark text on it. */
 [data-theme="light"] .nav-count { background: var(--accent-fill); color: #1a1400; }
@@ -497,7 +518,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 /* The row is a button, so the folder control beside it needs its own wrapper. It appears on
    hover and on focus, and stays visible where there is no hover. */
 .chat-row-wrap { position: relative; }
-.chat-row-wrap.selected .chat-row { border-color: var(--yellow); background: linear-gradient(100deg, #19190f, var(--surface-1)); }
+.chat-row-wrap.selected .chat-row { border-color: var(--yellow); background: linear-gradient(100deg, color-mix(in srgb, var(--yellow) 9%, var(--surface-1)), var(--surface-1)); }
+[data-theme="light"] .chat-row-wrap.selected .chat-row { background: color-mix(in srgb, var(--accent-fill) 20%, var(--surface-1)); }
 /* 44 px is the smallest target a finger hits reliably; 28 was measured and rejected. It
    sits in a gutter of its own rather than over the timestamp. */
 .chat-file-button {
@@ -563,11 +585,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .reply-quote { display: flex; flex-direction: column; gap: 3px; margin: -3px -4px 8px; padding: 6px 8px; border-left: 3px solid var(--yellow); border-radius: 4px; background: #00000012; color: inherit; text-align: left; }
 .reply-quote strong { font-size: 12px; }
 .reply-quote span { overflow: hidden; max-width: 100%; font-size: 12px; opacity: .8; text-overflow: ellipsis; white-space: nowrap; }
-.reply-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 14px; padding: 9px 12px; border: 1px solid #51450e; border-bottom: 0; border-radius: 10px 10px 0 0; background: #19170b; color: var(--yellow); }
+.reply-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 14px; padding: 9px 12px; border: 1px solid var(--banner-border); border-bottom: 0; border-radius: 10px 10px 0 0; background: var(--banner-bg); color: var(--yellow); }
 .reply-banner > span { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .reply-banner strong { font-size: 12px; }
-.reply-banner small { overflow: hidden; max-width: 100%; color: #c8c0a0; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.reply-banner button { display: grid; place-items: center; border: 0; background: transparent; color: #d4c36a; }
+.reply-banner small { overflow: hidden; max-width: 100%; color: var(--fg-secondary); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.reply-banner button { display: grid; place-items: center; border: 0; background: transparent; color: var(--yellow-soft); }
+:root { --banner-bg: color-mix(in srgb, var(--yellow) 8%, var(--surface-1)); --banner-border: color-mix(in srgb, var(--yellow) 32%, var(--border)); }
 .reply-banner + .composer { margin-top: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
 .modal-backdrop { position: fixed; z-index: 50; inset: 0; display: grid; place-items: center; padding: 18px; background: #000a; backdrop-filter: blur(5px); }
 /* Account settings gained a row that opens the privacy dialog on top. */
