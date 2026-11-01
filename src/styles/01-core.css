@@ -125,6 +125,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .message-line { display: flex; align-items: flex-start; gap: 12px; max-width: 100%; -webkit-touch-callout: none; transition: background .12s ease; }
 .message-line:active { background: #ffffff0d; }
 .message-line .bubble, .message-line .message-content { -webkit-user-select: text; user-select: text; }
+/* On a touch screen a long press opens the message menu, which has "Копировать". While the
+   text stayed selectable, the same press also began a native selection: iOS then cancelled
+   the press, so the menu never opened, and Android put its own handles over the bubble. */
+@media (hover: none) and (pointer: coarse) {
+  .message-line .bubble, .message-line .message-content { -webkit-user-select: none; user-select: none; }
+}
 .message-line.mine { justify-content: flex-end; }
 .message-content { min-width: 0; max-width: min(88%, 520px); }
 .message-line.mine .message-content { display: flex; flex-direction: column; align-items: flex-end; }

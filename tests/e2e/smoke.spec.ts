@@ -246,3 +246,52 @@ test.describe("Nexus messenger smoke", () => {
     await expect(page.locator(".chat-row", { hasText: name })).toHaveCount(1);
   });
 });
+
+test.describe("message actions on a phone", () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test("a long press opens the menu, keeps it open, and the first tap in it works", async ({ page, context }) => {
+    await page.addInitScript(() => {
+      const copied: string[] = [];
+      Object.assign(window, { __copied: copied });
+      navigator.clipboard.writeText = async (text: string) => {
+        copied.push(text);
+      };
+    });
+    await page.goto("/my-messenger/");
+    await expect(page.locator(".app-shell")).toBeVisible();
+    await page.locator(".chat-list .chat-row").first().tap();
+    const body = page.locator(".message-line:not(.mine) .message-body").first();
+    await expect(body).toBeVisible();
+    // The press must not start a text selection under the finger.
+    await expect(page.locator(".message-line:not(.mine) .bubble").first()).toHaveCSS("user-select", "none");
+
+    const cdp = await context.newCDPSession(page);
+    const menu = page.locator(".message-actions");
+    async function longPress() {
+      const box = (await body.boundingBox())!;
+      const point = { x: box.x + Math.min(20, box.width / 2), y: box.y + box.height / 2 };
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point] });
+      await page.waitForTimeout(550);
+      // Android reports the same press as a context menu at about this moment. Toggling on
+      // both is what opened the menu and shut it again under the finger.
+      await body.dispatchEvent("contextmenu");
+      await page.waitForTimeout(150);
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    }
+
+    await longPress();
+    await expect(menu).toBeVisible();
+    await page.waitForTimeout(300);
+    await expect(menu).toBeVisible();
+    await menu.getByRole("button", { name: "Копировать" }).tap();
+    await expect(menu).toHaveCount(0);
+    expect(await page.evaluate(() => (window as unknown as { __copied: string[] }).__copied.length)).toBe(1);
+
+    // A tap anywhere else puts the menu away.
+    await longPress();
+    await expect(menu).toBeVisible();
+    await page.locator(".conversation-header").tap();
+    await expect(menu).toHaveCount(0);
+  });
+});

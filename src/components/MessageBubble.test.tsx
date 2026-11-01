@@ -26,7 +26,14 @@ const noop = () => {};
 function renderBubble(
   overrides: Partial<Message> = {},
   showAuthor = false,
-  runs: { continuesRun?: boolean; endsRun?: boolean; actionsOpen?: boolean; onReply?: () => void } = {}
+  runs: {
+    continuesRun?: boolean;
+    endsRun?: boolean;
+    actionsOpen?: boolean;
+    onReply?: () => void;
+    onToggleActions?: () => void;
+    onCopy?: () => void;
+  } = {}
 ) {
   return render(
     <MessageBubble
@@ -39,11 +46,11 @@ function renderBubble(
       accountId={null}
       profileName="Алексей"
       actionsOpen={runs.actionsOpen ?? false}
-      onToggleActions={noop}
+      onToggleActions={runs.onToggleActions ?? noop}
       onVote={noop}
       onToggleReaction={noop}
       onReply={runs.onReply ?? noop}
-      onCopy={noop}
+      onCopy={runs.onCopy ?? noop}
       onForward={noop}
       onFavourite={noop}
       onTogglePin={noop}
@@ -232,5 +239,93 @@ describe("a photo that may be opened once", () => {
     // is sent at once and the other pictures stay.
     const { container } = renderBubble({ attachment: photo });
     expect(container.querySelector(".album-grid")).toBeNull();
+  });
+});
+
+describe("the long press on a phone", () => {
+  // A phone reports one long press twice: the page's own timer, and the browser's
+  // `contextmenu` at about the same moment. Each used to toggle the menu, so it opened and
+  // shut again before the finger lifted.
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function press(element: Element) {
+    fireEvent.pointerDown(element, { pointerType: "touch", clientX: 40, clientY: 40 });
+  }
+
+  it("opens the menu once when the browser also reports the press as a context menu", () => {
+    const onToggleActions = vi.fn();
+    const { container } = renderBubble({}, false, { onToggleActions });
+    const line = container.querySelector(".message-line") as HTMLElement;
+    press(line);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    fireEvent.contextMenu(line);
+    fireEvent.pointerUp(line, { pointerType: "touch" });
+    expect(onToggleActions).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens it once when the context menu comes first, and the timer stays quiet", () => {
+    const onToggleActions = vi.fn();
+    const { container } = renderBubble({}, false, { onToggleActions });
+    const line = container.querySelector(".message-line") as HTMLElement;
+    press(line);
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    fireEvent.contextMenu(line);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(onToggleActions).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not open on a short tap or when the finger moves away", () => {
+    const onToggleActions = vi.fn();
+    const { container } = renderBubble({}, false, { onToggleActions });
+    const line = container.querySelector(".message-line") as HTMLElement;
+    press(line);
+    act(() => {
+      vi.advanceTimersByTime(150);
+    });
+    fireEvent.pointerUp(line, { pointerType: "touch" });
+    press(line);
+    fireEvent.pointerMove(line, { pointerType: "touch", clientX: 40, clientY: 70 });
+    act(() => {
+      vi.advanceTimersByTime(800);
+    });
+    expect(onToggleActions).not.toHaveBeenCalled();
+  });
+
+  it("lets the first tap in the menu through after the press that opened it", () => {
+    // A phone sends no click after a long press. The flag meant to swallow that click
+    // stayed up and ate the next tap - on "Копировать" in the menu just opened.
+    const onCopy = vi.fn();
+    const { container, getByRole } = renderBubble({}, false, { actionsOpen: true, onCopy });
+    const line = container.querySelector(".message-line") as HTMLElement;
+    press(line);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    fireEvent.pointerUp(line, { pointerType: "touch" });
+    const copy = getByRole("button", { name: /Копировать/ });
+    fireEvent.pointerDown(copy, { pointerType: "touch" });
+    fireEvent.pointerUp(copy, { pointerType: "touch" });
+    fireEvent.click(copy);
+    expect(onCopy).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes the open menu on a press outside it", () => {
+    const onToggleActions = vi.fn();
+    const { getByRole } = renderBubble({}, false, { actionsOpen: true, onToggleActions });
+    fireEvent.pointerDown(getByRole("button", { name: /Копировать/ }));
+    expect(onToggleActions).not.toHaveBeenCalled();
+    fireEvent.pointerDown(document.body);
+    expect(onToggleActions).toHaveBeenCalledTimes(1);
   });
 });
