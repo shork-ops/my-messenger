@@ -87,7 +87,15 @@ export function useChatCollection({ search, chatFilter, messageSearch, notify }:
   }, [replyDrafts]);
 
   useEffect(() => {
-    writeItem("nexus-chats-v1", JSON.stringify(chatsForStorage(chats, Date.now())));
+    // Only chats that exist on this device alone are kept here. Cloud conversations live on
+    // the server and the list is never read back from this copy outside demo mode, so a
+    // copy would only be a full transcript left in the browser after signing out.
+    if (!isDemoMode) {
+      removeItem("nexus-chats-v1");
+      return;
+    }
+    const localOnly = chats.filter((chat) => !chat.remoteId);
+    writeItem("nexus-chats-v1", JSON.stringify(chatsForStorage(localOnly, Date.now())));
   }, [chats]);
 
   useEffect(() => {
