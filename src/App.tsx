@@ -14,12 +14,9 @@ import ConnectionStatus from "./components/ConnectionStatus";
 import ChatListPanel from "./components/ChatListPanel";
 import ConversationPanel from "./components/ConversationPanel";
 import RightPanel from "./components/RightPanel";
-import FolderPicker from "./components/FolderPicker";
-import EmojiPicker from "./components/EmojiPicker";
-import StickerPicker from "./components/StickerPicker";
-import ScheduleModal from "./components/ScheduleModal";
 import type { SettingsSectionId } from "./components/SettingsModal";
 import { formatNoteTime } from "./lib/videoNote";
+import { useStreaks } from "./hooks/useStreaks";
 import { isDemoMode } from "./lib/constants";
 import { useMessenger } from "./hooks/useMessenger";
 import { useCallRecording } from "./hooks/useCallRecording";
@@ -43,6 +40,12 @@ const MuteModal = lazy(() => import("./components/Modals").then((m) => ({ defaul
 const DisappearingModal = lazy(() => import("./components/Modals").then((m) => ({ default: m.DisappearingModal })));
 const NewChatModal = lazy(() => import("./components/Modals").then((m) => ({ default: m.NewChatModal })));
 const PollModal = lazy(() => import("./components/Modals").then((m) => ({ default: m.PollModal })));
+const StreakCard = lazy(() => import("./components/StreakCard"));
+// The pickers open on a press too; the emoji and sticker lists stay in their own chunks.
+const FolderPicker = lazy(() => import("./components/FolderPicker"));
+const EmojiPicker = lazy(() => import("./components/EmojiPicker"));
+const StickerPicker = lazy(() => import("./components/StickerPicker"));
+const ScheduleModal = lazy(() => import("./components/ScheduleModal"));
 // Seen once per account, on its first visit; never in demo mode.
 const WelcomeModal = lazy(() => import("./components/WelcomeModal"));
 
@@ -53,6 +56,8 @@ export default function App() {
   const [reportTarget, setReportTarget] = useState<{ chatId: string; messageId: string | null } | null>(null);
   // Which chat the gallery shows when opened from the chat panel; null is every chat.
   const [galleryScope, setGalleryScope] = useState<string | null>(null);
+  // «Огонёк дружбы» card for the open chat.
+  const [streakOpen, setStreakOpen] = useState(false);
   // The message a reaction is being picked for in the full emoji picker.
   const [reactionPickFor, setReactionPickFor] = useState<number | null>(null);
   const {
@@ -281,6 +286,8 @@ export default function App() {
   const pendingUploadsForChat = pendingForChat(failedUploads, activeChat.id);
   const callRecording = useCallRecording(activeChat.name);
   const accounts = useAccounts();
+  const { streaks, burstId } = useStreaks(chats, accountId, action);
+  const activeStreak = streaks.get(activeChat.id);
 
   // The list of accounts is filled from the session that is actually signed in, not from
   // whatever the switcher believes: a slot with no session behind it is a row that does
@@ -355,6 +362,7 @@ export default function App() {
         allChats={chats}
         hasVisibleChats={folderChats.length > 0}
         activeId={activeId}
+        streaks={streaks}
         onSelectChat={selectChat}
         onTogglePin={toggleChatPin}
         onMuteChat={(chat) => {
@@ -473,6 +481,9 @@ export default function App() {
         onDismissUpload={dismissFailedUpload}
         peerOnline={peerOnline}
         peerLastSeenAt={peerLastSeenAt}
+        streak={activeStreak}
+        streakBurst={burstId === activeChat.id}
+        onOpenStreak={() => setStreakOpen(true)}
         endRef={messagesEndRef}
         listRef={messagesListRef}
         messagesRef={messagesAreaRef}
@@ -528,6 +539,10 @@ export default function App() {
           it is. */}
       <Suspense fallback={null}>
       {shortcutsOpen && <ShortcutHelp onClose={() => setShortcutsOpen(false)} />}
+
+      {streakOpen && activeStreak && (
+        <StreakCard chatName={activeChat.name} streak={activeStreak.streak} onClose={() => setStreakOpen(false)} />
+      )}
 
       {folderPickerChat && (
         <FolderPicker

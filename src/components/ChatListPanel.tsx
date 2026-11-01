@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type WheelEvent } from "react";
+import type { StreakView } from "../lib/streakEngine";
 import { Archive, Bell, BellOff, FolderInput, Megaphone, MoreHorizontal, PencilLine, Pin, Search, Trash2 } from "lucide-react";
 import Avatar from "./Avatar";
 import UserAvatar from "./UserAvatar";
@@ -50,6 +51,8 @@ type ChatListPanelProps = {
   onDeleteChat?: (chat: Chat) => void;
   onMuteChat?: (chat: Chat) => void;
   onArchiveChat?: (chat: Chat) => void;
+  /** «Огонёк дружбы» by chat id; absent where there is none. */
+  streaks?: Map<number, StreakView>;
 };
 
 export default function ChatListPanel({
@@ -77,6 +80,7 @@ export default function ChatListPanel({
   onDeleteChat,
   onMuteChat,
   onArchiveChat,
+  streaks,
 }: ChatListPanelProps) {
   const [menuId, setMenuId] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -209,7 +213,10 @@ export default function ChatListPanel({
               </small>
             </span>
             <span className="chat-meta">
-              <small>{chat.time}</small>
+              <small>
+                <StreakMark view={streaks?.get(chat.id)} />
+                {chat.time}
+              </small>
               {chat.unread ? <b>{chat.unread}</b> : null}
             </span>
           </button>
@@ -246,5 +253,18 @@ export default function ChatListPanel({
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * The fire next to the time: lit when today already counts, dimmed while it does not yet, with
+ * an hourglass in the evening of a day that could still put it out.
+ */
+function StreakMark({ view }: { view: StreakView | undefined }) {
+  if (!view?.shown) return null;
+  return (
+    <span className={`streak-badge${view.pending ? " pending" : ""}`} title={view.label} aria-label={view.label} role="img">
+      {view.text}
+    </span>
   );
 }
