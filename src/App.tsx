@@ -13,7 +13,6 @@ import Rail from "./components/Rail";
 import ConnectionStatus from "./components/ConnectionStatus";
 import ChatListPanel from "./components/ChatListPanel";
 import ConversationPanel from "./components/ConversationPanel";
-import RightPanel from "./components/RightPanel";
 import PrivacyModal from "./components/PrivacyModal";
 import FolderPicker from "./components/FolderPicker";
 import EmojiPicker from "./components/EmojiPicker";
@@ -33,6 +32,8 @@ import { useMobileViewport } from "./hooks/useMobileViewport";
 // Each is its own chunk, so the first screen does not download what it may never open.
 // `Modals` exports four dialogs from one file and keeps one chunk between them.
 const GameModal = lazy(() => import("./components/GameModal"));
+// The chat panel is on screen from the start only on wide desktops; it arrives a moment later.
+const RightPanel = lazy(() => import("./components/RightPanel"));
 const ReportModal = lazy(() => import("./components/ReportModal"));
 const SettingsModal = lazy(() => import("./components/SettingsModal"));
 const VideoNoteRecorder = lazy(() => import("./components/VideoNoteRecorder"));
@@ -48,6 +49,8 @@ export default function App() {
   // The complaint dialog needs the chat and message ids from the server, not the local ones:
   // only a stored message can be pointed at. Kept here because it outlives one bubble.
   const [reportTarget, setReportTarget] = useState<{ chatId: string; messageId: string | null } | null>(null);
+  // Which chat the gallery shows when opened from the chat panel; null is every chat.
+  const [galleryScope, setGalleryScope] = useState<string | null>(null);
   // The message a reaction is being picked for in the full emoji picker.
   const [reactionPickFor, setReactionPickFor] = useState<number | null>(null);
   const {
@@ -576,6 +579,8 @@ export default function App() {
       )}
 
       {(wideLayout || showProfile) && (
+        // Its own boundary: a dialog loading elsewhere must not blank the panel meanwhile.
+        <Suspense fallback={null}>
         <RightPanel
           profileName={profileName}
           profileAvatar={profileAvatar}
@@ -594,7 +599,13 @@ export default function App() {
           onChangeRole={(userId, role) => void changeMemberRole(userId, role)}
           onRemoveMember={(userId) => void kickMember(userId)}
           onLeaveGroup={() => void leaveGroup()}
+          onOpenGallery={() => {
+            setGalleryScope(activeChat.name);
+            setGalleryOpen(true);
+          }}
+          autoloadMedia={autoloadMedia}
         />
+        </Suspense>
       )}
 
       {reportTarget && (
@@ -646,11 +657,15 @@ export default function App() {
       {galleryOpen && (
       <GalleryModal
           open={galleryOpen}
-          images={galleryImages}
-          onClose={() => setGalleryOpen(false)}
+          images={galleryScope === null ? galleryImages : galleryImages.filter((image) => image.chatName === galleryScope)}
+          onClose={() => {
+            setGalleryOpen(false);
+            setGalleryScope(null);
+          }}
           onOpenImage={(image) => {
             setActiveId(chats.find((chat) => chat.name === image.chatName)?.id ?? activeId);
             setGalleryOpen(false);
+            setGalleryScope(null);
           }}
         />
       )}
