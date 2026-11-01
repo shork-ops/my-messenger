@@ -13,6 +13,7 @@ import Rail from "./components/Rail";
 import ConnectionStatus from "./components/ConnectionStatus";
 import ChatListPanel from "./components/ChatListPanel";
 import ConversationPanel from "./components/ConversationPanel";
+import RightPanel from "./components/RightPanel";
 import PrivacyModal from "./components/PrivacyModal";
 import FolderPicker from "./components/FolderPicker";
 import EmojiPicker from "./components/EmojiPicker";
@@ -32,8 +33,6 @@ import { useMobileViewport } from "./hooks/useMobileViewport";
 // Each is its own chunk, so the first screen does not download what it may never open.
 // `Modals` exports four dialogs from one file and keeps one chunk between them.
 const GameModal = lazy(() => import("./components/GameModal"));
-// The chat panel is on screen from the start only on wide desktops; it arrives a moment later.
-const RightPanel = lazy(() => import("./components/RightPanel"));
 const ReportModal = lazy(() => import("./components/ReportModal"));
 const SettingsModal = lazy(() => import("./components/SettingsModal"));
 const VideoNoteRecorder = lazy(() => import("./components/VideoNoteRecorder"));
@@ -579,8 +578,6 @@ export default function App() {
       )}
 
       {(wideLayout || showProfile) && (
-        // Its own boundary: a dialog loading elsewhere must not blank the panel meanwhile.
-        <Suspense fallback={null}>
         <RightPanel
           profileName={profileName}
           profileAvatar={profileAvatar}
@@ -605,7 +602,6 @@ export default function App() {
           }}
           autoloadMedia={autoloadMedia}
         />
-        </Suspense>
       )}
 
       {reportTarget && (
