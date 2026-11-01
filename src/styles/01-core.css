@@ -106,6 +106,15 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .chat-meta small { font-size: var(--text-meta); }
 .chat-meta b { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--yellow); color: #151515; font-size: 12px; }
 .chat-meta svg { color: var(--fg-secondary); }
+/* «Огонёк дружбы»: beside the time in the list, and as a chip in the chat header. Dimmed while
+   today does not count yet. */
+.streak-badge { margin-right: 6px; color: var(--fg); font-weight: 600; white-space: nowrap; }
+.streak-badge.pending { opacity: .5; }
+.streak-chip { flex-shrink: 0; height: 30px; padding: 0 10px; border: 1px solid #ff8a3d55; border-radius: 999px; background: #ff8a3d1a; color: var(--fg); font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.streak-chip.pending { border-color: var(--border-strong); background: transparent; opacity: .75; }
+.streak-chip.burst { animation: streak-burst 1.2s ease-out 2; }
+@keyframes streak-burst { 35% { transform: scale(1.25); } 100% { box-shadow: 0 0 0 14px #ff8a3d00; } 0% { box-shadow: 0 0 0 0 #ff8a3d99; } }
+@media (prefers-reduced-motion: reduce) { .streak-chip.burst { animation: none; } }
 .empty-search { padding: 25px 12px; color: var(--muted); font-size: var(--text-caption); text-align: center; }
 .conversation-panel { display: flex; flex-direction: column; position: relative; min-width: 0; min-height: 0; height: 100%; overflow: hidden; background: radial-gradient(ellipse at 50% 40%, var(--surface-0), var(--page) 78%); }
 .conversation-header { display: flex; align-items: center; gap: 13px; min-height: 87px; padding: 15px 22px; border-bottom: 1px solid var(--line); }
