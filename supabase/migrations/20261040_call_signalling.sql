@@ -1,4 +1,4 @@
-﻿-- Phase 3: call signalling.
+-- Phase 3: call signalling.
 --
 -- Calls themselves run on an SFU (LiveKit or Cloudflare Calls); this schema is
 -- only the signalling layer Supabase is good at: who is calling whom, in which
@@ -13,8 +13,15 @@
 --   * Times are stored, not durations: a duration computed on write would be
 --     wrong whenever a call is resumed after a network drop.
 
-create type public.call_kind as enum ('audio', 'video');
-create type public.call_status as enum ('ringing', 'active', 'ended', 'missed', 'declined');
+-- Wrapped so that running the file a second time does not stop at "already exists".
+do $$ begin
+  create type public.call_kind as enum ('audio', 'video');
+exception when duplicate_object then null;
+end $$;
+do $$ begin
+  create type public.call_status as enum ('ringing', 'active', 'ended', 'missed', 'declined');
+exception when duplicate_object then null;
+end $$;
 
 -- ---------------------------------------------------------------------------
 -- Membership check with an explicit user argument.
@@ -81,7 +88,11 @@ grant select, insert, update on public.calls to authenticated;
 
 -- Realtime delivery of status changes is what turns a ringing call into a
 -- ringing phone on the other side.
-alter publication supabase_realtime add table public.calls;
+do $$ begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'calls') then
+    alter publication supabase_realtime add table public.calls;
+  end if;
+end $$;
 
 -- ---------------------------------------------------------------------------
 -- State machine guard.

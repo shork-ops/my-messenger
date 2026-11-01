@@ -27,19 +27,11 @@ npm run preview
 SQL настраивается в Supabase Dashboard → SQL Editor. Выполняй в следующем порядке:
 
 1. `supabase/schema.sql` — базовые таблицы, триггеры, RLS и Realtime.
-2. `supabase/migrations/20261025_unique_usernames.sql` — уникальные имена пользователей.
-3. `supabase/migrations/20261026_online_media.sql` — приватный bucket `chat-media`, политики Storage и публикация Realtime.
-4. `supabase/migrations/20261027_direct_chats.sql` — безопасное создание личных диалогов.
-5. `supabase/migrations/20261028_cloud_group_chats.sql` — облачные группы и безопасные ссылки-приглашения.
-6. `supabase/migrations/20261029_persistent_polls.sql` — сохранение опросов и серверная обработка голосов.
-7. `supabase/migrations/20261030_poll_and_message_hardening.sql` — защита голосов и сообщений триггерами.
-8. `supabase/migrations/20261031_read_state.sql` — RPC `mark_chat_read` и `last_read_at` для непрочитанных и квитанций.
-9. `supabase/migrations/20261032_presence.sql` — `profiles.last_seen_at` для «был(а) в сети».
-10. `supabase/migrations/20261033_push_subscriptions.sql` — таблица Web Push-подписок для фоновых уведомлений.
-11. `supabase/migrations/20261034_group_management.sql` — RPC `set_chat_member_role`, `remove_chat_member`, `rotate_chat_invite`, срок жизни приглашения и триггер `chats_guard_update`, закрывающий смену `created_by`.
-12. `supabase/migrations/20261035_message_search.sql` — полнотекстовый поиск: `tsvector`, GIN-индекс и RPC `search_messages`.
-13. `supabase/migrations/20261036_pinned_messages.sql` — закреплённые сообщения и RPC `set_message_pin` / `pinned_messages`.
-14. `supabase/migrations/20261037_privacy.sql` — блокировки, скрытие «был(а) в сети», отключение квитанций и RPC `delete_my_account`.
+2. Все файлы из `supabase/migrations/` по очереди, **в порядке имён** (от `20261025_…` до последнего). Каждый файл — целиком, одним запуском.
+
+Повторный запуск файла безопасен: если что-то пошло не так, этот же файл можно выполнить ещё раз.
+
+Вся цепочка проверяется командой `npm run test:install` (она же входит в `npm run test:db` и запускается в CI): схема и все миграции ставятся на пустую базу, затем ещё раз поверх себя, и проверяется, что у всех таблиц включён RLS, а регистрация, личный чат и видимость сообщений работают.
 
 Миграции рассчитаны на запуск после базовой схемы. Проверяй результат каждой миграции в SQL Editor. Не отключай RLS и не вставляй секретный service-role key во фронтенд.
 
