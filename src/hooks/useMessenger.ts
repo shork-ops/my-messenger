@@ -102,6 +102,7 @@ import { useAutoScroll } from "../hooks/useAutoScroll";
 import { unreadMessages } from "../lib/unread";
 import { useTyping } from "../hooks/useTyping";
 import { usePresence } from "../hooks/usePresence";
+import { useDisappearingMessages } from "../hooks/useDisappearingMessages";
 import type { Attachment, Chat, ChatFilter, Message, MessageEffect, UserSearchResult } from "../types";
 
 
@@ -259,6 +260,13 @@ export function useMessenger() {
     // a merge that only appends would hide a deletion, and one that replaces would drop a
     // message that arrived while the fetch was in flight.
     onReconnect: async () => reloadChatsRef.current?.(),
+  });
+  const disappearing = useDisappearingMessages({
+    accountId,
+    chats,
+    setChats,
+    activeRemoteId: activeChat.remoteId,
+    notify: action,
   });
   // Signed attachment URLs last an hour; keep them alive in a long-lived tab.
   // Attachments live in their own hook: uploading, rolling back a half-sent album and keeping
@@ -1156,6 +1164,10 @@ export function useMessenger() {
     addEmoji,
     answerCall,    applyMessageEffect,
     applyMute,
+    applyDisappearing: disappearing.applyTimer,
+    closeDisappearing: disappearing.closeTimer,
+    disappearingChatId: disappearing.timerChatId,
+    openDisappearing: disappearing.openTimer,
     askForNotifications,
     attachRemoteScreen,
     attachRemoteVideo,

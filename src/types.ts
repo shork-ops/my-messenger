@@ -80,6 +80,11 @@ export type Message = {
   sendAt?: number;
   /** Message pinned to the chat header; servers store the timestamp. */
   pinned?: boolean;
+  /**
+   * When this message disappears for everyone (ms), set by the chat timer. In a cloud chat
+   * the deadline comes from the server (`messages.expires_at`); absent means it stays.
+   */
+  disappearsAt?: number;
 };
 
 import type { ChannelDesign, ChannelRole } from "./lib/channels";
@@ -123,6 +128,10 @@ export type Chat = {
   description?: string;
   /** The handle a channel can be found and joined by. */
   handle?: string;
+  /** Disappearing messages: seconds a new message lives. Null or absent means messages stay. */
+  messageTtlSeconds?: number | null;
+  /** When this device learned of the current timer (ms); only messages written after it are timed here. */
+  messageTtlSince?: number;
   /** Silenced on arrival, as a channel should be: the reader chose to follow, not to be nagged. */
   messages: Message[];
 };
@@ -150,6 +159,8 @@ export type ChatMessageRow = {
   created_at: string;
   edited_at?: string | null;
   deleted_at?: string | null;
+  /** Set by the server from the chat timer; absent on servers without migration 20261052. */
+  expires_at?: string | null;
 };
 
 export type ChatRow = {

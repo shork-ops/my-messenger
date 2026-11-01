@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Flag, Forward, MessageCircle, MoreVertical, Paperclip, PencilLine, Pin, Send, Star, Trash2, X } from "lucide-react";
+import { Flag, Forward, MessageCircle, MoreVertical, Paperclip, PencilLine, Pin, Send, Star, Timer, Trash2, X } from "lucide-react";
 import Avatar from "./Avatar";
 import VoicePlayer from "./VoicePlayer";
 import { Plus } from "lucide-react";
@@ -30,6 +30,7 @@ import {
 } from "../lib/viewOnce";
 import { openViewOnce } from "../lib/viewOnceCloud";
 import type { Message, MessageEffect, Poll } from "../types";
+import { deadlineTitle } from "../lib/disappearing";
 
 type VoteHandler = (optionId: string) => void;
 
@@ -491,6 +492,11 @@ export default function MessageBubble({
               </span>
             ) : (
               <>
+                {message.disappearsAt !== undefined && (
+                  <span className="message-timer" role="img" aria-label={deadlineTitle(message.disappearsAt)}>
+                    <Timer size={11} aria-hidden="true" />
+                  </span>
+                )}
                 {message.edited ? "изменено · " : ""}
                 {message.time}
               </>
