@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Flag, Forward, MessageCircle, MoreVertical, Paperclip, PencilLine, Pin, Plus, Send, Star, Trash2, X } from "lucide-react";
+import { Flag, Forward, MessageCircle, MoreVertical, Paperclip, PencilLine, Pin, Send, Star, Trash2, X } from "lucide-react";
 import Avatar from "./Avatar";
 import VoicePlayer from "./VoicePlayer";
+import { Plus } from "lucide-react";
 import { friends } from "../lib/constants";
 import { hasUserVoted, pollPercent, pollTotal } from "../lib/polls";
 import { splitForward } from "../lib/messageActions";
