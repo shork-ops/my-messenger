@@ -13,6 +13,7 @@ import { attentionTotal } from "../lib/chatSettings";
 import { isDemoMode, demoSeedEnabled } from "../lib/constants";
 import { readItem, writeItem, removeItem } from "../lib/safeStorage";
 import { createDemoSeedChats } from "../lib/demoSeed";
+import { chatsForStorage } from "../lib/disappearing";
 
 type UseChatCollectionOptions = {
   search: string;
@@ -47,7 +48,8 @@ export function useChatCollection({ search, chatFilter, messageSearch, notify }:
       const parsed: unknown = saved ? JSON.parse(saved) : null;
       // Storage is a cache, so anything unexpected in it is dropped rather than trusted:
       // a corrupted list must not take the app down with it.
-      return Array.isArray(parsed) ? (parsed as Chat[]) : [];
+      // A message whose time ran out while the app was closed is not brought back.
+      return Array.isArray(parsed) ? chatsForStorage(parsed as Chat[], Date.now()) : [];
     } catch {
       return [];
     }
@@ -85,7 +87,7 @@ export function useChatCollection({ search, chatFilter, messageSearch, notify }:
   }, [replyDrafts]);
 
   useEffect(() => {
-    writeItem("nexus-chats-v1", JSON.stringify(chats));
+    writeItem("nexus-chats-v1", JSON.stringify(chatsForStorage(chats, Date.now())));
   }, [chats]);
 
   useEffect(() => {
