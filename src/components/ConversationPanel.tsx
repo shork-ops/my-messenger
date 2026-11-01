@@ -4,7 +4,7 @@ import { type WallpaperId, wallpaperBackground, wallpaperSize } from "../lib/wal
 import { ArrowDown, ChevronsUp, Download, FolderPlus, Megaphone } from "lucide-react";
 import { canPostToChannel, channelSubtitle } from "../lib/channels";
 import { ESTIMATED_ITEM_HEIGHT, VIRTUALISE_THRESHOLD, initialWindow } from "../lib/messageWindow";
-import { Archive, BellOff, BellRing, ChevronLeft, MoreVertical, Phone, Pin, Search, Trash2, UserRound, Video, X } from "lucide-react";
+import { Archive, BellOff, BellRing, ChevronLeft, MoreVertical, Phone, Pin, Search, Timer, Trash2, UserRound, Video, X } from "lucide-react";
 import Avatar from "./Avatar";
 import UserAvatar from "./UserAvatar";
 import Composer from "./Composer";
@@ -20,6 +20,7 @@ import type { PendingAttachment } from "../lib/retryQueue";
 import { receiptVisible } from "../lib/privacyPrefs";
 import type { useServerSearch } from "../hooks/useServerSearch";
 import type { Chat, Message, MessageEffect } from "../types";
+import { ttlLabel } from "../lib/disappearing";
 
 type ConversationPanelProps = {
   chat: Chat;
@@ -55,6 +56,8 @@ type ConversationPanelProps = {
   /** Opens the mute duration chooser. */
   onMute: () => void;
   onUnmute: () => void;
+  /** Opens the disappearing-messages timer chooser. */
+  onDisappearing: () => void;
   onArchive: () => void;
   wallpaper: WallpaperId;
   /** Whether pictures load without a tap, from the download policy. */
@@ -129,6 +132,7 @@ export default function ConversationPanel({
   onFolders,
   onMute,
   onUnmute,
+  onDisappearing,
   onArchive,
   wallpaper,
   autoloadMedia,
@@ -468,6 +472,9 @@ export default function ConversationPanel({
                     <BellOff size={18} /> Без звука
                   </button>
                 )}
+                <button type="button" role="menuitem" onClick={onDisappearing}>
+                  <Timer size={18} /> Исчезающие сообщения{chat.messageTtlSeconds ? ` · ${ttlLabel(chat.messageTtlSeconds)}` : ""}
+                </button>
                 <button type="button" role="menuitem" onClick={onArchive}>
                   <Archive size={18} /> {chat.archived ? "Вернуть из архива" : "В архив"}
                 </button>
@@ -512,6 +519,12 @@ export default function ConversationPanel({
           onLoadMore={() => void searchHits.loadMore()}
         />
       )}
+
+      {chat.messageTtlSeconds ? (
+        <p className="disappearing-banner">
+          <Timer size={14} aria-hidden="true" /> Исчезающие сообщения: {ttlLabel(chat.messageTtlSeconds)}
+        </p>
+      ) : null}
 
       {/* The pattern is drawn behind the messages, so bubbles keep their own
           background and the contrast they were checked with. */}
