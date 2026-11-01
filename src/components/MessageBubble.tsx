@@ -326,6 +326,17 @@ export default function MessageBubble({
   const [menuBelow, setMenuBelow] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const toggleRef = useRef<HTMLButtonElement | null>(null);
+  // Kept current for timers and document listeners, which outlive the render that made them.
+  const actionsOpenRef = useRef(actionsOpen);
+  actionsOpenRef.current = actionsOpen;
+
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pressFrom = useRef<{ x: number; y: number } | null>(null);
+  const longPressed = useRef(false);
+  const touchStart = useRef<{ x: number; y: number; time: number } | null>(null);
+  // Whether a finger is on the message. Touch events keep coming while the page scrolls;
+  // pointer events stop at its first pixel, so they cannot tell this.
+  const fingerDown = useRef(false);
 
   useEffect(() => {
     if (!actionsOpen) return;
@@ -340,16 +351,30 @@ export default function MessageBubble({
     // A menu belongs to the message it was opened on. Scrolling the thread detaches it
     // from that message, and it was left hanging above the viewport, so it closes.
     const area = menu.closest(".messages-area");
-    const onScroll = () => onToggleActions();
+    const close = () => {
+      actionsOpenRef.current = false;
+      onToggleActions();
+    };
+    const onScroll = () => {
+      // The finger that has just opened the menu is still down, and a phone turns the
+      // slightest drift of it into a scroll. That is not the reader leaving the message.
+      if (fingerDown.current && longPressed.current) return;
+      close();
+    };
+    // Like any popover, it closes on a press anywhere else. On a phone the menu is a sheet
+    // over the chat, and without this the only ways to put it away were a menu item or a scroll.
+    const onOutside = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (menu.contains(target) || toggle.contains(target)) return;
+      close();
+    };
     if (area) area.addEventListener("scroll", onScroll, { passive: true });
+    document.addEventListener("pointerdown", onOutside, true);
     return () => {
       if (area) area.removeEventListener("scroll", onScroll);
+      document.removeEventListener("pointerdown", onOutside, true);
     };
   }, [actionsOpen, onToggleActions]);
-
-  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longPressed = useRef(false);
-  const touchStart = useRef<{ x: number; y: number; time: number } | null>(null);
 
   function clearPress() {
     if (pressTimer.current) {
@@ -360,12 +385,31 @@ export default function MessageBubble({
 
   useEffect(() => clearPress, []);
 
-  function startPress() {
-    longPressed.current = false;
+  // A long press and the context menu are two ways of asking for the same menu, and a phone
+  // sends both for one press: Android fires `contextmenu` at about the moment the timer runs
+  // out. Each of them used to toggle, so the menu opened and shut again under the finger.
+  // Both only open it now.
+  function openActions() {
+    if (actionsOpenRef.current) return;
+    actionsOpenRef.current = true;
+    onToggleActions();
+  }
+
+  function startPress(x: number, y: number, touch: boolean) {
     clearPress();
+    pressFrom.current = { x, y };
     pressTimer.current = setTimeout(() => {
+      pressTimer.current = null;
       longPressed.current = true;
-      onToggleActions();
+      // A short buzz, where the phone has one, says the press was taken.
+      if (touch) {
+        try {
+          navigator.vibrate?.(10);
+        } catch {
+          // Not every browser lets a page vibrate; the menu is the answer either way.
+        }
+      }
+      openActions();
     }, 450);
   }
 
@@ -395,6 +439,7 @@ export default function MessageBubble({
       data-remote-id={message.remoteId ?? undefined}
       className={`message-line ${message.mine ? "mine" : ""} ${continuesRun ? "continues-run" : "starts-run"} ${endsRun ? "ends-run" : "mid-run"}`}
       onTouchStart={(event) => {
+        fingerDown.current = true;
         const target = event.target as HTMLElement;
         const touch = event.touches[0];
         if (event.touches.length !== 1 || !touch || target.closest("button, a, input, textarea") || touch.clientX < 32) {
@@ -410,8 +455,9 @@ export default function MessageBubble({
         if (Math.abs(touch.clientX - from.x) > 10 || Math.abs(touch.clientY - from.y) > 10) clearPress();
         if (event.touches.length !== 1) touchStart.current = null;
       }}
-      onTouchCancel={() => { touchStart.current = null; clearPress(); }}
+      onTouchCancel={() => { fingerDown.current = false; touchStart.current = null; clearPress(); }}
       onTouchEnd={(event) => {
+        fingerDown.current = event.touches.length > 0;
         const from = touchStart.current;
         touchStart.current = null;
         const touch = event.changedTouches[0];
@@ -422,14 +468,34 @@ export default function MessageBubble({
         }
       }}
       onPointerDown={(event) => {
-        if (!(event.target as HTMLElement).closest("button, a, input, textarea")) startPress();
+        // Every press starts with a clean slate. A phone sends no click after a long press,
+        // so the flag it left behind used to swallow the next tap instead - usually
+        // "Копировать" or a reaction in the very menu that press had opened.
+        longPressed.current = false;
+        clearPress();
+        if (event.button > 0 || (event.target as HTMLElement).closest("button, a, input, textarea")) return;
+        startPress(event.clientX, event.clientY, event.pointerType !== "mouse");
+      }}
+      onPointerMove={(event) => {
+        // Dragging across the text selects it; that is not a press on the message.
+        const from = pressFrom.current;
+        if (!pressTimer.current || !from) return;
+        if (Math.abs(event.clientX - from.x) > 10 || Math.abs(event.clientY - from.y) > 10) clearPress();
       }}
       onPointerUp={clearPress}
       onPointerLeave={clearPress}
       onPointerCancel={clearPress}
       onContextMenu={(event) => {
         event.preventDefault();
-        onToggleActions();
+        // The same press the timer has already answered, reported a second time.
+        if (longPressed.current) return;
+        // Reported before the timer ran out: this answers the press, so the timer must not
+        // answer it again, and the lift must not tap whatever is under the finger.
+        if (pressTimer.current) {
+          clearPress();
+          longPressed.current = true;
+        }
+        openActions();
       }}
       onClickCapture={handleClickCapture}
     >
