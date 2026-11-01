@@ -1,10 +1,10 @@
 /**
  * Session list and passcode.
  *
- * Supabase does not expose the list of signed-in devices to the client, so the app
- * keeps its own short record per device. The record is a hint for the person
- * reading it, not a security boundary: the only action it enables is "sign out
- * everywhere else", which the server performs for real.
+ * The full list of signed-in devices comes from the server (lib/accountSessions,
+ * migration 20261054). This browser also keeps its own short record, shown in demo
+ * mode and in a project that has not run that migration. The record is a hint for
+ * the person reading it, not a security boundary.
  */
 
 /** One device, as this browser remembers it. */
