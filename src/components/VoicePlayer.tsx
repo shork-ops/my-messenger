@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Pause, Play } from "lucide-react";
-import { decodeWaveform, formatDuration } from "../lib/voice";
+import { Download, Pause, Play } from "lucide-react";
+import { decodeWaveform, formatDuration, formatVoiceSpeed, nextVoiceSpeed, readVoiceSpeed, saveVoiceSpeed } from "../lib/voice";
 import type { Attachment } from "../types";
 
 type VoicePlayerProps = {
@@ -19,6 +19,7 @@ export default function VoicePlayer({ attachment }: VoicePlayerProps) {
   const [playing, setPlaying] = useState(false);
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(attachment.duration ?? 0);
+  const [speed, setSpeed] = useState(readVoiceSpeed);
   const bars = decodeWaveform(attachment.waveform);
   const progress = duration > 0 ? Math.min(1, position / duration) : 0;
 
@@ -43,6 +44,20 @@ export default function VoicePlayer({ attachment }: VoicePlayerProps) {
       audio.removeEventListener("ended", onEnd);
     };
   }, []);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    // defaultPlaybackRate survives the reload some browsers do before playing.
+    audio.defaultPlaybackRate = speed;
+    audio.playbackRate = speed;
+  }, [speed]);
+
+  function changeSpeed() {
+    const next = nextVoiceSpeed(speed);
+    setSpeed(next);
+    saveVoiceSpeed(next);
+  }
 
   async function toggle() {
     const audio = audioRef.current;
@@ -92,9 +107,17 @@ export default function VoicePlayer({ attachment }: VoicePlayerProps) {
         </span>
       </button>
       <span className="voice-time">{formatDuration(playing || position > 0 ? position : duration)}</span>
+      <button
+        type="button"
+        className={speed === 1 ? "voice-speed" : "voice-speed fast"}
+        onClick={changeSpeed}
+        aria-label={`Скорость ${formatVoiceSpeed(speed)}, нажмите, чтобы сменить`}
+      >
+        {formatVoiceSpeed(speed)}
+      </button>
       <audio ref={audioRef} src={attachment.data} preload="metadata" />
       <a className="voice-download" href={attachment.data} download={attachment.name} aria-label="Скачать голосовое">
-        Скачать
+        <Download size={16} />
       </a>
     </div>
   );

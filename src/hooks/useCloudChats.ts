@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import { supabase } from "../lib/supabase";
 import { numericId } from "../lib/format";
+import { avatarTone } from "../lib/avatarTone";
 import { countUnread } from "../lib/readState";
 import { fetchReactions } from "../lib/messageSync";
 import { DEFAULT_MESSAGE_PAGE_SIZE, loadMessagePage } from "../lib/messageLoader";
@@ -122,7 +123,7 @@ export function useCloudChats({
           name: row.is_group ? row.title : other?.display_name || row.title,
           avatar: row.is_group ? "👥" : other?.avatar || other?.display_name?.slice(0, 1) || "N",
           avatarPath: row.is_group ? null : other?.avatar_path ?? null,
-          color: row.is_group ? "group" : "blue",
+          color: row.is_group ? `group ${avatarTone(row.id)}` : avatarTone(other?.id ?? row.id),
           preview: last?.text || "Начни общение",
           time: last?.time || "",
           messages: chatMessages,
