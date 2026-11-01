@@ -21,6 +21,7 @@ import { receiptVisible } from "../lib/privacyPrefs";
 import type { useServerSearch } from "../hooks/useServerSearch";
 import type { Chat, Message, MessageEffect } from "../types";
 import { ttlLabel } from "../lib/disappearing";
+import type { StreakView } from "../lib/streakEngine";
 
 type ConversationPanelProps = {
   chat: Chat;
@@ -91,6 +92,10 @@ type ConversationPanelProps = {
   onDismissUpload: (key: string) => void;
   peerOnline: boolean;
   peerLastSeenAt: number | null;
+  /** «Огонёк дружбы» with this person, and whether it has just grown. */
+  streak?: StreakView;
+  streakBurst?: boolean;
+  onOpenStreak?: () => void;
   endRef: MutableRefObject<HTMLDivElement | null>;
   /** The scrolling message list, used to keep the newest message in view. */
   listRef: MutableRefObject<HTMLDivElement | null>;
@@ -164,6 +169,9 @@ export default function ConversationPanel({
   onDismissUpload,
   peerOnline,
   peerLastSeenAt,
+  streak,
+  streakBurst,
+  onOpenStreak,
   endRef,
   listRef,
   messagesRef,
@@ -441,6 +449,17 @@ export default function ConversationPanel({
           </strong>
           <small>{subtitle}</small>
         </button>
+        {streak?.shown && onOpenStreak && (
+          <button
+            type="button"
+            className={`streak-chip${streak.pending ? " pending" : ""}${streakBurst ? " burst" : ""}`}
+            onClick={onOpenStreak}
+            aria-label={streak.label}
+            title="Огонёк дружбы"
+          >
+            {streak.text}
+          </button>
+        )}
         <div className="conversation-tools">
           <button onClick={onToggleSearch} aria-label="Поиск по переписке" title="Поиск по переписке">
             <Search />
