@@ -801,9 +801,8 @@ export function useMessenger() {
     };
   }, [accountId]);
 
-  // This device's own short record. Supabase does not expose the list of signed-in
-  // devices to the client, so the app keeps a hint of its own; the only action it
-  // enables - signing out everywhere else - the server performs for real.
+  // This device's own short record: the fallback for the device list in Settings when
+  // the server's list (migration 20261054) is not available, and the list in demo mode.
   const [deviceId] = useState(() => {
     try {
       const existing = window.localStorage.getItem("nexus-device-id");
