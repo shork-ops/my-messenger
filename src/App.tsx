@@ -14,7 +14,6 @@ import ConnectionStatus from "./components/ConnectionStatus";
 import ChatListPanel from "./components/ChatListPanel";
 import ConversationPanel from "./components/ConversationPanel";
 import RightPanel from "./components/RightPanel";
-import PrivacyModal from "./components/PrivacyModal";
 import FolderPicker from "./components/FolderPicker";
 import EmojiPicker from "./components/EmojiPicker";
 import StickerPicker from "./components/StickerPicker";
@@ -33,6 +32,7 @@ import { useMobileViewport } from "./hooks/useMobileViewport";
 // Each is its own chunk, so the first screen does not download what it may never open.
 // `Modals` exports four dialogs from one file and keeps one chunk between them.
 const GameModal = lazy(() => import("./components/GameModal"));
+const PrivacyModal = lazy(() => import("./components/PrivacyModal"));
 const ReportModal = lazy(() => import("./components/ReportModal"));
 const SettingsModal = lazy(() => import("./components/SettingsModal"));
 const VideoNoteRecorder = lazy(() => import("./components/VideoNoteRecorder"));
@@ -385,7 +385,7 @@ export default function App() {
         }}
         onExport={() => {
           setChatMenuOpen(false);
-          exportChat(activeChat);
+          void exportChat(activeChat);
         }}
         onFolders={() => {
           setChatMenuOpen(false);
