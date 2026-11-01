@@ -347,7 +347,8 @@ export function useMessenger() {
     sendSticker,
     scheduleMessage,
     clearComposer,
-
+    hiddenNext,
+    setHiddenNext,
   } = useComposer({
     accountId: accountId ?? null,
     profileName,
@@ -1290,6 +1291,8 @@ export function useMessenger() {
     retryMessage,
     sendSticker,
     scheduleMessage,
+    hiddenNext,
+    setHiddenNext,
     serverSearch,
     setActiveFolderId,
     setActiveGame,

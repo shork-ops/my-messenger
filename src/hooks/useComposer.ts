@@ -10,7 +10,7 @@
  * send fails, and that has happened in enough messengers to be worth stating.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Dispatch, FormEvent, SetStateAction } from "react";
 import type { Chat, Message } from "../types";
 import { supabase } from "../lib/supabase";
@@ -21,6 +21,7 @@ import { clockTime, numericId } from "../lib/format";
 import { stickerById, stickerMarkup } from "../lib/stickers";
 import { formatSendAt } from "../lib/scheduling";
 import { sendText } from "../lib/sendText";
+import { hideText } from "../lib/hidden";
 
 export type ReplyTarget = Pick<Message, "author" | "text"> | null;
 
@@ -50,8 +51,13 @@ export function useComposer(deps: {
 }) {
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState("");
+  // The next message goes out hidden. A choice about one message, so it does not follow the
+  // reader into another chat and is dropped once that message is sent.
+  const [hiddenNext, setHiddenNext] = useState(false);
+  useEffect(() => setHiddenNext(false), [deps.activeId]);
 
   function clearComposer() {
+    setHiddenNext(false);
     deps.setDraft("");
     deps.setDrafts((current) => ({ ...current, [deps.activeId]: "" }));
     deps.setReplyDrafts((current) => ({ ...current, [deps.activeId]: { author: "", text: "" } }));
@@ -103,8 +109,9 @@ export function useComposer(deps: {
       return;
     }
 
-    const text = deps.draft.trim();
-    if (!text) return;
+    const typed = deps.draft.trim();
+    if (!typed) return;
+    const text = hiddenNext ? hideText(typed) : typed;
     if (exceedsMessageLimit(text)) {
       deps.notify(MESSAGE_TOO_LONG);
       return;
@@ -215,7 +222,7 @@ export function useComposer(deps: {
       deps.setScheduleOpen(false);
       return;
     }
-    const body = sticker ? stickerMarkup(sticker.id) : text;
+    const body = sticker ? stickerMarkup(sticker.id) : hiddenNext ? hideText(text) : text;
     const inserted = await sendText(client, {
       id: crypto.randomUUID(),
       chat_id: targetChat.remoteId,
@@ -236,7 +243,7 @@ export function useComposer(deps: {
       id: numericId(data.id),
       remoteId: data.id,
       author: deps.profileName,
-      text,
+      text: sticker ? text : body,
       time: at.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
       mine: true,
       createdAt,
@@ -254,6 +261,7 @@ export function useComposer(deps: {
     deps.setDraft("");
     deps.setDrafts((current) => ({ ...current, [deps.activeId]: "" }));
     deps.setReplyTarget(null);
+    setHiddenNext(false);
     deps.setScheduleOpen(false);
     deps.notify(`Уйдёт ${formatSendAt(at, new Date())}`);
   }
@@ -267,5 +275,7 @@ export function useComposer(deps: {
     sendSticker,
     scheduleMessage,
     clearComposer,
+    hiddenNext,
+    setHiddenNext,
   };
 }

@@ -329,3 +329,57 @@ describe("the long press on a phone", () => {
     expect(onToggleActions).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("a hidden message", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("stays covered, with nothing to click through, until it is tapped", () => {
+    const { container, getByRole } = renderBubble({ text: "||Код от домофона 2580, а сайт https://example.com||" });
+    const cover = getByRole("button", { name: /Скрытое сообщение/ });
+    // Under the cover the text is only there to take its place: no link to tap unseen,
+    // and nothing a screen reader would read out.
+    expect(container.querySelector(".message-body a")).toBeNull();
+    expect(cover.querySelector(".hidden-ink")?.getAttribute("aria-hidden")).toBe("true");
+    fireEvent.click(cover);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    const open = container.querySelector(".hidden-message.open");
+    expect(open?.textContent).toContain("Код от домофона 2580");
+    expect(open?.querySelector("a")?.getAttribute("href")).toBe("https://example.com");
+  });
+
+  it("opens the message menu on a long press, and the press does not uncover it", () => {
+    const onToggleActions = vi.fn();
+    const { container } = renderBubble({ text: "||секрет||" }, false, { onToggleActions });
+    const ink = container.querySelector(".hidden-ink") as HTMLElement;
+    fireEvent.pointerDown(ink, { pointerType: "touch", clientX: 40, clientY: 40 });
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    fireEvent.pointerUp(ink, { pointerType: "touch" });
+    fireEvent.click(ink);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(onToggleActions).toHaveBeenCalledTimes(1);
+    expect(container.querySelector(".hidden-message.open")).toBeNull();
+  });
+
+  it("covers a forwarded hidden message too, under its forward label", () => {
+    const { container } = renderBubble({ text: "↪ Переслано от Ани\n||секрет||" });
+    expect(container.querySelector(".forward-label")).not.toBeNull();
+    expect(container.querySelector(".hidden-message.covered")).not.toBeNull();
+  });
+
+  it("does not quote a hidden message it replies to", () => {
+    const { container } = renderBubble({ text: "ого!", replyTo: { author: "Аня", text: "||секрет||" } });
+    expect(container.querySelector(".reply-quote")?.textContent).not.toContain("секрет");
+    expect(container.querySelector(".reply-quote")?.textContent).toContain("Скрытое сообщение");
+  });
+});

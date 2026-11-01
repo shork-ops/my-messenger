@@ -16,7 +16,8 @@ import type { Dispatch, SetStateAction } from "react";
 import type { Chat, Message, MessageEffect } from "../types";
 import { supabase } from "../lib/supabase";
 import { mapMessages, removeMessage, restoreMessage } from "../lib/chats";
-import { formatForwardText, nextLocalId } from "../lib/messageActions";
+import { formatForwardText, nextLocalId, splitForward } from "../lib/messageActions";
+import { hiddenBody, isHidden } from "../lib/hidden";
 import { clockTime } from "../lib/format";
 
 export type DeletedMessage = { chatId: number; message: Message; index: number } | null;
@@ -176,8 +177,12 @@ export function useMessageActions(deps: {
   }
 
   function copyMessage(message: Message) {
+    // Copying is the reader's own choice to take the text, so a hidden one is copied as it
+    // was written rather than with the pipes that cover it.
+    const { label, body } = splitForward(message.text);
+    const copied = isHidden(body) ? (label ? `${label}\n${hiddenBody(body)}` : hiddenBody(body)) : message.text;
     navigator.clipboard
-      ?.writeText(message.text)
+      ?.writeText(copied)
       .then(() => deps.notify("Текст скопирован"))
       .catch(() => deps.notify("Не удалось скопировать текст"));
     deps.setOpenMessageActionsId(null);

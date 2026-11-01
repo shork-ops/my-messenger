@@ -5,6 +5,7 @@ import { cleanupOutdatedCaches, precacheAndRoute } from "workbox-precaching";
 import { clientsClaim } from "workbox-core";
 import { NavigationRoute, registerRoute } from "workbox-routing";
 import { createHandlerBoundToURL } from "workbox-precaching";
+import { maskSpoilers } from "./lib/hidden";
 
 declare let self: ServiceWorkerGlobalScope;
 
@@ -32,7 +33,9 @@ self.addEventListener("push", (event) => {
   const chatId = payload.chatId;
   event.waitUntil(
     self.registration.showNotification(payload.title || "Nexus", {
-      body: payload.body || "Новое сообщение",
+      // The server cuts a body to 140 characters, which can cut a hidden message before
+      // the mark that closes it.
+      body: maskSpoilers(payload.body || "Новое сообщение", { truncated: (payload.body ?? "").length >= 140 }),
       icon: `${self.registration.scope}icons/icon-192.png`,
       badge: `${self.registration.scope}icons/favicon-32.png`,
       tag: chatId,

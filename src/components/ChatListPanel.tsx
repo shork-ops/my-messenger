@@ -6,6 +6,7 @@ import type { Chat, ChatFilter, UserSearchResult } from "../types";
 import type { Folder } from "../lib/chatFolders";
 import FolderBar from "./FolderBar";
 import { muteLabel } from "../lib/chatSettings";
+import { maskSpoilers } from "../lib/hidden";
 
 const FILTERS: { id: ChatFilter; label: string }[] = [
   { id: "all", label: "Все" },
@@ -205,7 +206,7 @@ export default function ChatListPanel({
                     {"🔇 "}
                   </span>
                 )}
-                {chat.preview}
+                {maskSpoilers(chat.preview)}
               </small>
             </span>
             <span className="chat-meta">

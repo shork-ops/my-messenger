@@ -193,6 +193,8 @@ export default function App() {
     retryMessage,
     sendSticker,
     scheduleMessage,
+    hiddenNext,
+    setHiddenNext,
     serverSearch,
     setActiveFolderId,
     setActiveGame,
@@ -519,6 +521,8 @@ export default function App() {
           },
           onOpenGallery: () => setGalleryOpen(true),
           onOpenPoll: () => setPollOpen(true),
+          hidden: hiddenNext,
+          onToggleHidden: () => setHiddenNext((on) => !on),
         }}
       />
 

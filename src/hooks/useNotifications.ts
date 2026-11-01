@@ -4,6 +4,7 @@ import { badgeCount, formatDocumentTitle } from "../lib/notifications";
 import { pushConfigured, subscribeToPush } from "../lib/push";
 import { pushPromptAlreadySeen, rememberPushPrompt } from "../lib/pushPrompt";
 import { VIBRATION_PATTERN, type NotificationPrefs, shouldPlaySound, shouldVibrate } from "../lib/notificationPrefs";
+import { maskSpoilers } from "../lib/hidden";
 
 /**
  * Mirrors unread chats into the browser tab title and the installed-PWA badge.
@@ -94,7 +95,8 @@ export function useMessageNotifications({ accountId, chats, prefs }: UseMessageN
         if (document.visibilityState === "visible") return;
         if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
         const chat = chatsRef.current.find((item) => item.remoteId === row.chat_id);
-        const body = row.attachment ? "Вложение" : row.body || "Новое сообщение";
+        // A hidden message is opened by a tap in the chat, not read off the lock screen.
+        const body = row.attachment ? "Вложение" : maskSpoilers(row.body || "Новое сообщение");
         // Quiet hours silence sound and buzz, never the notification itself: a
         // message at 3am should still be there in the morning.
         const now = new Date();
