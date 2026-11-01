@@ -10,6 +10,7 @@ import type { Dispatch, FormEvent, SetStateAction } from "react";
 import type { Chat, UserSearchResult } from "../types";
 import { supabase } from "../lib/supabase";
 import { clockTime, numericId } from "../lib/format";
+import { avatarTone } from "../lib/avatarTone";
 import { isDemoMode } from "../lib/constants";
 import { directChatFromSearch, findDirectChatByPeer, updateChat } from "../lib/chats";
 
@@ -53,7 +54,7 @@ export function useChatCreation(deps: {
         remoteId: createdRow.chat_id,
         name,
         avatar: "👥",
-        color: "group",
+        color: `group ${avatarTone(createdRow.chat_id)}`,
         preview: "Группа создана",
         time: clockTime(),
         messages: [],
@@ -79,7 +80,7 @@ export function useChatCreation(deps: {
       return;
     }
     const id = Date.now();
-    const created: Chat = { id, name, avatar: name.slice(0, 1).toUpperCase(), color: "blue", preview: "Новый чат", time: clockTime(), messages: [] };
+    const created: Chat = { id, name, avatar: name.slice(0, 1).toUpperCase(), color: avatarTone(name), preview: "Новый чат", time: clockTime(), messages: [] };
     deps.setChats((current) => [created, ...current]);
     deps.setActiveId(id);
     deps.setDraft("");
