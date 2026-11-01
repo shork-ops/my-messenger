@@ -48,6 +48,8 @@ export default function App() {
   // The complaint dialog needs the chat and message ids from the server, not the local ones:
   // only a stored message can be pointed at. Kept here because it outlives one bubble.
   const [reportTarget, setReportTarget] = useState<{ chatId: string; messageId: string | null } | null>(null);
+  // Which chat the gallery shows when opened from the chat panel; null is every chat.
+  const [galleryScope, setGalleryScope] = useState<string | null>(null);
   // The message a reaction is being picked for in the full emoji picker.
   const [reactionPickFor, setReactionPickFor] = useState<number | null>(null);
   const {
@@ -594,6 +596,11 @@ export default function App() {
           onChangeRole={(userId, role) => void changeMemberRole(userId, role)}
           onRemoveMember={(userId) => void kickMember(userId)}
           onLeaveGroup={() => void leaveGroup()}
+          onOpenGallery={() => {
+            setGalleryScope(activeChat.name);
+            setGalleryOpen(true);
+          }}
+          autoloadMedia={autoloadMedia}
         />
       )}
 
@@ -646,11 +653,15 @@ export default function App() {
       {galleryOpen && (
       <GalleryModal
           open={galleryOpen}
-          images={galleryImages}
-          onClose={() => setGalleryOpen(false)}
+          images={galleryScope === null ? galleryImages : galleryImages.filter((image) => image.chatName === galleryScope)}
+          onClose={() => {
+            setGalleryOpen(false);
+            setGalleryScope(null);
+          }}
           onOpenImage={(image) => {
             setActiveId(chats.find((chat) => chat.name === image.chatName)?.id ?? activeId);
             setGalleryOpen(false);
+            setGalleryScope(null);
           }}
         />
       )}
