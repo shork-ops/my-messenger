@@ -165,6 +165,11 @@
 .effect-mark-fireworks { color: #d2b9ff; animation: nexus-mark-pop .7s ease-out both; }
 .effect-mark-glow { color: var(--yellow); box-shadow: 0 0 18px color-mix(in srgb, var(--yellow) 28%, transparent); }
 .message-actions .effect-action { min-width: 29px; justify-content: center; padding-inline: 7px; font-size: 15px; }
+/* Ten effects do not fit one row of a 280px menu, nor of a phone narrower than 380px: there
+   they take two rows of five instead of running past the edge of the menu. */
+@media (min-width: 761px), (max-width: 380px) {
+  .message-actions .effect-group { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
 .effect-tone-sparkle { color: #f2d68a; }
 .effect-tone-hearts { color: #ff9bb8; }
 .effect-tone-fireworks { color: #d2b9ff; }
