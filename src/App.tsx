@@ -15,7 +15,7 @@ import ChatListPanel from "./components/ChatListPanel";
 import ConversationPanel from "./components/ConversationPanel";
 import RightPanel from "./components/RightPanel";
 import type { SettingsSectionId } from "./components/SettingsModal";
-import { noteAttachmentName } from "./lib/videoNote";
+import { noteAttachmentName } from "./lib/videoNoteKind";
 import { useStreaks } from "./hooks/useStreaks";
 import { isDemoMode } from "./lib/constants";
 import { useMessenger } from "./hooks/useMessenger";
