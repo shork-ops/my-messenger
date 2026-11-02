@@ -15,7 +15,7 @@ import ChatListPanel from "./components/ChatListPanel";
 import ConversationPanel from "./components/ConversationPanel";
 import RightPanel from "./components/RightPanel";
 import type { SettingsSectionId } from "./components/SettingsModal";
-import { formatNoteTime } from "./lib/videoNote";
+import { noteAttachmentName } from "./lib/videoNote";
 import { useStreaks } from "./hooks/useStreaks";
 import { isDemoMode } from "./lib/constants";
 import { useMessenger } from "./hooks/useMessenger";
@@ -599,11 +599,12 @@ export default function App() {
             }
             // The note's length belongs in the message, so it is written into the
             // name the attachment path reads.
-            const named = new File([file], `Видеозаметка ${formatNoteTime(durationMs)}.webm`, { type: file.type });
+            const named = new File([file], noteAttachmentName(durationMs, file.type), { type: file.type });
             const transfer = new DataTransfer();
             transfer.items.add(named);
             input.files = transfer.files;
-            void handleAttachment({ target: input } as unknown as ChangeEvent<HTMLInputElement>);
+            // Marked as a note, so it is drawn as a circle on both sides, not as a video file.
+            void handleAttachment({ target: input } as unknown as ChangeEvent<HTMLInputElement>, { videoNoteMs: durationMs });
           }}
           onClose={() => setNoteOpen(false)}
         />

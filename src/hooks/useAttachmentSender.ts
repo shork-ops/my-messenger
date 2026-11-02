@@ -28,6 +28,7 @@ import { appendMessage } from "../lib/chats";
 import { clockTime, numericId } from "../lib/format";
 import { viewOnceReady } from "../lib/viewOnceCloud";
 import { analyseWaveform } from "../lib/voice";
+import { formatNoteTime } from "../lib/videoNote";
 import { blobToDataUrl } from "../lib/media";
 import { SIGNED_URL_TTL_SECONDS } from "../lib/messageSync";
 
@@ -66,6 +67,7 @@ export function useAttachmentSender(deps: {
     if (entry.viewOnce) input.dataset.viewOnce = "true";
     await handleAttachment({ target: input } as unknown as ChangeEvent<HTMLInputElement>, {
       viewOnce: entry.viewOnce,
+      videoNoteMs: entry.videoNoteMs,
     });
   }
 
@@ -77,10 +79,11 @@ export function useAttachmentSender(deps: {
     percentFrom: number,
     percentTo: number,
     viewOnce = false,
+    extra: Partial<Attachment> = {},
   ): Promise<{ meta: Attachment; path: string } | null> {
     let payload: Blob = file;
     let uploadName = file.name;
-    const base = { name: file.name, type: file.type || "application/octet-stream", size: file.size };
+    const base = { name: file.name, type: file.type || "application/octet-stream", size: file.size, ...extra };
     let meta: Omit<Attachment, "data"> = base;
 
     if (shouldCompress(file)) {
@@ -128,7 +131,10 @@ export function useAttachmentSender(deps: {
     };
   }
 
-  async function handleAttachment(event: ChangeEvent<HTMLInputElement>, options: { viewOnce?: boolean } = {}) {
+  async function handleAttachment(
+    event: ChangeEvent<HTMLInputElement>,
+    options: { viewOnce?: boolean; /** Set for a round video note: its length in ms. */ videoNoteMs?: number } = {}
+  ) {
     const chosen = Array.from(event.target.files ?? []);
     // The composer sets this just before opening the picker for "look once"; reading it from the
     // input keeps one file picker rather than two that drift apart.
@@ -162,7 +168,11 @@ export function useAttachmentSender(deps: {
 
     // A photo meant to be seen once is one photo, never part of an album: the promise is about
     // that picture, and an album of nine others would leave the rest readable.
-    const albums = viewOnce ? [chosen.slice(0, 1)] : splitIntoAlbums(chosen);
+    const noteMs = options.videoNoteMs;
+    // The marker rides on the attachment JSON, like viewOnce, so a note needs no migration.
+    const noteMeta: Partial<Attachment> =
+      noteMs === undefined ? {} : { videoNote: true, duration: Math.max(1, Math.round(noteMs / 1000)) };
+    const albums = viewOnce || noteMs !== undefined ? [chosen.slice(0, 1)] : splitIntoAlbums(chosen);
     if (viewOnce && chosen.length > 1) {
       deps.notify("Для фото «посмотреть один раз» можно выбрать одно фото");
     }
@@ -175,7 +185,7 @@ export function useAttachmentSender(deps: {
       for (const [index, file] of group.entries()) {
         const from = 10 + Math.round((index / group.length) * 70);
         const to = 10 + Math.round(((index + 1) / group.length) * 70);
-        const uploaded = await uploadPicture(client, chat.remoteId, deps.accountId, file, from, to, viewOnce);
+        const uploaded = await uploadPicture(client, chat.remoteId, deps.accountId, file, from, to, viewOnce, noteMeta);
         if (!uploaded) {
           failed = true;
           break;
@@ -200,6 +210,7 @@ export function useAttachmentSender(deps: {
                 file: item,
                 chatId: deps.activeChatId,
                 viewOnce,
+                videoNoteMs: noteMs,
                 reason,
               }),
             current
@@ -212,7 +223,7 @@ export function useAttachmentSender(deps: {
       setUploadProgress({ name: group[0].name, percent: 85, stage: "Публикую сообщение…" });
       const first = pictures[0];
       const isAlbum = pictures.length > 1;
-      const body = isAlbum ? `${pictures.length} фото` : first.name;
+      const body = isAlbum ? `${pictures.length} фото` : noteMs !== undefined ? `Видеозаметка ${formatNoteTime(noteMs)}` : first.name;
       const attachmentValue = isAlbum ? { items: stored } : stored[0];
       const inserted = await client
         .from("messages")
@@ -238,14 +249,14 @@ export function useAttachmentSender(deps: {
         ...(isAlbum ? { album: pictures } : { attachment: first }),
       };
       deps.setChats((current) =>
-        appendMessage(current, deps.activeChatId, message, isAlbum ? `${pictures.length} фото` : "📎 " + first.name, message.time)
+        appendMessage(current, deps.activeChatId, message, isAlbum ? `${pictures.length} фото` : noteMs !== undefined ? "⭕ " + body : "📎 " + first.name, message.time)
       );
       sent += isAlbum ? pictures.length : 1;
     }
 
     setUploadProgress({ name: chosen[0].name, percent: 100, stage: "Готово" });
     window.setTimeout(() => setUploadProgress(null), 900);
-    deps.notify(sent === 1 ? "Вложение отправлено" : `Отправлено: ${sent}`);
+    deps.notify(noteMs !== undefined ? "Видеозаметка отправлена" : sent === 1 ? "Вложение отправлено" : `Отправлено: ${sent}`);
   }
 
   async function sendVoiceMessage(blob: Blob) {

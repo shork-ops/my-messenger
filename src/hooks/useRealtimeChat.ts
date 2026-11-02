@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { supabase } from "../lib/supabase";
 import { appendMessage, applyRemoteMemberRead, mapMessagesByRemoteId, planRealtimeMessage } from "../lib/chats";
 import { mapMessageRow } from "../lib/messageSync";
+import { isVideoNote } from "../lib/videoNote";
 import { canMarkRead } from "../lib/readState";
 import type { Chat, ChatMessageRow, Message, MessageEffect } from "../types";
 import { channelStatus, isRecovery } from "../lib/catchUp";
@@ -68,7 +69,7 @@ export function useRealtimeChat({ accountId, profileName, remoteId, setChats, vi
               return current;
             }
             if (plan.action === "skip") return current;
-            const preview = row.poll ? "📊 " + row.body : message.attachment ? "📎 " + message.text : message.text;
+            const preview = row.poll ? "📊 " + row.body : message.attachment ? (isVideoNote(message.attachment) ? "⭕ " : "📎 ") + message.text : message.text;
             return appendMessage(current, plan.chatId, message, preview, message.time);
           });
           if (chatMissing) await onMissingChatRef.current?.(row.chat_id);

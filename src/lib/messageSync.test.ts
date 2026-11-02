@@ -14,6 +14,14 @@ describe("toAttachment", () => {
     expect(attachment.data).toBe("");
     expect(attachment.thumbnail).toBeUndefined();
   });
+  it("keeps the round video note marker, so the receiver draws a circle", () => {
+    const attachment = toAttachment(
+      { name: "Видеозаметка 0:07.webm", type: "video/webm", size: 900_000, path: "chat/user/note.webm", duration: 7, videoNote: true },
+      "https://signed"
+    );
+    expect(attachment.videoNote).toBe(true);
+    expect(attachment.duration).toBe(7);
+  });
   it("carries every voice-message field through the round trip", () => {
     const attachment = toAttachment(
       {

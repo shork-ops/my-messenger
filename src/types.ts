@@ -38,6 +38,8 @@ export type Attachment = {
    * table so it travels with the message through every path that already handles attachments.
    */
   viewOnce?: boolean;
+  /** A round video note recorded in the composer, drawn as a circle rather than a video file. */
+  videoNote?: boolean;
   bucket?: "chat-media" | "view-once-media";
 };
 

@@ -13,6 +13,8 @@ import {
   noteCameraError,
   canRetryCamera,
   NOTE_SIZE,
+  isVideoNote,
+  noteAttachmentName,
 } from "./videoNote";
 
 describe("constants", () => {
@@ -142,5 +144,27 @@ describe("canRetryCamera", () => {
 
   it("asks for the setting to change before a refusal is retried", () => {
     expect(canRetryCamera({ name: "NotAllowedError" })).toBe(false);
+  });
+});
+
+describe("round video notes", () => {
+  it("names the file after the length and the real format", () => {
+    expect(noteAttachmentName(7_400, "video/webm;codecs=vp9,opus")).toBe("Видеозаметка 0:07.webm");
+    expect(noteAttachmentName(65_000, "video/mp4")).toBe("Видеозаметка 1:05.mp4");
+  });
+
+  it("recognises a note by its marker", () => {
+    expect(isVideoNote({ type: "video/webm", name: "clip.webm", videoNote: true })).toBe(true);
+  });
+
+  it("recognises notes sent before the marker existed by their name", () => {
+    expect(isVideoNote({ type: "video/webm", name: "Видеозаметка 0:12.webm" })).toBe(true);
+  });
+
+  it("leaves ordinary videos and other files alone", () => {
+    expect(isVideoNote({ type: "video/mp4", name: "Отпуск.mp4" })).toBe(false);
+    expect(isVideoNote({ type: "video/mp4", name: "Видеозаметка про отпуск.mp4" })).toBe(false);
+    expect(isVideoNote({ type: "image/png", name: "x.png", videoNote: true })).toBe(false);
+    expect(isVideoNote(undefined)).toBe(false);
   });
 });

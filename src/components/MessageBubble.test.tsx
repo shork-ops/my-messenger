@@ -383,3 +383,27 @@ describe("a hidden message", () => {
     expect(container.querySelector(".reply-quote")?.textContent).toContain("Скрытое сообщение");
   });
 });
+
+describe("a round video note", () => {
+  const note = { name: "Видеозаметка 0:07.webm", type: "video/webm", data: "https://example.test/note.webm", size: 900_000, duration: 7, videoNote: true };
+
+  it("is drawn as a circle, not as a video file with controls", async () => {
+    const { container, findByRole } = renderBubble({ attachment: note, text: "Видеозаметка 0:07" });
+    const player = await findByRole("button", { name: "Воспроизвести видеозаметку, 0:07" });
+    expect(player.classList.contains("video-note")).toBe(true);
+    expect(container.querySelector("video[controls]")).toBeNull();
+    expect(container.querySelector(".bubble")?.classList.contains("bubble-note")).toBe(true);
+  });
+
+  it("turns notes sent before the marker round too", async () => {
+    const { videoNote: _marker, ...old } = note;
+    const { findByRole } = renderBubble({ attachment: old });
+    expect(await findByRole("button", { name: /Воспроизвести видеозаметку/ })).toBeTruthy();
+  });
+
+  it("leaves an ordinary video as a video file", () => {
+    const { container } = renderBubble({ attachment: { ...note, name: "Отпуск.webm", videoNote: undefined } });
+    expect(container.querySelector("video[controls]")).not.toBeNull();
+    expect(container.querySelector(".bubble-note")).toBeNull();
+  });
+});

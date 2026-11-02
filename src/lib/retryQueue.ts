@@ -22,6 +22,8 @@ export type PendingAttachment = {
   chatId: number | null;
   /** Whether the send was a view-once send, which must be retried the same way. */
   viewOnce: boolean;
+  /** A round video note keeps its length, so a retry sends a circle again and not a plain file. */
+  videoNoteMs?: number;
   /** Why it failed, in the words the person was shown. */
   reason: string;
 };
