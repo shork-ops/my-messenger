@@ -6,6 +6,7 @@ import { avatarTone } from "../lib/avatarTone";
 import { countUnread } from "../lib/readState";
 import { fetchReactions } from "../lib/messageSync";
 import { DEFAULT_MESSAGE_PAGE_SIZE, loadMessagePage } from "../lib/messageLoader";
+import { isFavouritesChat } from "../lib/messageActions";
 import type { Chat, Message } from "../types";
 
 type UseCloudChatsOptions = {
@@ -40,6 +41,22 @@ export function useCloudChats({
     let alive = true;
 
     const loadCloudChats = async () => {
+      // «Избранное» is read beside the chats. A server without the table gives null, and the
+      // favourites of this tab are kept as they are.
+      const savedLoad = import("../lib/savedMessages").then(
+        async (module) => ({ module, saved: await module.loadSavedMessages(client, profileName) }),
+        () => null
+      );
+      /** The new chat list with «Избранное» first, put together with what this tab holds. */
+      const withFavourites = async (chats: Chat[]) => {
+        const loaded = await savedLoad.catch(() => null);
+        if (!alive) return;
+        setChats((current) => {
+          const local = current.find(isFavouritesChat);
+          const favourites = loaded ? loaded.module.mergeFavourites(loaded.saved, local) : local ?? null;
+          return favourites ? [favourites, ...chats] : chats;
+        });
+      };
       // Read this account's own membership rows in full: muting and archiving are
       // stored there, beside the read mark.
       const { data: memberships, error: membershipError } = await client
@@ -57,7 +74,7 @@ export function useCloudChats({
         (memberships ?? []).map((item) => [item.chat_id as string, item as { muted_until?: string | null; archived_at?: string | null }])
       );
       if (chatIds.length === 0) {
-        setChats([]);
+        await withFavourites([]);
         return;
       }
       const [{ data: cloudChatRows, error: chatsError }, { data: profileRows }, timers] = await Promise.all([
@@ -147,7 +164,8 @@ export function useCloudChats({
           ),
         };
       });
-      setChats(mappedChats);
+      await withFavourites(mappedChats);
+      if (!alive) return;
       setActiveId(mappedChats[0]?.id ?? 0);
     };
 
