@@ -42,6 +42,12 @@ describe("parseWallpaper", () => {
 
 describe("wallpaperBackground", () => {
   const accent = "rgba(255,255,255,0.5)";
+  // Own photo is drawn from the picture itself, not from a pattern.
+  const drawn = WALLPAPERS.filter((item) => item.id !== "photo");
+
+  it("draws no pattern for own photo", () => {
+    expect(wallpaperBackground("photo", accent)).toBe("none");
+  });
 
   it("draws nothing for the plain option", () => {
     expect(wallpaperBackground("none", accent)).toBe("none");
@@ -54,7 +60,7 @@ describe("wallpaperBackground", () => {
   });
 
   it("produces a css value for each pattern", () => {
-    for (const item of WALLPAPERS) {
+    for (const item of drawn) {
       const value = wallpaperBackground(item.id, accent);
       expect(value.length).toBeGreaterThan(2);
       if (item.id !== "none") expect(value).toContain("gradient");
@@ -62,8 +68,8 @@ describe("wallpaperBackground", () => {
   });
 
   it("distinguishes the patterns from one another", () => {
-    const values = new Set(WALLPAPERS.map((item) => wallpaperBackground(item.id, accent)));
-    expect(values.size).toBe(WALLPAPERS.length);
+    const values = new Set(drawn.map((item) => wallpaperBackground(item.id, accent)));
+    expect(values.size).toBe(drawn.length);
   });
 
   // A position and a size folded into background-image make the browser drop the

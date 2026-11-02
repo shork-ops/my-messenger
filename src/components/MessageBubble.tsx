@@ -1,10 +1,11 @@
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { Copy, Flag, Forward, MessageCircle, MoreVertical, Paperclip, PencilLine, Pin, Send, Star, Timer, Trash2, X } from "lucide-react";
 import Avatar from "./Avatar";
-import VoicePlayer from "./VoicePlayer";
-import { isVideoNote } from "../lib/videoNote";
+import { isVideoNote } from "../lib/videoNoteKind";
 
 const VideoNotePlayer = lazy(() => import("./VideoNotePlayer"));
+// Voice and video players load with the first message that needs them, not with the first screen.
+const VoicePlayer = lazy(() => import("./VoicePlayer"));
 import { Plus } from "lucide-react";
 import { friends } from "../lib/constants";
 import { avatarTone } from "../lib/avatarTone";
@@ -239,7 +240,9 @@ function AttachmentCard({
       ) : attachment.type.startsWith("video/") ? (
         <video className="attachment-video" controls playsInline src={attachment.data} />
       ) : attachment.type.startsWith("audio/") ? (
-        <VoicePlayer attachment={attachment} />
+        <Suspense fallback={<span className="voice-player" style={{ display: "block", height: 32 }} />}>
+          <VoicePlayer attachment={attachment} />
+        </Suspense>
       ) : (
         <a className="attachment-file" href={attachment.data} download={attachment.name}>
           <Paperclip size={18} />

@@ -152,7 +152,7 @@ describe("parsePrefs", () => {
   });
 
   it("round-trips a stored value", () => {
-    const prefs = { sound: false, vibration: true, quiet: { enabled: true, fromMinute: 60, toMinute: 120 } };
+    const prefs = { sound: false, tone: "bell" as const, vibration: true, quiet: { enabled: true, fromMinute: 60, toMinute: 120 } };
     expect(parsePrefs(serializePrefs(prefs))).toEqual(prefs);
   });
 
@@ -161,6 +161,13 @@ describe("parsePrefs", () => {
     expect(parsed.sound).toBe(false);
     expect(parsed.vibration).toBe(DEFAULT_NOTIFICATION_PREFS.vibration);
     expect(parsed.quiet).toEqual(DEFAULT_NOTIFICATION_PREFS.quiet);
+    // Prefs from before tones keep the chime they always had.
+    expect(parsed.tone).toBe("chime");
+  });
+
+  it("falls back to the chime for a tone this version does not know", () => {
+    expect(parsePrefs(JSON.stringify({ tone: "siren" })).tone).toBe("chime");
+    expect(parsePrefs(JSON.stringify({ tone: "toString" })).tone).toBe("chime");
   });
 
   it("ignores a wrongly typed field", () => {

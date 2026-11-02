@@ -137,6 +137,12 @@
 /* The pattern sits on a pseudo-element so bubbles and text keep their own contrast. */
 .wallpaper-layer { position: absolute; inset: 0; z-index: 0; opacity: .07; pointer-events: none; }
 [data-theme="light"] .wallpaper-layer { opacity: .035; }
+/* Own photo: the panel's own background, dimmed towards the theme so bubbles, dates and names
+   stay readable on any photo. The header gets a veil of its own for the same reason. */
+.conversation-panel.has-photo { --photo-veil: color-mix(in srgb, var(--surface-0) 42%, transparent); background: linear-gradient(var(--photo-veil), var(--photo-veil)), var(--wallpaper-photo) center / cover no-repeat, var(--surface-0); }
+.conversation-panel.has-photo > .conversation-header { background: color-mix(in srgb, var(--surface-1) 82%, transparent); }
+.wallpaper-swatch.photo { display: grid; place-items: center; background-position: center; background-size: cover; }
+.wallpaper-photo-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .twofactor { display: flex; flex-direction: column; gap: 10px; padding: 10px 0; }
 .twofactor-secret { display: flex; align-items: center; gap: 10px; padding: 11px 13px; border: 1px dashed var(--border-strong); border-radius: 10px; background: var(--surface-0); }
 .twofactor-secret code { color: var(--fg); font-size: 14px; letter-spacing: 1px; word-break: break-all; }

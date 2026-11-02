@@ -27,8 +27,7 @@ import { addPending, removePending, type PendingAttachment } from "../lib/retryQ
 import { appendMessage } from "../lib/chats";
 import { clockTime, numericId } from "../lib/format";
 import { viewOnceReady } from "../lib/viewOnceCloud";
-import { analyseWaveform } from "../lib/voice";
-import { formatNoteTime } from "../lib/videoNote";
+import { formatNoteTime } from "../lib/videoNoteKind";
 import { blobToDataUrl } from "../lib/media";
 import { SIGNED_URL_TTL_SECONDS } from "../lib/messageSync";
 
@@ -296,6 +295,8 @@ export function useAttachmentSender(deps: {
       return;
     }
 
+    // Loaded on demand with the rest of the voice code, which the first screen does not need.
+    const { analyseWaveform } = await import("../lib/voice");
     const waveform = await analyseWaveform(blob);
     setUploadProgress({ name: fileName, percent: 70, stage: "Публикую сообщение…" });
     const signed = await client.storage.from("chat-media").createSignedUrl(path, 3600);

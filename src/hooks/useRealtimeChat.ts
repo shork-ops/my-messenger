@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { supabase } from "../lib/supabase";
 import { appendMessage, applyRemoteMemberRead, mapMessagesByRemoteId, planRealtimeMessage } from "../lib/chats";
 import { mapMessageRow } from "../lib/messageSync";
-import { isVideoNote } from "../lib/videoNote";
+import { isVideoNote } from "../lib/videoNoteKind";
 import { canMarkRead } from "../lib/readState";
 import type { Chat, ChatMessageRow, Message, MessageEffect } from "../types";
 import { channelStatus, isRecovery } from "../lib/catchUp";

@@ -41,7 +41,6 @@ import {
 } from "../lib/visibility";
 import { createFavouritesChat, favouriteMessage, formatForwardText, isFavouritesChat, nextLocalId } from "../lib/messageActions";
 import { MAX_UPLOAD_BYTES, blobToDataUrl, buildStoragePath, formatBytes, isSupportedFile, prepareImage, shouldCompress } from "../lib/media";
-import { analyseWaveform } from "../lib/voice";
 import { GalleryModal, MuteModal, NewChatModal, PollModal } from "../components/Modals";
 import { friends, isDemoMode } from "../lib/constants";
 import { clockTime, numericId } from "../lib/format";
@@ -92,8 +91,6 @@ import { chatsInFolder } from "../lib/chatFolders";
 import FolderPicker from "../components/FolderPicker";
 import { shouldAutoload } from "../lib/mediaPolicy";
 import EmojiPicker from "../components/EmojiPicker";
-import VideoNoteRecorder from "../components/VideoNoteRecorder";
-import { formatNoteTime } from "../lib/videoNote";
 import { wallpaperBackground, wallpaperOpacity } from "../lib/wallpaper";
 import PasscodeLock from "../components/PasscodeLock";
 import { type MuteOptionId, muteUntil } from "../lib/chatSettings";
@@ -939,10 +936,12 @@ export function useMessenger() {
   function saveToFavourites(message: Message) {
     setOpenMessageActionsId(null);
     const content = message.text.trim() || message.attachment?.name || "Вложение";
+    // The id is fixed here, outside the update, so the copy on the server can find this message.
+    const favourites = chats.find(isFavouritesChat);
+    const saved = favouriteMessage({ ...message, text: content }, Math.max(Date.now(), nextLocalId(favourites?.messages ?? [])));
     setChats((current) => {
       const existing = current.find(isFavouritesChat);
       const base = existing ?? createFavouritesChat();
-      const saved = favouriteMessage({ ...message, text: content }, nextLocalId(base.messages));
       const updated = {
         ...base,
         messages: [...base.messages, saved],
@@ -952,6 +951,10 @@ export function useMessenger() {
       return existing ? current.map((item) => (isFavouritesChat(item) ? updated : item)) : [updated, ...current];
     });
     action("Сохранено в избранное");
+    const client = supabase;
+    if (client && accountId) {
+      void import("../lib/savedMessages").then((module) => module.rememberInCloud(client, saved, setChats, action));
+    }
   }
 
   /** Pins or unpins a message; groups restrict this to admins on the server. */

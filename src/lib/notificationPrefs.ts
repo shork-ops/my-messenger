@@ -6,6 +6,8 @@
  * silently because a quiet window was computed in the wrong time zone.
  */
 
+import { DEFAULT_TONE, type ToneId, isToneId } from "./notificationTones";
+
 export type QuietHours = {
   enabled: boolean;
   /** Minutes after local midnight, inclusive. */
@@ -16,12 +18,15 @@ export type QuietHours = {
 
 export type NotificationPrefs = {
   sound: boolean;
+  /** Which tone plays; stored with the other prefs, so it needs no storage of its own. */
+  tone: ToneId;
   vibration: boolean;
   quiet: QuietHours;
 };
 
 export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
   sound: true,
+  tone: DEFAULT_TONE,
   vibration: true,
   // A quiet window that covers a normal night, off until the user asks for it.
   quiet: { enabled: false, fromMinute: 22 * 60, toMinute: 8 * 60 },
@@ -95,6 +100,8 @@ export function parsePrefs(raw: string | null | undefined): NotificationPrefs {
     const value = JSON.parse(raw) as Partial<NotificationPrefs>;
     return {
       sound: typeof value.sound === "boolean" ? value.sound : DEFAULT_NOTIFICATION_PREFS.sound,
+      // Prefs saved before tones existed have none; they keep the chime they always had.
+      tone: isToneId(value.tone) ? value.tone : DEFAULT_TONE,
       vibration: typeof value.vibration === "boolean" ? value.vibration : DEFAULT_NOTIFICATION_PREFS.vibration,
       quiet: {
         enabled: Boolean(value.quiet?.enabled),

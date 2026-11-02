@@ -22,6 +22,7 @@ import { stickerById, stickerMarkup } from "../lib/stickers";
 import { formatSendAt } from "../lib/scheduling";
 import { sendText } from "../lib/sendText";
 import { hideText } from "../lib/hidden";
+import { isFavouritesChat } from "../lib/messageActions";
 
 export type ReplyTarget = Pick<Message, "author" | "text"> | null;
 
@@ -83,6 +84,18 @@ export function useComposer(deps: {
         return;
       }
     }
+    const savedId = editingMessage?.savedId;
+    const client = supabase;
+    if (savedId && client) {
+      const done = await import("../lib/savedMessages").then(
+        (module) => module.editSavedMessage(client, savedId, text),
+        () => false
+      );
+      if (!done) {
+        deps.notify("Не удалось изменить сообщение в избранном в облаке");
+        return;
+      }
+    }
     deps.setChats((current) =>
       updateChat(current, deps.activeId, (chat) => ({
         ...chat,
@@ -133,7 +146,9 @@ export function useComposer(deps: {
       clearComposer();
       return;
     }
-    if (client && deps.accountId) {
+    // A note to oneself in «Избранное» is kept on the server beside the saved messages.
+    const noteToSelf = Boolean(client && deps.accountId && targetChat && isFavouritesChat(targetChat));
+    if (client && deps.accountId && !noteToSelf) {
       deps.notify("Этот чат локальный. Начни переписку, выбрав пользователя по @username.");
       return;
     }
@@ -147,6 +162,11 @@ export function useComposer(deps: {
       createdAt,
       ...(replyTo ? { replyTo } : {}),
     };
+    if (noteToSelf && client) {
+      const setChats = deps.setChats;
+      const notify = deps.notify;
+      void import("../lib/savedMessages").then((module) => module.rememberInCloud(client, message, setChats, notify));
+    }
     // Placed by timestamp rather than appended: the server's clock may put this message just
     // before the newest one already on screen.
     deps.setChats((current) =>

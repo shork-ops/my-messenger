@@ -6,6 +6,8 @@ import {
   ChevronRight,
   CircleUser,
   Database,
+  ImagePlus,
+  Music,
   Palette,
   ShieldCheck,
   Trash2,
@@ -15,6 +17,8 @@ import {
 import { ABOUT_MAX, normalizeAbout, shouldShowAboutCounter } from "../lib/about";
 import { TEXT_SIZES } from "../lib/textSize";
 import { formatMinute, parseMinute, type NotificationPrefs } from "../lib/notificationPrefs";
+import { playTone } from "../lib/notificationTones";
+import { TONE_CHOICES } from "../lib/notificationToneList";
 import type { PrivacyPrefs } from "../lib/privacyPrefs";
 import { plural, storageSummary } from "../lib/storageUsage";
 import { LANGUAGES, type Language } from "../lib/i18n";
@@ -23,6 +27,8 @@ import { avatarFallback } from "../lib/avatar";
 import TwoFactorPanel from "./TwoFactorPanel";
 import DevicesPanel from "./DevicesPanel";
 import { WALLPAPERS, type WallpaperId, wallpaperBackground, wallpaperSize } from "../lib/wallpaper";
+import { saveWallpaperPhoto, useWallpaperPhoto } from "../hooks/useWallpaper";
+import { prepareWallpaperPhoto } from "../lib/wallpaperPhoto";
 import { MEDIA_POLICIES, type MediaPolicy } from "../lib/mediaPolicy";
 import { accountLabel, canAddAccount, type SavedAccount } from "../lib/accounts";
 import { coolDownEnabled, setCoolDownEnabled } from "../lib/coolDown";
@@ -427,6 +433,26 @@ function AppearanceSection({
   // Read and written here directly: the composer asks storage on every send, so there is
   // no copy in the app to keep in step.
   const [coolDown, setCoolDown] = useState(coolDownEnabled);
+  const photo = useWallpaperPhoto();
+  const photoInput = useRef<HTMLInputElement | null>(null);
+  const [photoState, setPhotoState] = useState<"idle" | "busy" | "failed" | "full">("idle");
+
+  async function choosePhoto(file: File | undefined) {
+    if (!file) return;
+    setPhotoState("busy");
+    const prepared = await prepareWallpaperPhoto(file);
+    if (!prepared) {
+      setPhotoState("failed");
+      return;
+    }
+    if (!saveWallpaperPhoto(prepared)) {
+      setPhotoState("full");
+      return;
+    }
+    setPhotoState("idle");
+    onWallpaperChange("photo");
+  }
+
   return (
     <>
       <label>
@@ -465,22 +491,68 @@ function AppearanceSection({
               type="button"
               className={`wallpaper-option${wallpaper === item.id ? " active" : ""}`}
               aria-pressed={wallpaper === item.id}
-              onClick={() => onWallpaperChange(item.id)}
+              onClick={() => {
+                // The first tap on "own photo" opens the picker: there is nothing to show yet.
+                if (item.id === "photo" && !photo) photoInput.current?.click();
+                else onWallpaperChange(item.id);
+              }}
             >
               {/* The swatch is the pattern itself, so the choice needs no words. */}
-              <span
-                className="wallpaper-swatch"
-                style={{
-                backgroundImage: wallpaperBackground(item.id, "currentColor"),
-                backgroundSize: wallpaperSize(item.id),
-              }}
-                aria-hidden="true"
-              />
+              {item.id === "photo" ? (
+                <span className="wallpaper-swatch photo" style={photo ? { backgroundImage: `url("${photo}")` } : undefined} aria-hidden="true">
+                  {!photo && <ImagePlus size={14} />}
+                </span>
+              ) : (
+                <span
+                  className="wallpaper-swatch"
+                  style={{
+                    backgroundImage: wallpaperBackground(item.id, "currentColor"),
+                    backgroundSize: wallpaperSize(item.id),
+                  }}
+                  aria-hidden="true"
+                />
+              )}
               {item.label}
             </button>
           ))}
         </div>
-        <small className="settings-hint">{WALLPAPERS.find((item) => item.id === wallpaper)?.hint}</small>
+        <input
+          ref={photoInput}
+          type="file"
+          accept="image/*"
+          hidden
+          aria-label="Выбрать фото для обоев"
+          onChange={(event) => {
+            void choosePhoto(event.target.files?.[0]);
+            event.target.value = "";
+          }}
+        />
+        {wallpaper === "photo" && photo && (
+          <div className="wallpaper-photo-actions">
+            <button type="button" className="settings-action" onClick={() => photoInput.current?.click()}>
+              Сменить фото
+            </button>
+            <button
+              type="button"
+              className="settings-action"
+              onClick={() => {
+                saveWallpaperPhoto(null);
+                onWallpaperChange("none");
+              }}
+            >
+              Убрать фото
+            </button>
+          </div>
+        )}
+        <small className="settings-hint" role={photoState === "failed" || photoState === "full" ? "alert" : undefined}>
+          {photoState === "busy"
+            ? "Готовлю фото…"
+            : photoState === "failed"
+              ? "Не получилось открыть это фото. Попробуйте другое — JPEG или PNG"
+              : photoState === "full"
+                ? "Не хватило места в браузере. Попробуйте фото поменьше или очистите кеш в разделе «Данные»"
+                : WALLPAPERS.find((item) => item.id === wallpaper)?.hint}
+        </small>
       </div>
 
       <label>
@@ -599,6 +671,30 @@ function NotificationsSection({
         checked={prefs.sound}
         onChange={(checked) => onPrefsChange({ ...prefs, sound: checked })}
       />
+      {prefs.sound && (
+        <div className="field-block">
+          <span className="field-label">Мелодия</span>
+          <div className="wallpaper-row" role="group" aria-label="Мелодия уведомлений">
+            {TONE_CHOICES.map((tone) => (
+              <button
+                key={tone.id}
+                type="button"
+                className={`wallpaper-option${prefs.tone === tone.id ? " active" : ""}`}
+                aria-pressed={prefs.tone === tone.id}
+                onClick={() => {
+                  // Heard at once, so the choice is made by ear and not by name.
+                  playTone(tone.id);
+                  onPrefsChange({ ...prefs, tone: tone.id });
+                }}
+              >
+                <Music size={16} aria-hidden="true" />
+                {tone.label}
+              </button>
+            ))}
+          </div>
+          <small className="settings-hint">Нажмите, чтобы послушать. Звучит, когда Nexus открыт в другой вкладке или свёрнут</small>
+        </div>
+      )}
       <ToggleRow
         label="Вибрация"
         hint="На телефоне — при новом сообщении"
