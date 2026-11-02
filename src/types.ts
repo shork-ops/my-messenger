@@ -87,6 +87,8 @@ export type Message = {
    * the deadline comes from the server (`messages.expires_at`); absent means it stays.
    */
   disappearsAt?: number;
+  /** The row of `saved_messages` this favourites message is kept in on the server. */
+  savedId?: string;
 };
 
 import type { ChannelDesign, ChannelRole } from "./lib/channels";

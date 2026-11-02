@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Play } from "lucide-react";
-import { formatNoteTime } from "../lib/videoNote";
+import { formatNoteTime } from "../lib/videoNoteKind";
 import type { Attachment } from "../types";
 import "../styles/video-note.css";
 
