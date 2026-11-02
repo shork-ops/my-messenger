@@ -12,6 +12,7 @@ export const WALLPAPERS = [
   { id: "grid", label: "Сетка", hint: "Клетка" },
   { id: "diagonal", label: "Диагональ", hint: "Наклонные полосы" },
   { id: "waves", label: "Волны", hint: "Плавные линии" },
+  { id: "photo", label: "Своё фото", hint: "Фото с этого устройства, слегка затемнено, чтобы текст читался" },
 ] as const;
 
 export type WallpaperId = (typeof WALLPAPERS)[number]["id"];
