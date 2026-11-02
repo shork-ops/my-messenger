@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from "react";
-import type { ComponentProps, MutableRefObject } from "react";
+import type { ComponentProps, CSSProperties, MutableRefObject } from "react";
 import { type WallpaperId, wallpaperBackground, wallpaperSize } from "../lib/wallpaper";
+import { useWallpaperPhoto } from "../hooks/useWallpaper";
 import { ArrowDown, ChevronsUp, Download, FolderPlus, Megaphone } from "lucide-react";
 import { canPostToChannel, channelSubtitle, memberLabel } from "../lib/channels";
 import { ESTIMATED_ITEM_HEIGHT, VIRTUALISE_THRESHOLD, initialWindow } from "../lib/messageWindow";
@@ -184,6 +185,7 @@ export default function ConversationPanel({
   onLoadOlder,
   composer,
 }: ConversationPanelProps) {
+  const wallpaperPhoto = useWallpaperPhoto();
   const menuRef = useRef<HTMLDivElement | null>(null);
   const unreadDividerRef = useRef<HTMLDivElement | null>(null);
 
@@ -425,8 +427,13 @@ export default function ConversationPanel({
   // Consecutive messages from one person are named once, at the top of the run.
   const runs = messageRuns(visibleMessages);
 
+  // Own photo is the panel's background: it lies under the header, the dates and the composer
+  // instead of on top of them, and it stays in place while the messages scroll.
+  const photo = wallpaper === "photo" && wallpaperPhoto;
+  const photoStyle = photo ? ({ "--wallpaper-photo": `url("${wallpaperPhoto}")` } as CSSProperties) : undefined;
+
   return (
-    <section className="conversation-panel">
+    <section className={`conversation-panel${photo ? " has-photo" : ""}`} style={photoStyle}>
       <header className="conversation-header">
         <button type="button" className="back-button" onClick={onBack} aria-label="Назад к чатам">
           <ChevronLeft size={22} />
@@ -553,7 +560,7 @@ export default function ConversationPanel({
         messagesRef.current = node;
         listRef.current = node;
       }}>
-        {wallpaper !== "none" && (
+        {wallpaper !== "none" && wallpaper !== "photo" && (
           <span
             className="wallpaper-layer"
             aria-hidden="true"

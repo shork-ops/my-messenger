@@ -94,6 +94,19 @@ export function useMessageActions(deps: {
     deps.notify("Сообщение переслано");
   }
 
+  /** A message of «Избранное» kept on the server is removed there too; false if it could not be. */
+  async function forgetSaved(message: Message): Promise<boolean> {
+    const client = supabase;
+    const savedId = message.savedId;
+    if (!savedId || !client) return true;
+    const done = await import("../lib/savedMessages").then(
+      (module) => module.deleteSavedMessage(client, savedId),
+      () => false
+    );
+    if (!done) deps.notify("Не удалось удалить из избранного в облаке");
+    return done;
+  }
+
   async function deleteMessage(messageId: number) {
     const chat = findChat();
     const index = chat?.messages.findIndex((message) => message.id === messageId) ?? -1;
@@ -110,6 +123,7 @@ export function useMessageActions(deps: {
         return;
       }
     }
+    if (!(await forgetSaved(message))) return;
     setDeletedMessage({ chatId: deps.activeId, message, index });
     deps.setChats((current) => removeMessage(current, deps.activeId, messageId).chats);
     deps.setOpenMessageActionsId(null);
@@ -136,6 +150,7 @@ export function useMessageActions(deps: {
         .from("message_hides")
         .upsert({ message_id: message.remoteId, user_id: deps.accountId }, { onConflict: "message_id,user_id" });
     }
+    if (!(await forgetSaved(message))) return;
     setDeletedMessage({ chatId: deps.activeId, message, index });
     deps.setChats((current) => removeMessage(current, deps.activeId, messageId).chats);
     deps.setOpenMessageActionsId(null);
@@ -146,6 +161,13 @@ export function useMessageActions(deps: {
     if (!deletedMessage) return;
     deps.setChats((current) => restoreMessage(current, deletedMessage));
     setDeletedMessage(null);
+    // Its row was removed with it, so a restored favourite is saved on the server again.
+    const client = supabase;
+    const { message } = deletedMessage;
+    if (message.savedId && client && deps.accountId) {
+      const { setChats, notify } = deps;
+      void import("../lib/savedMessages").then((module) => module.rememberInCloud(client, message, setChats, notify));
+    }
   }
 
   async function applyMessageEffect(messageId: number, effect: MessageEffect) {
