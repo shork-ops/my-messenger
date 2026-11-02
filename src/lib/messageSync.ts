@@ -54,6 +54,7 @@ type AttachmentMeta = {
   duration?: number;
   waveform?: number[];
   viewOnce?: boolean;
+  videoNote?: boolean;
   bucket?: "chat-media" | "view-once-media";
 };
 
@@ -85,6 +86,7 @@ export function toAttachment(meta: AttachmentMeta, data: string, expiresAt?: num
     ...(typeof meta.height === "number" ? { height: meta.height } : {}),
     ...(typeof meta.duration === "number" ? { duration: meta.duration } : {}),
     ...(Array.isArray(meta.waveform) ? { waveform: meta.waveform } : {}),
+    ...(meta.videoNote ? { videoNote: true } : {}),
   };
 }
 
