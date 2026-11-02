@@ -17,6 +17,15 @@ async function openSettings(page: import("@playwright/test").Page, section: RegE
   await page.getByRole("button", { name: section }).click();
 }
 
+/** Settings open a section on top of the list; Escape steps back one level at a time. */
+async function closeSettings(page: import("@playwright/test").Page) {
+  for (let step = 0; step < 3 && (await page.locator(".settings-modal").count()) > 0; step++) {
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(150);
+  }
+  await expect(page.locator(".settings-modal")).toHaveCount(0);
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto("/my-messenger/");
   await expect(page.locator(".app-shell")).toBeVisible();
@@ -45,7 +54,7 @@ test("one's own photo becomes the chat wallpaper, stays under the header, and ca
   const photo = page.getByRole("group", { name: "Обои чата" }).getByRole("button", { name: "Своё фото" });
   await expect(photo).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: "Убрать фото" })).toBeVisible();
-  await page.keyboard.press("Escape");
+  await closeSettings(page);
 
   const panel = page.locator(".conversation-panel.has-photo");
   await expect(panel).toHaveCount(1);
@@ -65,6 +74,6 @@ test("one's own photo becomes the chat wallpaper, stays under the header, and ca
   await openSettings(page, /^Оформление/);
   await page.getByRole("button", { name: "Убрать фото" }).click();
   await expect(photo).toHaveAttribute("aria-pressed", "false");
-  await page.keyboard.press("Escape");
+  await closeSettings(page);
   await expect(page.locator(".conversation-panel.has-photo")).toHaveCount(0);
 });

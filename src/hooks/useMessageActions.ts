@@ -123,7 +123,8 @@ export function useMessageActions(deps: {
         return;
       }
     }
-    if (!(await forgetSaved(message))) return;
+    // Only a saved favourite waits for the server; any other message goes at once.
+    if (message.savedId && !(await forgetSaved(message))) return;
     setDeletedMessage({ chatId: deps.activeId, message, index });
     deps.setChats((current) => removeMessage(current, deps.activeId, messageId).chats);
     deps.setOpenMessageActionsId(null);
@@ -150,7 +151,7 @@ export function useMessageActions(deps: {
         .from("message_hides")
         .upsert({ message_id: message.remoteId, user_id: deps.accountId }, { onConflict: "message_id,user_id" });
     }
-    if (!(await forgetSaved(message))) return;
+    if (message.savedId && !(await forgetSaved(message))) return;
     setDeletedMessage({ chatId: deps.activeId, message, index });
     deps.setChats((current) => removeMessage(current, deps.activeId, messageId).chats);
     deps.setOpenMessageActionsId(null);
