@@ -58,7 +58,7 @@ describe("chat info panel", () => {
   it("names the kind of chat", () => {
     expect(chatKind(chat)).toBe("Личный облачный диалог");
     expect(chatKind({ ...chat, remoteId: undefined })).toBe("Локальный чат на этом устройстве");
-    expect(chatKind({ ...chat, group: true, members: ["a", "b", "c"] })).toBe("Группа · участников: 3");
+    expect(chatKind({ ...chat, group: true, members: ["a", "b", "c"] })).toBe("Группа · 3 участника");
     expect(chatKind({ ...chat, channel: true, members: ["a"] })).toBe("Канал · подписчиков: 1");
   });
 

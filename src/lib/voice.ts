@@ -92,3 +92,38 @@ export async function analyseWaveform(blob: Blob): Promise<number[]> {
     return [];
   }
 }
+
+/** Playback speeds offered on voice messages, in the order the button cycles through them. */
+export const VOICE_SPEEDS = [1, 1.5, 2] as const;
+export type VoiceSpeed = (typeof VOICE_SPEEDS)[number];
+
+const VOICE_SPEED_KEY = "nexus-voice-speed";
+
+/** The speed after `speed`; anything unknown starts over at normal speed. */
+export function nextVoiceSpeed(speed: number): VoiceSpeed {
+  const index = VOICE_SPEEDS.indexOf(speed as VoiceSpeed);
+  return VOICE_SPEEDS[(index + 1) % VOICE_SPEEDS.length];
+}
+
+/** Button label in Russian notation: "1×", "1,5×", "2×". */
+export function formatVoiceSpeed(speed: number): string {
+  return `${String(speed).replace(".", ",")}×`;
+}
+
+/** The speed chosen last time, so every voice message plays the way the person prefers. */
+export function readVoiceSpeed(): VoiceSpeed {
+  try {
+    const saved = Number(localStorage.getItem(VOICE_SPEED_KEY));
+    return VOICE_SPEEDS.includes(saved as VoiceSpeed) ? (saved as VoiceSpeed) : 1;
+  } catch {
+    return 1;
+  }
+}
+
+export function saveVoiceSpeed(speed: VoiceSpeed): void {
+  try {
+    localStorage.setItem(VOICE_SPEED_KEY, String(speed));
+  } catch {
+    // Private mode may refuse storage; the speed still applies to this message.
+  }
+}

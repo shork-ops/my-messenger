@@ -292,7 +292,10 @@
 .game-invite { display: flex; align-items: flex-start; gap: 12px; margin-top: 8px; padding: 12px 14px; border: 1px solid #3a3b41; border-left: 3px solid var(--yellow); border-radius: 12px; background: linear-gradient(145deg, #1d1e23, #141519); }
 .game-invite-icon { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 auto; border-radius: 10px; background: #2b2a1c; color: var(--yellow); }
 .game-invite-body { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 5px; }
-.game-invite-body strong { color: #f2f2f5; font-size: 13px; }
+.game-invite-body strong { color: var(--fg); font-size: 13px; }
+[data-theme="light"] .game-invite { border-color: var(--border); background: var(--surface-1); }
+[data-theme="light"] .game-invite-icon { background: color-mix(in srgb, var(--accent-fill) 25%, var(--surface-1)); }
+[data-theme="light"] .game-invite-kind { border-color: var(--border); }
 .game-invite-body small { color: var(--fg-muted); font-size: 11px; line-height: 1.5; }
 .game-invite-button { align-self: flex-start; display: flex; align-items: center; gap: 6px; margin-top: 3px; }
 .game-invite-kind { flex: 0 0 auto; padding: 3px 8px; border: 1px solid #3a3b41; border-radius: 999px; color: var(--yellow); font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type WheelEvent } from "react";
 import type { StreakView } from "../lib/streakEngine";
-import { Archive, Bell, BellOff, FolderInput, Megaphone, MoreHorizontal, PencilLine, Pin, Search, Trash2 } from "lucide-react";
+import { Archive, Bell, BellOff, FolderInput, FolderPlus, Megaphone, MoreHorizontal, PencilLine, Pin, Search, Trash2 } from "lucide-react";
 import Avatar from "./Avatar";
 import UserAvatar from "./UserAvatar";
 import type { Chat, ChatFilter, UserSearchResult } from "../types";
@@ -8,6 +8,7 @@ import type { Folder } from "../lib/chatFolders";
 import FolderBar from "./FolderBar";
 import { muteLabel } from "../lib/chatSettings";
 import { maskSpoilers } from "../lib/hidden";
+import { avatarTone } from "../lib/avatarTone";
 
 const FILTERS: { id: ChatFilter; label: string }[] = [
   { id: "all", label: "Все" },
@@ -84,6 +85,9 @@ export default function ChatListPanel({
   streaks,
 }: ChatListPanelProps) {
   const [menuId, setMenuId] = useState<number | null>(null);
+  // With no folders yet, "new folder" is one more chip at the end of the filters rather than
+  // a row of its own: on a phone that row was a sixth of the screen holding one button.
+  const [folderCreating, setFolderCreating] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const menuTrigger = useRef<HTMLElement | null>(null);
   useEffect(() => {
@@ -135,7 +139,7 @@ export default function ChatListPanel({
           </div>
           {userSearch.items.map((user) => (
             <button key={user.id} type="button" className="chat-row" onClick={() => onOpenDirectChat(user)}>
-              <UserAvatar name={user.display_name} letter={user.avatar || Array.from(user.display_name)[0]?.toUpperCase() || "N"} avatarPath={user.avatar_path} color="blue" />
+              <UserAvatar name={user.display_name} letter={user.avatar || Array.from(user.display_name)[0]?.toUpperCase() || "N"} avatarPath={user.avatar_path} color={avatarTone(user.id)} />
               <span className="chat-row-copy">
                 <strong>{user.display_name}</strong>
                 <small>@{user.username}</small>
@@ -149,7 +153,10 @@ export default function ChatListPanel({
         </div>
       )}
 
+      {(folders.length > 0 || folderCreating) && (
       <FolderBar
+        startCreating={folderCreating}
+        onCreatingChange={setFolderCreating}
         folders={folders}
         chats={allChats}
         activeFolderId={activeFolderId}
@@ -159,9 +166,16 @@ export default function ChatListPanel({
         onRename={onRenameFolder}
         onMove={onMoveFolder}
       />
+      )}
 
       {/* One scrolling line; a mouse wheel moves it sideways, as a trackpad already does. */}
       <div className="chat-filters" onWheel={scrollSideways}>
+        {/* First in the row, so it is in reach without scrolling the chips sideways. */}
+        {folders.length === 0 && !folderCreating && (
+          <button type="button" className="filter-folder-add" aria-label="Создать папку" title="Новая папка" onClick={() => setFolderCreating(true)}>
+            <FolderPlus size={17} aria-hidden="true" />
+          </button>
+        )}
         {FILTERS.map((item) => (
           <button key={item.id} className={`${filter === item.id ? "active" : ""} filter-${item.id}`} onClick={() => onFilterChange(item.id)}>
             {item.label}

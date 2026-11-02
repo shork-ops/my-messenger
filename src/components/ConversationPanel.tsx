@@ -2,7 +2,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import type { ComponentProps, MutableRefObject } from "react";
 import { type WallpaperId, wallpaperBackground, wallpaperSize } from "../lib/wallpaper";
 import { ArrowDown, ChevronsUp, Download, FolderPlus, Megaphone } from "lucide-react";
-import { canPostToChannel, channelSubtitle } from "../lib/channels";
+import { canPostToChannel, channelSubtitle, memberLabel } from "../lib/channels";
 import { ESTIMATED_ITEM_HEIGHT, VIRTUALISE_THRESHOLD, initialWindow } from "../lib/messageWindow";
 import { Archive, BellOff, BellRing, ChevronLeft, MoreVertical, Phone, Pin, Search, Timer, Trash2, UserRound, Video, X } from "lucide-react";
 import Avatar from "./Avatar";
@@ -408,7 +408,7 @@ export default function ConversationPanel({
         // subscriber count is the number a reader wants.
         ? channelSubtitle(chat.members?.length ?? 0, chat.unread ?? 0, chat.description)
         : chat.group
-        ? `${chat.members?.length ?? 1} участника(ов)`
+        ? memberLabel(chat.members?.length ?? 1)
         : chat.remoteId
           ? seenVisible(
               peerOnline ? "в сети" : peerLastSeenAt ? lastSeenLabel(peerLastSeenAt) : "Облачный диалог",

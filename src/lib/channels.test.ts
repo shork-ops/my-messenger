@@ -5,6 +5,7 @@ import {
   channelSubtitle,
   canPostToChannel,
   isChannelRole,
+  memberLabel,
   parseChannelDesign,
   parseAccent,
   serializeChannelDesign,
@@ -34,6 +35,17 @@ describe("canPostToChannel", () => {
     expect(canPostToChannel(null)).toBe(false);
     expect(canPostToChannel(undefined)).toBe(false);
     expect(canPostToChannel("")).toBe(false);
+  });
+});
+
+describe("memberLabel", () => {
+  it("agrees the word with the number, the way a group header reads it", () => {
+    expect(memberLabel(1)).toBe("1 участник");
+    expect(memberLabel(2)).toBe("2 участника");
+    expect(memberLabel(5)).toBe("5 участников");
+    expect(memberLabel(11)).toBe("11 участников");
+    expect(memberLabel(21)).toBe("21 участник");
+    expect(memberLabel(104)).toBe("104 участника");
   });
 });
 

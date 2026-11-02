@@ -34,19 +34,27 @@
 .blocked-list li button:hover { border-color: var(--border-strong); color: var(--yellow); }
 .danger-zone { padding-top: 14px; border-top: 1px solid #2a1d1d; }
 .danger-button { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 8px 12px; border: 1px solid #5a2a2a; border-radius: 9px; background: #1d1113; color: #ff8f8f; font-size: 12px; cursor: pointer; }
-.danger-button:hover:not(:disabled) { border-color: #7a3636; background: #251518; }
+.danger-button:hover:not(:disabled) { border-color: color-mix(in srgb, var(--danger, #e5534b) 50%, var(--border)); background: color-mix(in srgb, var(--danger, #e5534b) 12%, var(--surface-1)); }
 .danger-button:disabled { opacity: 0.6; cursor: default; }
 /* Voice message player: play button, waveform progress and time. */
 .voice-player { display: flex; align-items: center; gap: 8px; min-width: 200px; max-width: 320px; }
 .voice-toggle { display: grid; place-items: center; flex: 0 0 auto; width: 32px; height: 32px; border: 0; border-radius: 50%; background: var(--yellow); color: #101010; cursor: pointer; }
 .voice-toggle:hover { filter: brightness(1.08); }
-.voice-wave { position: relative; flex: 1; min-width: 0; height: 30px; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.voice-wave { position: relative; flex: 1 1 120px; min-width: 96px; height: 30px; padding: 0; border: 0; background: transparent; cursor: pointer; }
 .voice-bars { position: absolute; inset: 0; display: flex; align-items: center; gap: 2px; pointer-events: none; }
 .voice-bars i { flex: 1; min-width: 1px; border-radius: 2px; background: #4a4b52; }
 .voice-bars-played i { background: var(--yellow); }
 .voice-time { flex: 0 0 auto; color: var(--fg-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
-.voice-download { flex: 0 0 auto; color: var(--fg-muted); font-size: 12px; text-decoration: none; }
+.voice-download { display: grid; flex: 0 0 auto; place-items: center; width: 28px; height: 28px; color: var(--fg-muted); text-decoration: none; }
 .voice-download:hover { color: var(--yellow); }
+.voice-speed { flex: 0 0 auto; min-width: 38px; height: 26px; padding: 0 7px; border: 1px solid var(--border-strong); border-radius: 13px; background: transparent; color: var(--fg-secondary); font-family: inherit; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer; }
+.voice-speed.fast { border-color: var(--yellow); color: var(--yellow); }
+[data-theme="light"] .voice-toggle { background: var(--accent-fill); color: #1a1400; }
+[data-theme="light"] .voice-bars i { background: var(--border-strong); }
+.mine-bubble .voice-toggle { background: #1a1400; color: var(--accent-fill, var(--yellow)); }
+.mine-bubble .voice-bars i { background: #1a140038; }
+.mine-bubble .voice-bars-played i { background: #1a1400; }
+.mine-bubble :is(.voice-time, .voice-download, .voice-speed, .voice-speed.fast) { border-color: #1a140055; color: #3d3000; }
 /* Upload progress: stage label, bar and file name above the composer. */
 .upload-progress { margin: 8px 16px 0; padding: 9px 12px; border: 1px solid var(--border); border-radius: 11px; background: #0d0e11; }
 .upload-progress-row { display: flex; align-items: center; justify-content: space-between; color: var(--fg-secondary); font-size: 12px; }
@@ -55,20 +63,21 @@
 .upload-retry-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .upload-retry-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg-secondary); font-size: 12px; }
 .upload-retry-button { flex: none; padding: 4px 10px; border: 1px solid var(--border); border-radius: 8px; background: #1a1b20; color: var(--fg); font-size: 12px; cursor: pointer; }
-.upload-retry-button:hover { background: #23242a; }
+.upload-retry-button:hover { background: var(--surface-2); }
 .upload-retry-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .upload-retry-dismiss { flex: none; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--fg-muted); cursor: pointer; }
-.upload-retry-dismiss:hover { background: #23242a; color: var(--fg); }
+.upload-retry-dismiss:hover { background: var(--surface-2); color: var(--fg); }
 
-.upload-track { height: 4px; margin: 7px 0 5px; border-radius: 3px; background: #1d1e23; overflow: hidden; }
+.upload-track { height: 4px; margin: 7px 0 5px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
 .upload-track i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, #ffd400, #ffb800); transition: width 0.25s ease; }
 .upload-progress small { color: var(--fg-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
 /* Full-history results: scrollable strip above the message list. */
 .search-hits { display: flex; flex-direction: column; gap: 6px; max-height: 30vh; margin: 8px 16px 0; padding: 8px; overflow-y: auto; border: 1px solid var(--border); border-radius: 11px; background: #0d0e11; }
 .search-hits-heading { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 2px; color: var(--fg-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; }
 .search-hits-heading b { color: var(--yellow); }
-.search-hit { display: flex; padding: 8px 10px; border: 0; border-radius: 9px; background: #14151a; color: inherit; text-align: left; cursor: pointer; }
-.search-hit:hover { background: #1b1c22; }
+.search-hit { display: flex; padding: 8px 10px; border: 0; border-radius: 9px; background: var(--surface-2); color: inherit; text-align: left; cursor: pointer; }
+.search-hit:hover { background: color-mix(in srgb, var(--fg) 7%, var(--surface-2)); }
+[data-theme="light"] .search-hit mark { background: #ffe27a; color: #1a1400; }
 .search-hit-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .search-hit-copy strong { color: var(--fg-muted); font-size: 12px; font-weight: 600; }
 .search-hit-copy > span { color: var(--fg-secondary); font-size: var(--text-caption); line-height: 1.45; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
@@ -101,6 +110,13 @@
 .view-once-card.is-spent { align-items: flex-start; }
 .view-once-spent { color: var(--fg-muted); font-size: 12px; font-style: italic; }
 .attachment-image { display: block; max-width: 100%; max-height: 260px; object-fit: contain; border-radius: 9px; }
+/* A photo fills its bubble and wears the time, as in every large messenger. Its file name is
+   the picture's alt text already, and on screen it told the reader nothing. */
+.bubble:has(> .attachment-card > .attachment-image):not(:has(> .reply-quote, > .forward-label)) { padding: 4px; }
+.attachment-card:has(> .attachment-image) { gap: 0; }
+.attachment-card:has(> .attachment-image) .attachment-caption { display: none; }
+.attachment-card > .attachment-image { border-radius: 13px; max-height: 340px; }
+.bubble:has(> .attachment-card > .attachment-image) .message-time { right: 10px; bottom: 10px; padding: 1px 8px; border-radius: 999px; background: #000a; color: #fff !important; }
 .attachment-caption { overflow: hidden; max-width: 100%; color: inherit; font-size: 12px; opacity: .8; text-overflow: ellipsis; white-space: nowrap; }
 .attachment-file { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px; border: 1px solid #ffffff25; border-radius: 10px; color: inherit; text-decoration: none; }
 .attachment-file > span { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
@@ -165,6 +181,7 @@
 .effect-mark-fireworks { color: #d2b9ff; animation: nexus-mark-pop .7s ease-out both; }
 .effect-mark-glow { color: var(--yellow); box-shadow: 0 0 18px color-mix(in srgb, var(--yellow) 28%, transparent); }
 .message-actions .effect-action { min-width: 29px; justify-content: center; padding-inline: 7px; font-size: 15px; }
+.message-actions .effect-group { margin-top: 4px; padding-top: 5px; border-top: 1px solid var(--border); }
 /* Ten effects do not fit one row of a 280px menu, nor of a phone narrower than 380px: there
    they take two rows of five instead of running past the edge of the menu. */
 @media (min-width: 761px), (max-width: 380px) {
@@ -376,12 +393,13 @@
 }
 
 /* The composer, when the next message goes out hidden. */
-.hidden-banner { display: flex; align-items: center; gap: 10px; margin: 0 14px; padding: 8px 12px; border: 1px solid #3d3560; border-bottom: 0; border-radius: 10px 10px 0 0; background: #15131f; color: #c9b8ff; }
+.hidden-banner { display: flex; align-items: center; gap: 10px; margin: 0 14px; padding: 8px 12px; border: 1px solid color-mix(in srgb, #9b7bff 35%, var(--border)); border-bottom: 0; border-radius: 10px 10px 0 0; background: color-mix(in srgb, #9b7bff 9%, var(--surface-1)); color: var(--hidden-ink, #c9b8ff); }
+[data-theme="light"] .hidden-banner { --hidden-ink: #5b3fc4; }
 .hidden-banner > span:not(.hidden-banner-dust) { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
 .hidden-banner strong { font-size: 12px; }
-.hidden-banner small { overflow: hidden; color: #a59cc4; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.hidden-banner small { overflow: hidden; color: var(--fg-secondary); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .hidden-banner button { display: grid; place-items: center; width: 32px; height: 32px; border: 0; background: transparent; color: inherit; }
-.hidden-banner-dust { flex-shrink: 0; padding: 3px 8px; border-radius: 8px; background: #221d36; font-size: 13px; }
+.hidden-banner-dust { flex-shrink: 0; padding: 3px 8px; border-radius: 8px; background: color-mix(in srgb, #9b7bff 18%, var(--surface-1)); font-size: 13px; }
 .reply-banner + .hidden-banner,
 .hidden-banner + .composer { margin-top: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
 .composer.composer-hidden { border-color: #3d3560; }
@@ -699,6 +717,15 @@
   color: var(--fg-secondary); background: transparent;
 }
 .chat-menu-button:hover, .chat-menu-button[aria-expanded="true"] { background: var(--surface-2); color: var(--yellow); }
+/* With a mouse, the "⋮" beside each message and the "⋯" on each chat appear on the row under
+   the pointer or the keyboard, as in Telegram Desktop and WhatsApp Web: forty of them at once
+   were the loudest thing on the screen. A touch screen has no hover and keeps them. */
+@media (hover: hover) and (pointer: fine) {
+  .message-menu-toggle, .chat-menu-button { opacity: 0; transition: opacity .12s ease; }
+  .message-line:hover .message-menu-toggle, .message-line:focus-within .message-menu-toggle, .message-menu-toggle[aria-expanded="true"],
+  .chat-row-wrap:hover .chat-menu-button, .chat-row-wrap:focus-within .chat-menu-button, .chat-row-wrap.selected .chat-menu-button, .chat-menu-button[aria-expanded="true"] { opacity: 1; }
+}
+.chat-filters .filter-folder-add { padding: 0 13px; border-style: dashed; color: var(--fg-muted); }
 .chat-row-menu { display: grid; padding: 6px; margin: 4px 6px 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-0); }
 .chat-row-menu button { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 8px 12px; border: 0; border-radius: 8px; text-align: left; background: transparent; color: var(--fg); }
 .chat-row-menu button:hover { background: var(--surface-2); }

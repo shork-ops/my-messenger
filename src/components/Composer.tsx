@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent, MutableRefObject } from "react";
-import { CheckCheck, Clock, EyeOff, Image, Mic, Paperclip, Plus, Send, Smile, Sparkles, Sticker, Users, Video, X, Gamepad2 } from "lucide-react";
+import { CheckCheck, Clock, EyeOff, Image, Mic, Paperclip, Plus, Send, Smile, Sparkles, Sticker, ListChecks, Video, X, Gamepad2 } from "lucide-react";
 import type { Message } from "../types";
 import { SUPPORTED_TYPES } from "../lib/media";
 import { maskSpoilers } from "../lib/hidden";
@@ -199,7 +199,7 @@ export default function Composer({
                 <Paperclip size={18} /> Файл
               </button>
               <button type="button" role="menuitem" onClick={() => runFromMenu(onOpenPoll)}>
-                <Users size={18} /> Опрос
+                <ListChecks size={18} /> Опрос
               </button>
               <button type="button" role="menuitem" aria-label="Записать видеозаметку" onClick={() => runFromMenu(onVideoNote)}>
                 <Video size={18} /> Видеозаметка

@@ -1,5 +1,6 @@
 import type { Chat, Message, UserSearchResult } from "../types";
 import { numericId } from "./format";
+import { avatarTone } from "./avatarTone";
 
 /** The initial chat must carry the same peer photo as a later cloud reload. */
 export function directChatFromSearch(remoteId: string, user: UserSearchResult, selfName: string): Chat {
@@ -10,7 +11,8 @@ export function directChatFromSearch(remoteId: string, user: UserSearchResult, s
     name: user.display_name,
     avatar: user.avatar || Array.from(user.display_name)[0]?.toUpperCase() || "N",
     avatarPath: user.avatar_path ?? null,
-    color: "blue",
+    // The same colour the cloud reload gives this person, so the circle does not change.
+    color: avatarTone(user.id),
     preview: "Диалог создан — напиши первое сообщение",
     time: "",
     messages: [],

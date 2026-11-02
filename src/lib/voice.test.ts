@@ -1,5 +1,17 @@
-import { describe, expect, it } from "vitest";
-import { WAVEFORM_BARS, buildWaveform, decodeWaveform, encodeWaveform, formatDuration, neutralWaveform } from "./voice";
+import { describe, expect, it, vi } from "vitest";
+import {
+  VOICE_SPEEDS,
+  WAVEFORM_BARS,
+  buildWaveform,
+  decodeWaveform,
+  encodeWaveform,
+  formatDuration,
+  formatVoiceSpeed,
+  neutralWaveform,
+  nextVoiceSpeed,
+  readVoiceSpeed,
+  saveVoiceSpeed,
+} from "./voice";
 
 describe("buildWaveform", () => {
   it("produces the requested number of bars", () => {
@@ -58,5 +70,32 @@ describe("formatDuration", () => {
   it("handles bad input", () => {
     expect(formatDuration(-5)).toBe("0:00");
     expect(formatDuration(Number.NaN)).toBe("0:00");
+  });
+});
+
+describe("voice speed", () => {
+  it("cycles 1× → 1,5× → 2× → 1×", () => {
+    expect(nextVoiceSpeed(1)).toBe(1.5);
+    expect(nextVoiceSpeed(1.5)).toBe(2);
+    expect(nextVoiceSpeed(2)).toBe(1);
+    expect(nextVoiceSpeed(3)).toBe(1);
+  });
+
+  it("labels speeds the Russian way", () => {
+    expect(VOICE_SPEEDS.map(formatVoiceSpeed)).toEqual(["1×", "1,5×", "2×"]);
+  });
+
+  it("remembers the chosen speed and ignores junk", () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => void store.set(key, value),
+    });
+    expect(readVoiceSpeed()).toBe(1);
+    saveVoiceSpeed(2);
+    expect(readVoiceSpeed()).toBe(2);
+    localStorage.setItem("nexus-voice-speed", "7");
+    expect(readVoiceSpeed()).toBe(1);
+    vi.unstubAllGlobals();
   });
 });

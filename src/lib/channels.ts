@@ -46,6 +46,16 @@ export function subscriberLabel(count: number): string {
   return `${count} подписчиков`;
 }
 
+/** "1 участник", "2 участника", "5 участников": the line under a group's name. */
+export function memberLabel(count: number): string {
+  const tens = count % 100;
+  const ones = count % 10;
+  if (tens >= 11 && tens <= 14) return `${count} участников`;
+  if (ones === 1) return `${count} участник`;
+  if (ones >= 2 && ones <= 4) return `${count} участника`;
+  return `${count} участников`;
+}
+
 /**
  * The line under a channel's name.
  *

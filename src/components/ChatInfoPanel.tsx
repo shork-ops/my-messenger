@@ -1,7 +1,8 @@
-import { ChevronRight, FileText, Image as ImageIcon, LogOut, Plus, ShieldCheck, ShieldMinus, UserMinus, X } from "lucide-react";
+import { ChevronRight, FileText, Image as ImageIcon, Link2, LogOut, ShieldCheck, ShieldMinus, UserMinus, X } from "lucide-react";
 import Avatar from "./Avatar";
 import UserAvatar from "./UserAvatar";
 import type { ChatMember } from "../lib/groupAdmin";
+import { memberLabel } from "../lib/channels";
 import { formatBytes } from "../lib/media";
 import type { Chat, Message } from "../types";
 import "../styles/chat-info.css";
@@ -14,7 +15,7 @@ const FILES_PREVIEW = 3;
 export function chatKind(chat: Chat): string {
   const count = chat.members?.length ?? 0;
   if (chat.channel) return count > 0 ? `Канал · подписчиков: ${count}` : "Канал";
-  if (chat.group) return count > 0 ? `Группа · участников: ${count}` : "Группа";
+  if (chat.group) return count > 0 ? `Группа · ${memberLabel(count)}` : "Группа";
   return chat.remoteId ? "Личный облачный диалог" : "Локальный чат на этом устройстве";
 }
 
@@ -237,7 +238,7 @@ export default function ChatInfoPanel({
       {chat.group && (
         <button className="invite-row" onClick={onCreateInvite}>
           <span>
-            <Plus size={22} />
+            <Link2 size={20} />
           </span>
           Скопировать ссылку-приглашение
         </button>

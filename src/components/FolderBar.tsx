@@ -5,7 +5,7 @@
  * a different axis: "unread" and "Работа" can both be true, and a single row of tabs
  * would make one of them win.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, FolderPlus, Pencil, X } from "lucide-react";
 import { chatsInFolder, folderNameError, normalizeFolderName, type Folder } from "../lib/chatFolders";
 import type { Chat } from "../types";
@@ -21,6 +21,10 @@ type FolderBarProps = {
   onRename: (id: string, name: string) => void;
   /** Swaps a folder with its neighbour; the ends of the list do nothing. */
   onMove: (id: string, direction: "up" | "down") => void;
+  /** Opens with the name field already showing: the list's own "new folder" chip was pressed. */
+  startCreating?: boolean;
+  /** Told when the name field opens or closes, so the list can put its chip back. */
+  onCreatingChange?: (creating: boolean) => void;
 };
 
 export default function FolderBar({
@@ -32,8 +36,13 @@ export default function FolderBar({
   onDelete,
   onRename,
   onMove,
+  startCreating = false,
+  onCreatingChange,
 }: FolderBarProps) {
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(startCreating);
+  useEffect(() => {
+    onCreatingChange?.(creating);
+  }, [creating, onCreatingChange]);
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   // The folder being renamed and the text in its field. One at a time, because two

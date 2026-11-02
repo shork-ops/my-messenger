@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Flag, Forward, MessageCircle, MoreVertical, Paperclip, PencilLine, Pin, Send, Star, Timer, Trash2, X } from "lucide-react";
+import { Copy, Flag, Forward, MessageCircle, MoreVertical, Paperclip, PencilLine, Pin, Send, Star, Timer, Trash2, X } from "lucide-react";
 import Avatar from "./Avatar";
 import VoicePlayer from "./VoicePlayer";
 import { Plus } from "lucide-react";
 import { friends } from "../lib/constants";
+import { avatarTone } from "../lib/avatarTone";
+import { emojiOnlyCount } from "../lib/bigEmoji";
 import { hasUserVoted, pollPercent, pollTotal } from "../lib/polls";
 import { splitForward } from "../lib/messageActions";
 import MessageBody, { HiddenBody } from "./MessageBody";
@@ -449,6 +451,13 @@ export default function MessageBubble({
   // An invitation is recognised from the message text, so it survives a reload and arrives
   // from the other side as an ordinary message rather than as a separate kind of event.
   const invitation = !message.poll && !message.attachment && !message.stickerId && !hidden ? parseInvitation(message.text) : null;
+  // One to three emoji and nothing else are drawn large, without a bubble behind them.
+  const bigEmoji =
+    !message.poll && !sticker && !message.album?.length && !message.attachment && !hidden && !message.replyTo && !forwardRelease.label
+      ? emojiOnlyCount(bodyText)
+      : 0;
+  // A person keeps one colour: the circle beside the message and the name above it.
+  const authorTone = friends.find((friend) => friend.name === message.author)?.color ?? avatarTone(message.author);
   return (
     <div
       data-remote-id={message.remoteId ?? undefined}
@@ -518,13 +527,13 @@ export default function MessageBubble({
           line say nothing that the header has not already said. In a group they are the whole
           point: they are how a reader tells who spoke. */}
       {!message.mine && groupContext && (
-        <Avatar color={friends.find((friend) => friend.name === message.author)?.color ?? "blue"} small>
+        <Avatar color={authorTone} small>
           {message.author.slice(0, 1)}
         </Avatar>
       )}
       <div className="message-content">
-        {showAuthor && !message.mine && <strong className="message-author">{message.author}</strong>}
-        <div className={`bubble ${message.mine ? "mine-bubble" : ""} ${continuesRun ? "bubble-continues" : ""} ${endsRun ? "bubble-ends" : "bubble-mid"} ${message.effect ? `message-effect-${message.effect}` : ""}`}>
+        {showAuthor && !message.mine && <strong className={`message-author ${authorTone}`}>{message.author}</strong>}
+        <div className={`bubble ${message.mine ? "mine-bubble" : ""} ${continuesRun ? "bubble-continues" : ""} ${endsRun ? "bubble-ends" : "bubble-mid"} ${message.effect ? `message-effect-${message.effect}` : ""} ${bigEmoji ? `bubble-emoji emoji-${bigEmoji}` : ""}`}>
           {message.replyTo && (
             <div className="reply-quote">
               <strong>{message.replyTo.author}</strong>
@@ -621,21 +630,7 @@ export default function MessageBubble({
           </button>
           {actionsOpen && (
             <div className={menuBelow ? "message-actions below" : "message-actions"} ref={menuRef}>
-              <button type="button" onClick={onReply}>
-                <MessageCircle size={13} /> Ответить
-              </button>
-              <button type="button" onClick={onCopy}>
-                <Paperclip size={13} /> Копировать
-              </button>
-              <button type="button" onClick={onForward} aria-label="Переслать сообщение">
-                <Forward size={13} /> Переслать
-              </button>
-              <button type="button" onClick={onFavourite} aria-label="Сохранить в избранное">
-                <Star size={13} /> В избранное
-              </button>
-              <button type="button" onClick={onTogglePin} aria-label={pinned ? "Открепить сообщение" : "Закрепить сообщение"}>
-                <Pin size={13} /> {pinned ? "Открепить" : "Закрепить"}
-              </button>
+              {/* Reactions first, as in Telegram and WhatsApp: the most common answer to a message. */}
               <span className="message-actions-group" role="group" aria-label="Реакции">
                 {QUICK_REACTIONS.map((emoji) => (
                   <button key={emoji} type="button" onClick={() => onToggleReaction(emoji)} aria-label={`Реакция ${emoji}`}>
@@ -648,6 +643,21 @@ export default function MessageBubble({
                   </button>
                 )}
               </span>
+              <button type="button" onClick={onReply}>
+                <MessageCircle size={13} /> Ответить
+              </button>
+              <button type="button" onClick={onCopy}>
+                <Copy size={13} /> Копировать
+              </button>
+              <button type="button" onClick={onForward} aria-label="Переслать сообщение">
+                <Forward size={13} /> Переслать
+              </button>
+              <button type="button" onClick={onFavourite} aria-label="Сохранить в избранное">
+                <Star size={13} /> В избранное
+              </button>
+              <button type="button" onClick={onTogglePin} aria-label={pinned ? "Открепить сообщение" : "Закрепить сообщение"}>
+                <Pin size={13} /> {pinned ? "Открепить" : "Закрепить"}
+              </button>
               {/* An effect decorates the message it is attached to, so it belongs to whoever
                   wrote it. Offering the stickers on someone else's message invited a choice
                   the server then refused, and the refusal was silent. */}
