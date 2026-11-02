@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { Copy, Flag, Forward, MessageCircle, MoreVertical, Paperclip, PencilLine, Pin, Send, Star, Timer, Trash2, X } from "lucide-react";
 import Avatar from "./Avatar";
 import VoicePlayer from "./VoicePlayer";
+import { isVideoNote } from "../lib/videoNote";
+
+const VideoNotePlayer = lazy(() => import("./VideoNotePlayer"));
 import { Plus } from "lucide-react";
 import { friends } from "../lib/constants";
 import { avatarTone } from "../lib/avatarTone";
@@ -228,6 +231,11 @@ function AttachmentCard({
             <span className="attachment-hold-hint">{formatBytes(attachment.size)} · нажмите, чтобы загрузить</span>
           </button>
         )
+      ) : isVideoNote(attachment) ? (
+        // The circle keeps its place while the player loads, so the conversation does not jump.
+        <Suspense fallback={<span className="video-note" style={{ display: "block", width: 200, height: 200, borderRadius: "50%" }} />}>
+          <VideoNotePlayer attachment={attachment} />
+        </Suspense>
       ) : attachment.type.startsWith("video/") ? (
         <video className="attachment-video" controls playsInline src={attachment.data} />
       ) : attachment.type.startsWith("audio/") ? (
@@ -533,7 +541,7 @@ export default function MessageBubble({
       )}
       <div className="message-content">
         {showAuthor && !message.mine && <strong className={`message-author ${authorTone}`}>{message.author}</strong>}
-        <div className={`bubble ${message.mine ? "mine-bubble" : ""} ${continuesRun ? "bubble-continues" : ""} ${endsRun ? "bubble-ends" : "bubble-mid"} ${message.effect ? `message-effect-${message.effect}` : ""} ${bigEmoji ? `bubble-emoji emoji-${bigEmoji}` : ""}`}>
+        <div className={`bubble ${message.mine ? "mine-bubble" : ""} ${continuesRun ? "bubble-continues" : ""} ${endsRun ? "bubble-ends" : "bubble-mid"} ${message.effect ? `message-effect-${message.effect}` : ""} ${bigEmoji ? `bubble-emoji emoji-${bigEmoji}` : ""} ${isVideoNote(message.attachment) ? "bubble-note" : ""}`}>
           {message.replyTo && (
             <div className="reply-quote">
               <strong>{message.replyTo.author}</strong>
