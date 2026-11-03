@@ -21,7 +21,7 @@
     "test:e2e:ui": "playwright test --ui",
     "qa:demo": "node scripts/qa-demo.mjs",
     "qa:cloud": "node scripts/qa-cloud.mjs",
-    "test:db": "node scripts/check-view-once.mjs && node scripts/check-server-checks.mjs && node scripts/check-streaks.mjs && node scripts/check-saved.mjs",
+    "test:db": "node scripts/check-view-once.mjs && node scripts/check-server-checks.mjs && node scripts/check-streaks.mjs && node scripts/check-saved.mjs && node scripts/check-profile-details.mjs",
     "deploy:reliability": "node scripts/deploy-reliability.mjs",
     "check:bundle": "node scripts/check-bundle-budget.mjs",
     "bench": "node scripts/bench-conversations.mjs",
