@@ -29,7 +29,10 @@ describe("firstBelow", () => {
 function conversation(days: string[], { scrollTop = 500, dividerAt = null as number | null } = {}) {
   const area = document.createElement("div");
   const chip = document.createElement("div");
-  chip.append(document.createElement("span"));
+  const pill = document.createElement("span");
+  // The pill floats 8px below the top of the list and is 22px tall.
+  pill.getBoundingClientRect = () => ({ top: 8, bottom: 30 }) as DOMRect;
+  chip.append(pill);
   area.append(chip);
   days.forEach((day, index) => {
     const item = document.createElement("div");
@@ -44,7 +47,7 @@ function conversation(days: string[], { scrollTop = 500, dividerAt = null as num
   if (dividerAt !== null) {
     const divider = document.createElement("div");
     divider.className = "date-divider";
-    divider.getBoundingClientRect = () => ({ top: dividerAt }) as DOMRect;
+    divider.getBoundingClientRect = () => ({ top: dividerAt, bottom: dividerAt + 22 }) as DOMRect;
     area.append(divider);
   }
   area.getBoundingClientRect = () => ({ top: 0 }) as DOMRect;
@@ -76,7 +79,7 @@ describe("useStickyDate", () => {
 
     list.area.dispatchEvent(new Event("scroll"));
     vi.advanceTimersByTime(20);
-    // 1100px down, the 23rd message is at the top: the second day.
+    // 1100px down, the 23rd message is under the pill: the second day.
     expect(list.label()).toBe("Вчера");
     expect(list.shown()).toBe(true);
 

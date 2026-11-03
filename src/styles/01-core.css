@@ -142,7 +142,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .date-divider span { padding: 4px 12px; border-radius: 999px; background: color-mix(in srgb, var(--surface-2) 90%, transparent); }
 /* The same pill floating at the top while the list scrolls. No height and a negative margin, so
    it takes no room in the list and moves nothing. */
-.sticky-date { position: sticky; top: 0; z-index: 3; display: flex; justify-content: center; align-items: flex-start; height: 0; margin-bottom: calc(-1 * var(--row-gap)); color: var(--fg-secondary); font-size: 12px; font-weight: 500; pointer-events: none; opacity: 0; transition: opacity .2s; }
+.sticky-date { position: sticky; top: -16px; z-index: 3; display: flex; justify-content: center; align-items: flex-start; height: 0; margin-bottom: calc(-1 * var(--row-gap)); color: var(--fg-secondary); font-size: 12px; font-weight: 500; pointer-events: none; opacity: 0; transition: opacity .2s; }
 .sticky-date.shown { opacity: 1; }
 .sticky-date span { margin-top: 8px; padding: 4px 12px; border-radius: 999px; background: color-mix(in srgb, var(--surface-2) 94%, transparent); box-shadow: 0 2px 8px #0003; }
 .message-line { display: flex; align-items: flex-start; gap: 12px; max-width: 100%; -webkit-touch-callout: none; transition: background .12s ease; }
