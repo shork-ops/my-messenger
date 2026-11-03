@@ -166,11 +166,6 @@
 .device-list strong { color: var(--fg); font-size: 13px; font-weight: 600; }
 .device-list small { color: var(--fg-muted); font-size: 12px; }
 .device-current { flex-shrink: 0; padding: 3px 8px; border-radius: 999px; background: var(--accent-fill-soft); color: var(--yellow); font-size: 11px; font-weight: 600; }
-.privacy-select { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
-.privacy-select > span { color: var(--fg); font-size: var(--text-caption); font-weight: 600; }
-.privacy-select select { min-height: 42px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 9px; background: var(--surface-0); color: var(--fg); font: inherit; font-size: 14px; }
-.privacy-select select:disabled { opacity: .55; }
-.privacy-select small { color: var(--fg-muted); font-size: 12px; line-height: 1.4; }
 .mute-modal { position: relative; width: min(340px, 100%); padding: 18px; border: 1px solid var(--border-strong); border-radius: 16px; background: var(--surface-1); box-shadow: 0 30px 80px #0009; }
 .mute-modal header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .mute-modal header strong { font-size: 16px; }
@@ -403,17 +398,3 @@
 .message-search button { display: grid; place-items: center; border: 0; background: transparent; color: var(--fg-secondary); }
 /* Forward marker rendered above the forwarded body. */
 .forward-label { display: flex; align-items: center; gap: 5px; margin-bottom: 4px; padding-left: 8px; border-left: 2px solid #4a4b52; color: var(--fg-muted); font-size: 12px; font-style: italic; }
-/* Privacy settings modal. */
-.privacy-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--surface-2); cursor: pointer; }
-.privacy-row span { display: flex; flex-direction: column; gap: 3px; }
-.privacy-row strong { color: #ececef; font-size: 13px; font-weight: 600; }
-.privacy-row small { color: var(--fg-muted); font-size: 12px; line-height: 1.45; }
-.privacy-row input { flex: 0 0 auto; width: 18px; height: 18px; accent-color: var(--yellow); cursor: pointer; }
-.privacy-section { margin-top: 16px; }
-/* The encryption answer is information, not a control: it is quieter than the switches and
-   set apart so it is not mistaken for a setting that can be turned on. */
-.encryption-note { padding: 10px 12px; border: 1px solid var(--border); border-left: 3px solid var(--fg-muted); border-radius: 9px; background: #121317; }
-.encryption-note .modal-help { margin: 0 0 6px; }
-.encryption-note .modal-help:last-child { margin-bottom: 0; }
-.archive-button { display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 9px; background: #121317; color: var(--fg); font-size: 13px; cursor: pointer; }
-.archive-button:hover { border-color: var(--yellow); color: var(--yellow); }

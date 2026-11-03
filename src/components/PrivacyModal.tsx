@@ -8,6 +8,7 @@ import {
   type VisibilitySettings,
   describeVisibility,
 } from "../lib/visibility";
+import "../styles/privacy.css";
 
 type PrivacyModalProps = {
   open: boolean;
