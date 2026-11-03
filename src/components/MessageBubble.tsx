@@ -338,6 +338,9 @@ export default function MessageBubble({
   // Which way the action menu opens. Upwards is the natural direction beside a bubble,
   // but there has to be room above it; otherwise the menu is placed below instead.
   const [menuBelow, setMenuBelow] = useState(false);
+  // Where a menu opened below is moved to, and how tall it may be, so that it ends inside the
+  // thread: [top from the toggle's row, max height]. Null leaves it where the styles put it.
+  const [menuFit, setMenuFit] = useState<[number, number] | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const toggleRef = useRef<HTMLButtonElement | null>(null);
   // Kept current for timers and document listeners, which outlive the render that made them.
@@ -358,19 +361,32 @@ export default function MessageBubble({
   useEffect(() => {
     if (!actionsOpen) {
       openedScrollTop.current = null;
+      setMenuFit(null);
       return;
     }
     const toggle = toggleRef.current;
     const menu = menuRef.current;
     if (!toggle || !menu) return;
-    // Measure after the menu has been laid out, then decide once.
-    const needed = menu.offsetHeight;
-    const room = toggle.getBoundingClientRect().top;
-    setMenuBelow(room < needed + 16);
+    const area = menu.closest(".messages-area");
+    // Measure after the menu has been laid out, then decide once: above the toggle when it
+    // fits inside the thread, otherwise below and moved up just enough to end inside it.
+    // The thread closes the menu when it scrolls, so a menu running past its edge could not
+    // be used to the end: in a short chat "Закрепить" and "Удалить" were out of reach.
+    // A phone shows the menu as a sheet of its own (position: fixed) and needs none of this.
+    const needed = menu.scrollHeight;
+    const own = toggle.getBoundingClientRect();
+    const view = (area ?? document.documentElement).getBoundingClientRect();
+    const below = own.top - needed < view.top + 8;
+    const top = Math.max(view.top + 8, Math.min(own.bottom, view.bottom - 8 - needed));
+    setMenuBelow(below);
+    setMenuFit(
+      below && getComputedStyle(menu).position !== "fixed"
+        ? [top - toggle.parentElement!.getBoundingClientRect().top, view.bottom - 8 - top]
+        : null
+    );
 
     // A menu belongs to the message it was opened on. Scrolling the thread detaches it
     // from that message, and it was left hanging above the viewport, so it closes.
-    const area = menu.closest(".messages-area");
     const close = () => {
       actionsOpenRef.current = false;
       onToggleActions();
@@ -640,7 +656,11 @@ export default function MessageBubble({
             <MoreVertical size={15} />
           </button>
           {actionsOpen && (
-            <div className={menuBelow ? "message-actions below" : "message-actions"} ref={menuRef}>
+            <div
+              className={menuBelow ? "message-actions below" : "message-actions"}
+              ref={menuRef}
+              style={menuFit ? { top: menuFit[0], maxHeight: menuFit[1], overflowY: "auto", overscrollBehavior: "contain" } : undefined}
+            >
               {/* Reactions first, as in Telegram and WhatsApp: the most common answer to a message. */}
               <span className="message-actions-group" role="group" aria-label="Реакции">
                 {QUICK_REACTIONS.map((emoji) => (
