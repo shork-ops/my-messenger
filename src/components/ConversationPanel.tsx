@@ -418,7 +418,8 @@ export default function ConversationPanel({
         ? memberLabel(chat.members?.length ?? 1)
         : chat.remoteId
           ? seenVisible(
-              peerOnline ? "в сети" : peerLastSeenAt ? lastSeenLabel(peerLastSeenAt) : "Облачный диалог",
+              // No time is what the server answers when the person hid it (20261058).
+              peerOnline ? "в сети" : peerLastSeenAt ? lastSeenLabel(peerLastSeenAt) : "был(а) недавно",
               privacyValue.lastSeen
             ) ?? "Облачный диалог"
           : "Локальный чат";
