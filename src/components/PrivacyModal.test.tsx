@@ -69,6 +69,28 @@ describe("PrivacyModal", () => {
     expect(container.textContent).toContain("Вложения в архив не входят");
   });
 
+  it("asks who sees the photo and the about line, and says what each answer means", () => {
+    const onVisibilityChange = vi.fn();
+    const { container, rerender } = render(<PrivacyModal {...baseProps} onVisibilityChange={onVisibilityChange} />);
+    const field = [...container.querySelectorAll(".privacy-select")].find((label) =>
+      label.textContent?.includes("Кто видит фото и «О себе»")
+    );
+    expect(field).toBeDefined();
+    const select = field!.querySelector("select") as HTMLSelectElement;
+    expect([...select.options].map((option) => option.textContent)).toEqual(["Все пользователи", "Мои контакты", "Никто"]);
+    expect(select.value).toBe("everyone");
+    expect(field!.querySelector("small")?.textContent).toBe("Фото и «О себе» видят все");
+
+    fireEvent.change(select, { target: { value: "contacts" } });
+    expect(onVisibilityChange).toHaveBeenCalledWith({ ...DEFAULT_VISIBILITY, details: "contacts" });
+
+    rerender(<PrivacyModal {...baseProps} visibility={{ ...DEFAULT_VISIBILITY, details: "contacts" }} />);
+    expect(field!.querySelector("small")?.textContent).toBe("Видят только те, кому вы писали в личных чатах");
+    // Hiding from search does not lock this one: it is a separate question.
+    rerender(<PrivacyModal {...baseProps} visibility={{ ...DEFAULT_VISIBILITY, profile: "nobody" }} />);
+    expect((field!.querySelector("select") as HTMLSelectElement).disabled).toBe(false);
+  });
+
   it("renders nothing when closed", () => {
     const { container } = render(<PrivacyModal {...baseProps} open={false} />);
     expect(container.querySelector(".privacy-modal")).toBeNull();

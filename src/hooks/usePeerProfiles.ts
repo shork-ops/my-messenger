@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { supabase } from "../lib/supabase";
+import { fetchProfileDetails } from "../lib/profileDetails";
 import type { Chat } from "../types";
 
 export function usePeerProfiles({ accountId, chats, setChats }: { accountId: string | null; chats: Chat[]; setChats: Dispatch<SetStateAction<Chat[]>> }) {
@@ -11,13 +12,22 @@ export function usePeerProfiles({ accountId, chats, setChats }: { accountId: str
     let alive = true;
     const refresh = async () => {
       if (document.visibilityState === "hidden") return;
-      const { data, error } = await client.from("profiles").select("id, display_name, avatar, avatar_path").in("id", peers.split(","));
+      const ids = peers.split(",");
+      // The photo and the "about" line come by the owner's rule (20261057); a reply that did not
+      // come at all keeps what is on screen rather than wiping it.
+      const [{ data, error }, details] = await Promise.all([
+        client.from("profiles").select("id, display_name, avatar").in("id", ids),
+        fetchProfileDetails(client, ids),
+      ]);
       if (!alive || error || !data) return;
       setChats(all => all.map(chat => {
         const peer = data.find(p => p.id === chat.peerId);
         if (!peer || chat.group) return chat;
-        if (chat.name === peer.display_name && chat.avatar === peer.avatar && chat.avatarPath === peer.avatar_path) return chat;
-        return { ...chat, name: peer.display_name, avatar: peer.avatar, avatarPath: peer.avatar_path };
+        const extra = details.get(peer.id);
+        const avatarPath = extra ? extra.avatar_path : chat.avatarPath ?? null;
+        const about = extra ? extra.about : chat.about ?? null;
+        if (chat.name === peer.display_name && chat.avatar === peer.avatar && chat.avatarPath === avatarPath && (chat.about ?? null) === about) return chat;
+        return { ...chat, name: peer.display_name, avatar: peer.avatar, avatarPath, about };
       }));
     };
     void refresh();

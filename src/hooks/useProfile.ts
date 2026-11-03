@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { readItem, writeItem } from "../lib/safeStorage";
+import { fetchProfileDetails } from "../lib/profileDetails";
 
 type UseProfileOptions = { notify: (message: string) => void };
 
@@ -43,11 +44,12 @@ export function useProfile({ notify }: UseProfileOptions) {
           : typeof user.user_metadata?.name === "string"
             ? user.user_metadata.name
             : "";
-      const { data: existingProfile, error: readError } = await client
-        .from("profiles")
-        .select("display_name, avatar, username, avatar_path, about")
-        .eq("id", user.id)
-        .maybeSingle();
+      // The photo and the "about" line are not table columns a client may read any more
+      // (20261057), not even its own; the function hands the owner theirs.
+      const [{ data: existingProfile, error: readError }, own] = await Promise.all([
+        client.from("profiles").select("display_name, avatar, username").eq("id", user.id).maybeSingle(),
+        fetchProfileDetails(client, [user.id]),
+      ]);
       if (!alive) return;
       if (readError) {
         setAccountId(null);
@@ -60,8 +62,8 @@ export function useProfile({ notify }: UseProfileOptions) {
         setProfileAvatar(existingProfile.avatar || metadataName.slice(0, 1).toUpperCase() || "N");
         setUsername(existingProfile.username || "");
         setSavedUsername(existingProfile.username || "");
-        setAvatarPath(existingProfile.avatar_path || null);
-        setAbout(existingProfile.about || "");
+        setAvatarPath(own.get(user.id)?.avatar_path || null);
+        setAbout(own.get(user.id)?.about || "");
       } else {
         const displayName = metadataName.trim() || user.email?.split("@")[0] || "Пользователь";
         const avatar = displayName.slice(0, 1).toUpperCase() || "N";

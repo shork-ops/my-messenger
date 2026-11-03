@@ -17,17 +17,26 @@ export const MESSAGE_POLICY = [
   { id: "known", label: "Только знакомые", hint: "Новые люди пишут только через общий чат" },
 ] as const;
 
+/**
+ * Who sees the photo and the "about" line. The words for each choice live with the dialog
+ * (`detailsVisibility.ts`), so the first screen carries only the ids.
+ */
+export const DETAILS_IDS = ["everyone", "contacts", "nobody"] as const;
+
 export type ProfileVisibility = (typeof PROFILE_VISIBILITY)[number]["id"];
 export type MessagePolicy = (typeof MESSAGE_POLICY)[number]["id"];
+export type DetailsVisibility = (typeof DETAILS_IDS)[number];
 
 export type VisibilitySettings = {
   profile: ProfileVisibility;
   messages: MessagePolicy;
+  details: DetailsVisibility;
 };
 
 export const DEFAULT_VISIBILITY: VisibilitySettings = {
   profile: "everyone",
   messages: "everyone",
+  details: "everyone",
 };
 
 /**
@@ -52,7 +61,7 @@ export function acceptsStrangers(policy: MessagePolicy): boolean {
  * Both the profile visibility and the message policy must allow it: hiding from
  * search while still accepting messages from anyone would be incoherent.
  */
-export function mayStartChat(settings: VisibilitySettings, known: boolean): boolean {
+export function mayStartChat(settings: Pick<VisibilitySettings, "profile" | "messages">, known: boolean): boolean {
   if (known) return true;
   if (!isSearchable(settings.profile)) return false;
   return acceptsStrangers(settings.messages);
@@ -72,11 +81,14 @@ export function parseVisibility(raw: unknown): VisibilitySettings {
   const messages = MESSAGE_POLICY.some((item) => item.id === record.messages)
     ? (record.messages as MessagePolicy)
     : DEFAULT_VISIBILITY.messages;
-  return { profile, messages };
+  const details = DETAILS_IDS.includes(record.details as DetailsVisibility)
+    ? (record.details as DetailsVisibility)
+    : DEFAULT_VISIBILITY.details;
+  return { profile, messages, details };
 }
 
 /** The one-line summary shown under the section title. */
-export function describeVisibility(settings: VisibilitySettings): string {
+export function describeVisibility(settings: Pick<VisibilitySettings, "profile" | "messages">): string {
   if (!isSearchable(settings.profile)) return "Меня нельзя найти поиском";
   if (acceptsStrangers(settings.messages)) return "Профиль виден всем, писать может любой";
   return "Профиль виден знакомым, писать могут только знакомые";

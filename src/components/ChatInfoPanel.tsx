@@ -110,6 +110,8 @@ export default function ChatInfoPanel({
           <small>{chatKind(chat)}</small>
           {chat.channel && chat.handle && <small className="chat-info-handle">@{chat.handle}</small>}
           {chat.description && <p className="chat-info-about">{chat.description}</p>}
+          {/* The other person's own line, when they let this reader see it (20261057). */}
+          {!chat.group && !chat.channel && chat.about && <p className="chat-info-about">{chat.about}</p>}
         </section>
       )}
 

@@ -793,15 +793,17 @@ export function useMessenger() {
     const client = supabase;
     if (!client || !accountId) return;
     let alive = true;
-    void client
-      .from("profiles")
-      .select("profile_visibility, message_policy")
-      .eq("id", accountId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!alive || !data) return;
-        setVisibilityState(parseVisibility({ profile: data.profile_visibility, messages: data.message_policy }));
-      });
+    const read = (columns: string) => client.from("profiles").select(columns).eq("id", accountId).maybeSingle();
+    void (async () => {
+      // `details_visibility` arrives with migration 20261057; until then the rest still loads.
+      let { data, error } = await read("profile_visibility, message_policy, details_visibility");
+      if (error) ({ data, error } = await read("profile_visibility, message_policy"));
+      const row = data as Record<string, unknown> | null;
+      if (!alive || !row) return;
+      setVisibilityState(
+        parseVisibility({ profile: row.profile_visibility, messages: row.message_policy, details: row.details_visibility })
+      );
+    })();
     return () => {
       alive = false;
     };

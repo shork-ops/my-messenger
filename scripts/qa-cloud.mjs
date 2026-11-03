@@ -39,7 +39,8 @@ const record = (name, ok, detail) => {
 
 // Tables the app reads. RLS must return an empty set, not an error and not rows.
 const tables = {
-  profiles: "id,display_name,username,about,avatar_path",
+  // The photo and "about" are read through profile_details (20261057), not from the table.
+  profiles: "id,display_name,username",
   chats: "id,is_group,title,invite_code",
   messages: "id,chat_id,sender_id,body,created_at",
   chat_members: "chat_id,user_id,role,muted_until,archived_at",
@@ -83,6 +84,7 @@ const rpcs = [
   ["set_message_pin", { target_message_id: zero, pinned: true }],
   ["pinned_messages", { target_chat_id: zero }],
   ["set_chat_preferences", { p_chat: zero, p_muted_until: null, p_archived: null }],
+  ["profile_details", { user_ids: [zero] }],
 ];
 for (const [name, body] of rpcs) {
   const res = await fetch(`${url}/rest/v1/rpc/${name}`, { method: "POST", headers, body: JSON.stringify(body) });
