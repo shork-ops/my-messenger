@@ -36,17 +36,20 @@ export function useStickyDate(areaRef: RefObject<HTMLElement | null>, chipRef: R
     const hide = () => chip.classList.remove("shown");
     const update = () => {
       frame = 0;
-      const line = area.getBoundingClientRect().top + 8;
+      // Where the pill is drawn, measured rather than assumed: the list's padding differs
+      // between a phone and a desktop. It keeps its place while hidden, so this is always real.
+      const pill = chip.firstElementChild!;
+      const { top, bottom } = pill.getBoundingClientRect();
       const items = area.querySelectorAll<HTMLElement>("[data-window-item]");
       // The wrapper has no box of its own (display: contents); the message inside has.
-      const index = firstBelow(items.length, (i) => items[i].firstElementChild?.getBoundingClientRect().bottom ?? 0, line);
+      const index = firstBelow(items.length, (i) => items[i].firstElementChild?.getBoundingClientRect().bottom ?? 0, top);
       const day = items[index]?.dataset.day;
       const atEnd = area.scrollHeight - area.clientHeight - area.scrollTop <= 24;
-      const crowded = Array.from(area.querySelectorAll(".date-divider"), (divider) => divider.getBoundingClientRect().top).some(
-        (top) => top > line - 16 && top < line + 32
+      const crowded = Array.from(area.querySelectorAll(".date-divider"), (divider) => divider.getBoundingClientRect()).some(
+        (box) => box.bottom > top - 6 && box.top < bottom + 6
       );
       if (!day || atEnd || crowded) return hide();
-      chip.firstElementChild!.textContent = day;
+      pill.textContent = day;
       chip.classList.add("shown");
     };
     const onScroll = () => {
