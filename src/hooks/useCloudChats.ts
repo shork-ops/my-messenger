@@ -7,7 +7,7 @@ import { countUnread } from "../lib/readState";
 import { fetchReactions } from "../lib/messageSync";
 import { DEFAULT_MESSAGE_PAGE_SIZE, loadMessagePage } from "../lib/messageLoader";
 import { isFavouritesChat } from "../lib/messageActions";
-import { fetchProfileDetails } from "../lib/profileDetails";
+import { fetchLastSeen, fetchProfileDetails } from "../lib/profileDetails";
 import type { Chat, Message } from "../types";
 
 type UseCloudChatsOptions = {
@@ -94,12 +94,13 @@ export function useCloudChats({
         return;
       }
       const memberIds = [...new Set((profileRows ?? []).map((row) => row.user_id as string).filter((id) => id !== accountId))];
-      const [{ data: memberProfiles }, memberDetails] = await Promise.all([
+      const [{ data: memberProfiles }, memberDetails, lastSeen] = await Promise.all([
         memberIds.length
-          ? client.from("profiles").select("id, username, display_name, avatar, last_seen_at").in("id", memberIds)
-          : { data: [] as { id: string; username: string | null; display_name: string; avatar: string; last_seen_at: string | null }[] },
-        // Photos and "about" lines by each owner's rule (20261057).
+          ? client.from("profiles").select("id, username, display_name, avatar").in("id", memberIds)
+          : { data: [] as { id: string; username: string | null; display_name: string; avatar: string }[] },
+        // Photos and "about" lines by each owner's rule (20261057), «был(а) в сети» too (20261058).
         fetchProfileDetails(client, memberIds),
+        fetchLastSeen(client, memberIds),
       ]);
 
       // One first page per chat, loaded in parallel instead of the old single limit(1000) request.
@@ -134,10 +135,7 @@ export function useCloudChats({
         }
         const lastReadAt = memberReadAt[accountId] ?? 0;
         const memberLastSeenAt: Record<string, number> = {};
-        for (const member of chatMembers) {
-          const profile = (memberProfiles ?? []).find((entry) => entry.id === member.user_id);
-          memberLastSeenAt[member.user_id as string] = profile?.last_seen_at ? Date.parse(profile.last_seen_at) : 0;
-        }
+        for (const member of chatMembers) memberLastSeenAt[member.user_id as string] = lastSeen.get(member.user_id as string) ?? 0;
         return {
           id: numericId(row.id),
           remoteId: row.id,
