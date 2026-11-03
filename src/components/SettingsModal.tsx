@@ -599,7 +599,7 @@ function PrivacySection({
       />
       <ToggleRow
         label="Время «был(а) в сети»"
-        hint="Показывать, когда вы были в сети"
+        hint="Показывать в шапке чата, когда собеседник был в сети"
         checked={prefs.lastSeen}
         onChange={(checked) => set({ lastSeen: checked })}
       />
@@ -620,7 +620,7 @@ function PrivacySection({
         <ShieldCheck size={20} />
         <span>
           <strong>Приватность и блокировки</strong>
-          <small>Кто вас видит, удаление аккаунта</small>
+          <small>Скрыть своё «был(а) в сети», кто вас видит, удаление аккаунта</small>
         </span>
         <ChevronRight size={18} />
       </button>
