@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { DETAILS_VISIBILITY } from "./detailsVisibility";
 import {
   DEFAULT_VISIBILITY,
+  DETAILS_IDS,
   MESSAGE_POLICY,
   PROFILE_VISIBILITY,
   acceptsStrangers,
@@ -19,8 +21,17 @@ describe("options", () => {
     expect(MESSAGE_POLICY.map((item) => item.id)).toEqual(["everyone", "known"]);
   });
 
+  it("offers three answers to who sees the photo and the about line", () => {
+    expect([...DETAILS_IDS]).toEqual(["everyone", "contacts", "nobody"]);
+    // The dialog's words cover exactly the ids the first screen knows, in the same order.
+    expect(DETAILS_VISIBILITY.map((item) => item.id)).toEqual([...DETAILS_IDS]);
+    expect(DETAILS_VISIBILITY.map((item) => item.label)).toEqual(["Все пользователи", "Мои контакты", "Никто"]);
+    // "Contacts" means something particular here, and the hint has to say what.
+    expect(DETAILS_VISIBILITY.find((item) => item.id === "contacts")?.hint).toMatch(/писали в личных чатах/);
+  });
+
   it("defaults to the most open settings, so nobody is surprised by a lock", () => {
-    expect(DEFAULT_VISIBILITY).toEqual({ profile: "everyone", messages: "everyone" });
+    expect(DEFAULT_VISIBILITY).toEqual({ profile: "everyone", messages: "everyone", details: "everyone" });
   });
 });
 
@@ -61,20 +72,31 @@ describe("mayStartChat", () => {
 
 describe("parseVisibility", () => {
   it("keeps valid values", () => {
-    expect(parseVisibility({ profile: "known", messages: "known" })).toEqual({ profile: "known", messages: "known" });
+    expect(parseVisibility({ profile: "known", messages: "known", details: "contacts" })).toEqual({
+      profile: "known",
+      messages: "known",
+      details: "contacts",
+    });
+    expect(parseVisibility({ profile: "everyone", messages: "everyone", details: "nobody" }).details).toBe("nobody");
   });
 
   it("falls back to defaults for anything unreadable", () => {
     expect(parseVisibility(null)).toEqual(DEFAULT_VISIBILITY);
     expect(parseVisibility({})).toEqual(DEFAULT_VISIBILITY);
-    expect(parseVisibility({ profile: "wat", messages: 42 })).toEqual(DEFAULT_VISIBILITY);
+    expect(parseVisibility({ profile: "wat", messages: 42, details: "friends" })).toEqual(DEFAULT_VISIBILITY);
   });
 
   it("keeps the valid half of a partly broken value", () => {
     expect(parseVisibility({ profile: "nobody", messages: "nope" })).toEqual({
       profile: "nobody",
       messages: DEFAULT_VISIBILITY.messages,
+      details: DEFAULT_VISIBILITY.details,
     });
+  });
+
+  it("reads a database without the photo rule as open", () => {
+    // Before migration 20261057 the column does not exist, so the value is simply absent.
+    expect(parseVisibility({ profile: "known", messages: "known", details: undefined }).details).toBe("everyone");
   });
 });
 
