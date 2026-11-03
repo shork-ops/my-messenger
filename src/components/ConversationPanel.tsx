@@ -14,6 +14,7 @@ import SearchHits from "./SearchHits";
 import { firstUnreadIndex } from "../lib/unread";
 import { seenVisible, type PrivacyPrefs } from "../lib/privacyPrefs";
 import { jumpButton, scrollTarget } from "../lib/jumpToUnread";
+import { useStickyDate } from "../hooks/useStickyDate";
 import { dateLabel, lastSeenLabel } from "../lib/format";
 import { messageRuns } from "../lib/messageRuns";
 import { receiptFor } from "../lib/readState";
@@ -264,6 +265,10 @@ export default function ConversationPanel({
   }, [chat.id, chat.lastReadAt, messagesRef]);
 
   const unreadStart = searchValue.trim() ? null : firstUnreadIndex(chat.messages, chat.lastReadAt ?? null);
+
+  // The day being looked at, floating over the list while it scrolls.
+  const stickyDateRef = useRef<HTMLDivElement>(null);
+  useStickyDate(messagesRef, stickyDateRef, chat.id);
 
   // The jump button exists to take a reader somewhere they are not, so its presence follows
   // the scroll position rather than a timer. `atBottom` starts true because a chat opens at
@@ -570,6 +575,9 @@ export default function ConversationPanel({
             }}
           />
         )}
+        <div className="sticky-date" ref={stickyDateRef} aria-hidden="true">
+          <span />
+        </div>
         {chat.messages.length > 0 && !chat.messages.some((message) => message.createdAt) && (
           <div className="date-divider">
             <span>История переписки</span>
@@ -607,9 +615,8 @@ export default function ConversationPanel({
           const previous = chat.messages[index - 1];
           // The divider marks where reading left off; not shown while searching,
           // where the visible list is a different set from the conversation.
-                  const showDivider =
-            Boolean(message.createdAt) &&
-            (index === 0 || !previous?.createdAt || dateLabel(message.createdAt!) !== dateLabel(previous.createdAt!));
+          const day = message.createdAt ? dateLabel(message.createdAt) : "";
+          const showDivider = Boolean(day) && (index === 0 || !previous?.createdAt || day !== dateLabel(previous.createdAt));
           const showGamePreview =
             isDemoMode && chat.id === 1 && index === chat.messages.length - 1 && !message.mine;
           // In a group the speaker is named once per run of their messages, not on every line.
@@ -620,7 +627,7 @@ export default function ConversationPanel({
             <Fragment key={message.id}>
               {showDivider && (
                 <div className="date-divider">
-                  <span>{dateLabel(message.createdAt!)}</span>
+                  <span>{day}</span>
                 </div>
               )}
               {unreadStart === index && (
@@ -628,7 +635,7 @@ export default function ConversationPanel({
                   <span>Непрочитанные</span>
                 </div>
               )}
-              <div className="window-item" data-window-item>
+              <div className="window-item" data-window-item data-day={day || undefined}>
               <MessageBubble
                 message={message}
                 showAuthor={Boolean(chat.group) && (run?.startsRun ?? true)}
