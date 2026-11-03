@@ -112,11 +112,6 @@
 .attachment-file strong { overflow-wrap: anywhere; font-size: 12px; }
 .attachment-file small { font-size: 12px; opacity: .7; }
 
-
-.clear-history-button { align-self: flex-start; min-height: 44px; margin: 12px 0 8px; padding: 0 4px; border: 0; background: transparent; color: #d88c8c; font-size: 12px; text-align: left; }
-.clear-history-button:hover { color: #ffb4b4; text-decoration: underline; }
-
-
 /* Voice notes, polls, gallery, group setup and @mention suggestions. */
 .composer-input-wrap { position: relative; flex: 1; min-width: 0; }
 .composer-input-wrap > textarea { width: 100%; min-width: 0; }
@@ -760,7 +755,6 @@ button.conversation-title { border: 0; padding: 0; background: transparent; text
   .conversation-tools { flex-basis: auto; flex-shrink: 0; }
   .conversation-tools > .header-video-call { display: none; }
   .chat-menu .mobile-video-action { display: flex; }
-  .right-panel { width: min(360px, 100vw); }
   .composer { margin-bottom: max(8px, env(safe-area-inset-bottom)); }
   .composer textarea { font-size: 16px; }
   .chat-filters { flex-wrap: nowrap; overflow-x: auto; flex-shrink: 0; }

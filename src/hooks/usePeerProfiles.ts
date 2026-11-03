@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { supabase } from "../lib/supabase";
-import { fetchProfileDetails } from "../lib/profileDetails";
+import { fetchLastSeen, fetchProfileDetails } from "../lib/profileDetails";
 import type { Chat } from "../types";
 
 export function usePeerProfiles({ accountId, chats, setChats }: { accountId: string | null; chats: Chat[]; setChats: Dispatch<SetStateAction<Chat[]>> }) {
@@ -13,11 +13,13 @@ export function usePeerProfiles({ accountId, chats, setChats }: { accountId: str
     const refresh = async () => {
       if (document.visibilityState === "hidden") return;
       const ids = peers.split(",");
-      // The photo and the "about" line come by the owner's rule (20261057); a reply that did not
-      // come at all keeps what is on screen rather than wiping it.
-      const [{ data, error }, details] = await Promise.all([
+      // The photo and the "about" line come by the owner's rule (20261057), «был(а) в сети» too
+      // (20261058) - read again here so the header does not keep the time the list loaded with.
+      // A reply that did not come at all keeps what is on screen rather than wiping it.
+      const [{ data, error }, details, seen] = await Promise.all([
         client.from("profiles").select("id, display_name, avatar").in("id", ids),
         fetchProfileDetails(client, ids),
+        fetchLastSeen(client, ids),
       ]);
       if (!alive || error || !data) return;
       setChats(all => all.map(chat => {
@@ -26,8 +28,9 @@ export function usePeerProfiles({ accountId, chats, setChats }: { accountId: str
         const extra = details.get(peer.id);
         const avatarPath = extra ? extra.avatar_path : chat.avatarPath ?? null;
         const about = extra ? extra.about : chat.about ?? null;
-        if (chat.name === peer.display_name && chat.avatar === peer.avatar && chat.avatarPath === avatarPath && (chat.about ?? null) === about) return chat;
-        return { ...chat, name: peer.display_name, avatar: peer.avatar, avatarPath, about };
+        const lastSeen = seen.get(peer.id) ?? chat.memberLastSeenAt?.[peer.id] ?? 0;
+        if (chat.name === peer.display_name && chat.avatar === peer.avatar && chat.avatarPath === avatarPath && (chat.about ?? null) === about && (chat.memberLastSeenAt?.[peer.id] ?? 0) === lastSeen) return chat;
+        return { ...chat, name: peer.display_name, avatar: peer.avatar, avatarPath, about, memberLastSeenAt: { ...chat.memberLastSeenAt, [peer.id]: lastSeen } };
       }));
     };
     void refresh();
