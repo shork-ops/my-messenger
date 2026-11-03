@@ -15,6 +15,7 @@ export function createDemoSeedChats(now: number = Date.now()): Chat[] {
       name: "Максим",
       avatar: "М",
       color: "blue",
+      about: "Фотограф. Люблю горы и длинные маршруты 🏔️",
       preview: "Смотри, что нашёл",
       time: "12:41",
       unread: 2,

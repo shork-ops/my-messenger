@@ -7,6 +7,7 @@ import { countUnread } from "../lib/readState";
 import { fetchReactions } from "../lib/messageSync";
 import { DEFAULT_MESSAGE_PAGE_SIZE, loadMessagePage } from "../lib/messageLoader";
 import { isFavouritesChat } from "../lib/messageActions";
+import { fetchProfileDetails } from "../lib/profileDetails";
 import type { Chat, Message } from "../types";
 
 type UseCloudChatsOptions = {
@@ -93,9 +94,13 @@ export function useCloudChats({
         return;
       }
       const memberIds = [...new Set((profileRows ?? []).map((row) => row.user_id as string).filter((id) => id !== accountId))];
-      const { data: memberProfiles } = memberIds.length
-        ? await client.from("profiles").select("id, username, display_name, avatar, avatar_path, last_seen_at").in("id", memberIds)
-        : { data: [] as { id: string; username: string | null; display_name: string; avatar: string; avatar_path?: string | null; last_seen_at: string | null }[] };
+      const [{ data: memberProfiles }, memberDetails] = await Promise.all([
+        memberIds.length
+          ? client.from("profiles").select("id, username, display_name, avatar, last_seen_at").in("id", memberIds)
+          : { data: [] as { id: string; username: string | null; display_name: string; avatar: string; last_seen_at: string | null }[] },
+        // Photos and "about" lines by each owner's rule (20261057).
+        fetchProfileDetails(client, memberIds),
+      ]);
 
       // One first page per chat, loaded in parallel instead of the old single limit(1000) request.
       const pages = await Promise.all(
@@ -139,7 +144,8 @@ export function useCloudChats({
           peerId: row.is_group ? undefined : other?.id,
           name: row.is_group ? row.title : other?.display_name || row.title,
           avatar: row.is_group ? "👥" : other?.avatar || other?.display_name?.slice(0, 1) || "N",
-          avatarPath: row.is_group ? null : other?.avatar_path ?? null,
+          avatarPath: row.is_group || !other ? null : memberDetails.get(other.id)?.avatar_path ?? null,
+          about: row.is_group || !other ? null : memberDetails.get(other.id)?.about ?? null,
           color: row.is_group ? `group ${avatarTone(row.id)}` : avatarTone(other?.id ?? row.id),
           preview: last?.text || "Начни общение",
           time: last?.time || "",

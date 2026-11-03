@@ -1,8 +1,10 @@
 import { Ban, Download, Lock, ShieldCheck, Trash2, X } from "lucide-react";
 import type { PrivacyPreferences } from "../lib/privacy";
+import { DETAILS_VISIBILITY } from "../lib/detailsVisibility";
 import {
   MESSAGE_POLICY,
   PROFILE_VISIBILITY,
+  type DetailsVisibility,
   type MessagePolicy,
   type ProfileVisibility,
   type VisibilitySettings,
@@ -147,6 +149,23 @@ export default function PrivacyModal({
                 ? "Пока профиль скрыт, писать могут только те, с кем уже есть чат"
                 : MESSAGE_POLICY.find((option) => option.id === visibility.messages)?.hint}
             </small>
+          </label>
+          <label className="privacy-select">
+            <span>Кто видит фото и «О себе»</span>
+            <select
+              value={visibility.details}
+              disabled={saving}
+              onChange={(event) =>
+                onVisibilityChange({ ...visibility, details: event.target.value as DetailsVisibility })
+              }
+            >
+              {DETAILS_VISIBILITY.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <small>{DETAILS_VISIBILITY.find((option) => option.id === visibility.details)?.hint}</small>
           </label>
         </div>
 

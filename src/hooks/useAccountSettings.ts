@@ -17,6 +17,13 @@ import { deleteAccount, savePrivacyPreferences, unblockUser, type PrivacyPrefere
 import { describeVisibility, type VisibilitySettings } from "../lib/visibility";
 import { SESSION_STORAGE_KEY, type SessionRecord } from "../lib/sessions";
 
+/** What the reader is told once the photo rule is saved. */
+const DETAILS_SAVED: Record<VisibilitySettings["details"], string> = {
+  everyone: "Фото и «О себе» видят все",
+  contacts: "Фото и «О себе» видят только ваши контакты",
+  nobody: "Фото и «О себе» теперь не видит никто",
+};
+
 export function useAccountSettings(deps: {
   accountId: string | null;
   notify: (text: string) => void;
@@ -57,17 +64,28 @@ export function useAccountSettings(deps: {
       deps.notify("Настройка сохранена");
       return;
     }
+    // The photo rule is sent only when it changed: until migration 20261057 has been run the
+    // column does not exist, and the two older settings must keep saving meanwhile.
+    const detailsChanged = next.details !== previous.details;
     const { error } = await client
       .from("profiles")
-      .update({ profile_visibility: next.profile, message_policy: next.messages })
+      .update({
+        profile_visibility: next.profile,
+        message_policy: next.messages,
+        ...(detailsChanged ? { details_visibility: next.details } : {}),
+      })
       .eq("id", deps.accountId);
     if (error) {
       // Put it back rather than showing a switch that saved nothing.
       deps.setVisibilityState(previous);
-      deps.notify("Не удалось сохранить настройку видимости");
+      deps.notify(
+        /details_visibility/.test(error.message)
+          ? "Настройка заработает после обновления базы данных"
+          : "Не удалось сохранить настройку видимости"
+      );
       return;
     }
-    deps.notify(describeVisibility(next));
+    deps.notify(detailsChanged ? DETAILS_SAVED[next.details] : describeVisibility(next));
   }
 
   async function clearCache() {

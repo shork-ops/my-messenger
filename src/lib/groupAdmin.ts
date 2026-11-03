@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchProfileDetails } from "./profileDetails";
 
 /**
  * Group management RPCs. All authorization lives in Postgres
@@ -46,19 +47,20 @@ export async function fetchChatMembers(client: SupabaseClient, chatId: string): 
   const members = (data ?? []) as ChatMember[];
   if (members.length === 0) return { ok: true, data: [] };
 
-  const { data: profiles, error: profileError } = await client
-    .from("profiles")
-    .select("id, display_name, avatar_path")
-    .in("id", members.map((member) => member.user_id));
+  const memberIds = members.map((member) => member.user_id);
+  // Photos by each owner's rule (20261057): a member who hid theirs shows the letter.
+  const [{ data: profiles, error: profileError }, details] = await Promise.all([
+    client.from("profiles").select("id, display_name").in("id", memberIds),
+    fetchProfileDetails(client, memberIds),
+  ]);
   if (profileError) return describe(profileError);
 
   const names = new Map((profiles ?? []).map((profile) => [profile.id as string, profile.display_name as string | null]));
-  const photos = new Map((profiles ?? []).map((profile) => [profile.id as string, profile.avatar_path as string | null]));
   const weight: Record<string, number> = { owner: 0, admin: 1, member: 2 };
   return {
     ok: true,
     data: members
-      .map((member) => ({ ...member, display_name: names.get(member.user_id) ?? null, avatar_path: photos.get(member.user_id) ?? null }))
+      .map((member) => ({ ...member, display_name: names.get(member.user_id) ?? null, avatar_path: details.get(member.user_id)?.avatar_path ?? null }))
       .sort((a, b) => (weight[a.role] ?? 3) - (weight[b.role] ?? 3) || a.joined_at.localeCompare(b.joined_at)),
   };
 }

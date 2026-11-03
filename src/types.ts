@@ -130,6 +130,8 @@ export type Chat = {
   channelDesign?: ChannelDesign;
   /** What the channel says about itself; shown instead of the subscriber count. */
   description?: string;
+  /** The other person's "about" line in a personal chat, when they let this reader see it. */
+  about?: string | null;
   /** The handle a channel can be found and joined by. */
   handle?: string;
   /** Disappearing messages: seconds a new message lives. Null or absent means messages stay. */
