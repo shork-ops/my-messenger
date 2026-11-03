@@ -1,0 +1,33 @@
+/* The privacy dialog. Loaded with the dialog itself: nobody opening the app to read a
+   message needs these rules before the first screen. */
+.privacy-select { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.privacy-select > span { color: var(--fg); font-size: var(--text-caption); font-weight: 600; }
+/* The field look itself comes from `.settings-modal select`, which this dialog shares. */
+.privacy-select select { min-height: 42px; }
+.privacy-select select:disabled { opacity: .55; }
+.privacy-select small { color: var(--fg-muted); font-size: 12px; line-height: 1.4; }
+/* Privacy settings modal. */
+.privacy-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--surface-2); cursor: pointer; }
+.privacy-row span { display: flex; flex-direction: column; gap: 3px; }
+.privacy-row strong { color: #ececef; font-size: 13px; font-weight: 600; }
+.privacy-row small { color: var(--fg-muted); font-size: 12px; line-height: 1.45; }
+.privacy-row input { flex: 0 0 auto; width: 18px; height: 18px; accent-color: var(--yellow); cursor: pointer; }
+.privacy-section { margin-top: 16px; }
+/* The encryption answer is information, not a control: it is quieter than the switches and
+   set apart so it is not mistaken for a setting that can be turned on. */
+.encryption-note { padding: 10px 12px; border: 1px solid var(--border); border-left: 3px solid var(--fg-muted); border-radius: 9px; background: #121317; }
+.encryption-note .modal-help { margin: 0 0 6px; }
+.encryption-note .modal-help:last-child { margin-bottom: 0; }
+.archive-button { display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 9px; background: #121317; color: var(--fg); font-size: 13px; cursor: pointer; }
+.archive-button:hover { border-color: var(--yellow); color: var(--yellow); }
+.privacy-heading { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; color: var(--fg-secondary); font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; }
+.privacy-heading b { padding: 1px 7px; border: 1px solid var(--border); border-radius: 10px; color: var(--yellow); font-size: 12px; }
+.blocked-list { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.blocked-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; background: #121317; }
+.blocked-list li span { flex: 1; min-width: 0; color: var(--fg-secondary); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+.blocked-list li button { flex: 0 0 auto; padding: 5px 9px; border: 1px solid var(--border); border-radius: 7px; background: #1a1b20; color: var(--fg-secondary); font-size: 12px; cursor: pointer; }
+.blocked-list li button:hover { border-color: var(--border-strong); color: var(--yellow); }
+.danger-zone { padding-top: 14px; border-top: 1px solid #2a1d1d; }
+.danger-button { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 8px 12px; border: 1px solid #5a2a2a; border-radius: 9px; background: #1d1113; color: #ff8f8f; font-size: 12px; cursor: pointer; }
+.danger-button:hover:not(:disabled) { border-color: color-mix(in srgb, var(--danger, #e5534b) 50%, var(--border)); background: color-mix(in srgb, var(--danger, #e5534b) 12%, var(--surface-1)); }
+.danger-button:disabled { opacity: 0.6; cursor: default; }
