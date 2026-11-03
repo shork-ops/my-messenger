@@ -218,47 +218,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 .emoji-button { color: #a5a6ad; }
 .send-button { display: grid; flex-shrink: 0; place-items: center; width: 43px; height: 43px; border: 0; border-radius: 12px; background: var(--yellow); color: #111; transition: opacity .15s; }
 .send-button:disabled { opacity: .45; cursor: default; }
-.right-panel { display: flex; flex-direction: column; overflow-y: auto; padding: 28px 25px 20px; border-left: 1px solid var(--line); background: var(--surface-0); }
-.right-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; font-size: 16px; font-weight: 500; }
-.mobile-close { display: none; border: 0; background: transparent; color: var(--fg-secondary); }
-.profile-card { display: flex; align-items: center; gap: 13px; width: 100%; padding: 0 0 22px; border: 0; background: transparent; text-align: left; }
-.profile-card > span:nth-child(2) { display: flex; flex: 1; flex-direction: column; gap: 7px; }
-.profile-card strong { font-size: 14px; }
-.profile-card small { font-size: 12px; }
-.yellow-icon { color: var(--yellow); }
-.right-divider { height: 1px; flex-shrink: 0; background: var(--line); }
-.online-heading { display: flex; align-items: center; justify-content: space-between; margin: 19px 0 10px; }
-.online-heading span { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; }
-.online-heading b { padding: 4px 10px; border: 1px solid #12663e; border-radius: 18px; background: #08251a; color: #36e59a; font-size: 12px; }
-.friends-list { display: flex; flex-direction: column; gap: 7px; }
-.friend-row { display: flex; align-items: center; gap: 12px; padding: 0; border: 0; background: transparent; text-align: left; }
-.friend-row > span:last-child { color: var(--fg); font-size: var(--text-caption); }
-/* Group member rows: name + role on the left, management icons on hover. */
-.member-row { justify-content: space-between; }
-.member-copy { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
-.member-copy strong { color: var(--fg); font-size: var(--text-caption); font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
-.member-copy small { color: var(--fg-muted); font-size: 12px; }
-.member-actions { display: flex; align-items: center; gap: 4px; opacity: 0; transition: opacity 0.15s ease; }
-.member-row:hover .member-actions, .member-actions:focus-within { opacity: 1; }
-.member-actions button {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-1);
-  color: var(--fg-secondary);
-  cursor: pointer;
-}
-.member-actions button:hover { border-color: var(--border-strong); color: #ffd400; }
-.clear-history-button.danger { display: flex; align-items: center; gap: 6px; }
-.friend-avatar-wrap { position: relative; }
-.friend-avatar-wrap .avatar { width: 38px; height: 38px; }
-.friend-avatar-wrap i { position: absolute; right: -1px; bottom: 0; width: 10px; height: 10px; border: 2px solid var(--surface-0); }
-.invite-row { display: flex; align-items: center; gap: 13px; min-height: 44px; padding: 4px 0; border: 0; background: transparent; color: var(--fg-secondary); text-align: left; font-size: 12px; }
-.invite-row > span { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: color-mix(in srgb, var(--yellow) 14%, var(--surface-2)); color: var(--yellow); }
-.invite-row:hover { color: var(--fg); }
 .games-divider { margin-top: 17px; }
 .games-heading { display: flex; align-items: center; gap: 10px; min-height: 44px; margin: 16px 0 10px; padding: 0; border: 0; background: transparent; color: var(--yellow); text-align: left; }
 .games-heading strong { flex: 1; font-size: 14px; }
@@ -309,8 +268,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
      conversation drops to a third of the screen, which is worse than hiding it. */
 @media (max-width: 1439px) {
   .app-shell { grid-template-columns: 190px minmax(245px, 285px) minmax(340px, 1fr); }
-  /* Drawer, not a column: the panel is reachable at every width it is hidden. */
-  .right-panel { position: fixed; z-index: 30; top: 0; right: 0; bottom: 0; display: flex; width: min(340px, 92vw); border-left: 1px solid var(--border); background: #0d0e11; box-shadow: -18px 0 60px #000c; }
 }
 /* Tablet and small laptop: the rail is labels people read once, so it shrinks to
    icons and gives the width back to the conversation. */
@@ -370,8 +327,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
   .attach-button, .emoji-button { width: 44px; height: 44px; }
   .emoji-button { display: grid; }
   .send-button { width: 44px; height: 44px; }
-  .right-panel { z-index: 30; width: min(310px, calc(100vw - 66px)); border-left: 1px solid var(--border); box-shadow: -20px 0 60px #0009; }
-  .mobile-close { display: grid; place-items: center; }
 }
 
 
@@ -494,7 +449,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); ou
 [data-theme="light"] .chat-meta b,
 [data-theme="light"] .mobile-bottom-nav b { background: var(--accent-fill); color: #1a1400; }
 [data-theme="light"] { --danger-text: #b42318; }
-[data-theme="light"] .online-heading b { border-color: #9fdcbc; background: #e6f7ee; color: #157347; }
 [data-theme="light"] .nav-link.active { background: linear-gradient(110deg, var(--accent-fill-soft), var(--accent-fill)); color: #1a1400; }
 /* The unread badge is a fill, with dark text on it. */
 [data-theme="light"] .nav-count { background: var(--accent-fill); color: #1a1400; }
