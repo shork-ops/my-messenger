@@ -117,8 +117,9 @@ grant execute on function public.profile_details(uuid[]) to authenticated;
 
 -- The columns themselves. PostgreSQL cannot take one column away from a table-wide grant, so
 -- the table-wide SELECT goes and every other column is granted by name. The list is read from
--- the table as it is now, so columns added by earlier migrations stay readable. A column
--- added to `profiles` later needs its own `grant select (column)`.
+-- the table as it is now, so columns added by earlier migrations stay readable, and a column
+-- closed by a later one (20261058: last_seen_at) stays closed when this file is run again. A
+-- column added to `profiles` later needs its own `grant select (column)`.
 do $$
 declare
   readable text;
@@ -128,7 +129,8 @@ begin
   from information_schema.columns
   where table_schema = 'public'
     and table_name = 'profiles'
-    and column_name not in ('avatar_path', 'about');
+    and column_name not in ('avatar_path', 'about')
+    and has_column_privilege('authenticated', 'public.profiles', column_name, 'SELECT');
 
   revoke select on public.profiles from anon, authenticated;
   revoke select (avatar_path, about) on public.profiles from anon, authenticated;

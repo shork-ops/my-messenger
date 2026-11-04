@@ -25,7 +25,6 @@ import {
   blockUser,
   deleteAccount,
   fetchBlockedIds,
-  fetchPrivacyPreferences,
   savePrivacyPreferences,
   unblockUser,
 } from "../lib/privacy";
@@ -167,6 +166,8 @@ export function useMessenger() {
   const [openedChatId, setOpenedChatId] = useState<number | null>(null);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [privacy, setPrivacy] = useState<PrivacyPreferences>(DEFAULT_PRIVACY);
+  // Whose switches `privacy` holds: until this account's own are read it is not shown as online.
+  const [privacyOf, setPrivacyOf] = useState<string | null>(null);
   const [privacySaving, setPrivacySaving] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [blockedEntries, setBlockedEntries] = useState<string[]>([]);
@@ -567,7 +568,7 @@ export function useMessenger() {
   });
 
   const { typingUsers, notifyTyping } = useTyping({ remoteId: activeChat.remoteId, accountId, profileName });
-  const { onlineIds } = usePresence({ accountId, profileName });
+  const { onlineIds } = usePresence({ accountId, announce: privacyOf === accountId && !privacy.hideLastSeen });
   const peerId =
     activeChat.group || !activeChat.remoteId
       ? null
@@ -796,13 +797,23 @@ export function useMessenger() {
     const read = (columns: string) => client.from("profiles").select(columns).eq("id", accountId).maybeSingle();
     void (async () => {
       // `details_visibility` arrives with migration 20261057; until then the rest still loads.
-      let { data, error } = await read("profile_visibility, message_policy, details_visibility");
-      if (error) ({ data, error } = await read("profile_visibility, message_policy"));
+      const columns = "profile_visibility, message_policy, hide_last_seen, disable_read_receipts";
+      let { data, error } = await read(`${columns}, details_visibility`);
+      if (error) ({ data, error } = await read(columns));
       const row = data as Record<string, unknown> | null;
       if (!alive || !row) return;
       setVisibilityState(
         parseVisibility({ profile: row.profile_visibility, messages: row.message_policy, details: row.details_visibility })
       );
+      // The two privacy switches live on the same row. Without them the window showed both off
+      // after every reload, and turning one on saved the other as off.
+      setPrivacy({ hideLastSeen: Boolean(row.hide_last_seen), disableReadReceipts: Boolean(row.disable_read_receipts) });
+      setPrivacyOf(accountId);
+      // The block list, with names, so the privacy window can offer to unblock.
+      const blocked = await fetchBlockedIds(client);
+      const { data: people } = blocked.length ? await client.from("profiles").select("id, display_name").in("id", blocked) : { data: [] };
+      const names = new Map((people ?? []).map((person) => [person.id as string, person.display_name as string]));
+      if (alive) setBlockedEntries(blocked.map((id) => `${id}:${names.get(id) ?? "Пользователь"}`));
     })();
     return () => {
       alive = false;

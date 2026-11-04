@@ -129,7 +129,8 @@ assert.ok(await refused(s, () => db.query("select public.has_written_to($1, $2)"
 ok("фото и «о себе» не читаются из таблицы напрямую — ни посторонним, ни анониму, ни самому владельцу");
 
 // 2. What the app reads stays readable.
-const basics = await as(s, () => db.query("select id, display_name, avatar, username, last_seen_at from public.profiles order by id"));
+// «был(а) в сети» is closed by the next migration (20261058) and has its own check.
+const basics = await as(s, () => db.query("select id, display_name, avatar, username from public.profiles order by id"));
 assert.equal(basics.rows.length, ids.length);
 const own = await as(o, () => db.query("select display_name, avatar, username, profile_visibility, message_policy, details_visibility, hide_last_seen, disable_read_receipts from public.profiles where id = $1", [o]));
 assert.equal(own.rows[0].details_visibility, "everyone", "everyone is the default");
@@ -140,7 +141,7 @@ await as(o, () =>
     [o]
   )
 );
-ok("имя, буква, ник, «был(а) в сети» и свои настройки читаются как раньше; профиль сохраняется (upsert)");
+ok("имя, буква, ник и свои настройки читаются как раньше; профиль сохраняется (upsert)");
 
 // 3. Everyone, the default: a stranger sees both, in the search too, and may fetch the file.
 assert.ok(await sees(s));

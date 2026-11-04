@@ -82,7 +82,7 @@ export default function PrivacyModal({
         <label className="privacy-row">
           <span>
             <strong>Скрывать «был(а) в сети»</strong>
-            <small>Собеседники увидят «недавно» вместо точного времени</small>
+            <small>Собеседники увидят «был(а) недавно» — без точного времени и без «в сети»</small>
           </span>
           <input
             type="checkbox"

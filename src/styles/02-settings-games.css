@@ -188,7 +188,6 @@
   .settings-detail { max-height: none; padding: 16px; }
   .settings-nav-item { min-height: 56px; }
 }
-.profile-about { margin: -6px 0 10px; padding: 0 2px; color: var(--fg-secondary); font-size: 13px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
 .about-input { width: 100%; min-height: 64px; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: 10px; outline: 0; background: var(--surface-0); color: var(--fg); font: inherit; font-size: 14px; line-height: 1.45; resize: vertical; }
 .about-input:focus { border-color: var(--yellow); }
 .about-help { display: flex; align-items: center; justify-content: space-between; gap: 10px; }

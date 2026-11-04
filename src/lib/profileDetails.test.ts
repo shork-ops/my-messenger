@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fetchProfileDetails } from "./profileDetails";
+import { fetchLastSeen, fetchProfileDetails } from "./profileDetails";
 
 type Reply = { data: unknown; error: { message: string } | null };
 
@@ -54,5 +54,45 @@ describe("fetchProfileDetails", () => {
       { data: null, error: { message: "permission denied for column about" } }
     );
     expect((await fetchProfileDetails(client, ["a"])).size).toBe(0);
+  });
+});
+
+describe("fetchLastSeen", () => {
+  it("reads through the function that applies the owner's rule, hidden as unknown", async () => {
+    const { client, rpc, from } = fakeClient({
+      data: [
+        { id: "a", last_seen_at: "2026-11-03T10:00:00.000Z" },
+        { id: "b", last_seen_at: null },
+      ],
+      error: null,
+    });
+    const found = await fetchLastSeen(client, ["a", "b"]);
+    expect(rpc).toHaveBeenCalledWith("last_seen_of", { user_ids: ["a", "b"] });
+    expect(from).not.toHaveBeenCalled();
+    expect(found.get("a")).toBe(Date.parse("2026-11-03T10:00:00.000Z"));
+    // Hidden and never seen read alike - the header then says «был(а) недавно».
+    expect(found.get("b")).toBe(0);
+  });
+
+  it("falls back to the column while the migration has not been run", async () => {
+    const { client, select, inFn } = fakeClient(
+      { data: null, error: { message: "Could not find the function public.last_seen_of" } },
+      { data: [{ id: "a", last_seen_at: "2026-11-03T09:00:00.000Z" }], error: null }
+    );
+    const found = await fetchLastSeen(client, ["a"]);
+    expect(select).toHaveBeenCalledWith("id, last_seen_at");
+    expect(inFn).toHaveBeenCalledWith("id", ["a"]);
+    expect(found.get("a")).toBe(Date.parse("2026-11-03T09:00:00.000Z"));
+  });
+
+  it("comes back empty, not broken, when both ways fail, and asks nobody for nobody", async () => {
+    const failing = fakeClient(
+      { data: null, error: { message: "network" } },
+      { data: null, error: { message: "permission denied for column last_seen_at" } }
+    );
+    expect((await fetchLastSeen(failing.client, ["a"])).size).toBe(0);
+    const idle = fakeClient({ data: [], error: null });
+    expect((await fetchLastSeen(idle.client, [])).size).toBe(0);
+    expect(idle.rpc).not.toHaveBeenCalled();
   });
 });
