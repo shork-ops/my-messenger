@@ -40,7 +40,8 @@ export function useChatSelection(deps: {
     const snapshot=current.current.chats.find(item=>item.remoteId===remoteId)?.messages??chat.messages;
     try {
     const {loadMessageSnapshot,reconcileMessageSnapshot}=await import("../lib/messageSnapshot");
-    const messages=await loadMessageSnapshot({chatId:remoteId,accountId:owner,selfName:deps.profileName,authorName:"Собеседник"},snapshot.flatMap(message=>message.remoteId?[message.remoteId]:[]));
+    const times=snapshot.flatMap(message=>message.remoteId && Number.isFinite(message.createdAt) ? [message.createdAt!] : []);
+    const messages=await loadMessageSnapshot({chatId:remoteId,accountId:owner,selfName:deps.profileName,authorName:"Собеседник"},snapshot.flatMap(message=>message.remoteId?[message.remoteId]:[]),times.length ? Math.min(...times) : undefined);
     if(!messages||!alive.current||current.current.accountId!==owner||requests.current.get(remoteId)!==sequence)return;
     deps.setChats(items=>items.map(item=>{
       if(item.remoteId!==remoteId)return item;

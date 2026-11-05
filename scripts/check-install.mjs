@@ -91,6 +91,22 @@ const anonymous = await db.query('select * from public.messages').then((r) => r.
 await db.exec('rollback');
 assert.equal(anonymous, 0, 'a signed-out visitor reads nothing');
 
+
+// Recovery traverses more than one page and respects scheduled visibility and hides.
+await db.query("insert into public.messages(chat_id,sender_id,body,created_at) select $1,$2,'gap-'||n,'2003-01-01'::timestamptz from generate_series(1,250) n",[chat,a]);
+await db.query("insert into public.messages(chat_id,sender_id,body,created_at,send_at) values($1,$2,'old scheduled','2000-01-01','2002-01-01'),($1,$2,'future','2000-01-01',now()+interval '1 day')",[chat,a]);
+await as(b,()=>db.query("insert into public.message_hides(message_id,user_id) select id,$1 from public.messages where body='gap-1'",[b]));
+const recovered=[];let cursor=null;
+for(let page=0;page<10;page++){
+ const batch=(await as(b,()=>db.query("select * from public.recover_chat_messages($1,'2001-01-01',$2,100)",[chat,cursor]))).rows;
+ recovered.push(...batch);if(batch.length<100)break;cursor=batch.at(-1).id;
+}
+assert.equal(recovered.length,251,'all gap messages, hello and due scheduled row, minus hidden');
+assert.equal(new Set(recovered.map(row=>row.id)).size,251);
+assert.ok(recovered.some(row=>row.body==='old scheduled'));
+assert.ok(!recovered.some(row=>['future','gap-1'].includes(row.body)));
+assert.equal((await as(c,()=>db.query("select * from public.recover_chat_messages($1,'2001-01-01')",[chat]))).rows.length,0,'recovery respects membership');
+assert.ok(!(await as(a,()=>db.query("select * from public.recover_chat_messages($1,'2001-01-01',null,100)",[chat]))).rows.some(row=>row.body==='future'),'even sender does not recover future messages into history');
 await install('second run');
 
 console.log(`PASS: ${files.length} files install on an empty project and again on top of themselves; every table has RLS; sign-up, direct chat and message visibility work.`);

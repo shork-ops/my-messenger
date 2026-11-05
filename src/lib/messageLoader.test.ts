@@ -1,10 +1,11 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import type { ChatMessageRow } from "../types";
-const mocks = vi.hoisted(() => ({ latest: vi.fn(), known: vi.fn(), reactions: vi.fn(), map: vi.fn() }));
+const mocks = vi.hoisted(() => ({ latest: vi.fn(), known: vi.fn(), reactions: vi.fn(), map: vi.fn(), recovery: vi.fn() }));
 vi.mock("./messageSync", () => ({
   fetchLatestMessages: mocks.latest, fetchKnownMessages: mocks.known,
   fetchReactions: mocks.reactions, mapMessageRow: mocks.map, fetchOlderMessages: vi.fn(),
 }));
+vi.mock("./messageRecovery", () => ({ fetchRecoveryMessages: mocks.recovery }));
 import { loadMessageSnapshot } from "./messageSnapshot";
 const options = { chatId: "chat", accountId: "user", selfName: "Me", authorName: "Peer" };
 const row = (id: string, body = "old") => ({ id, body }) as ChatMessageRow;
@@ -32,6 +33,17 @@ it("never interprets failed visibility or row lookups as a successful empty snap
 it("keeps the current snapshot when transport or reaction loading fails", async () => {
   mocks.latest.mockRejectedValueOnce(new TypeError("offline"));
   expect(await loadMessageSnapshot(options, [])).toBeNull();
+  mocks.latest.mockResolvedValue([row("message")]);
   mocks.reactions.mockRejectedValueOnce(new Error("reaction service unavailable"));
   expect(await loadMessageSnapshot(options, [])).toBeNull();
+});
+
+it("uses paginated recovery for an existing history window and batches reactions", async () => {
+  mocks.recovery.mockResolvedValue(Array.from({length:251},(_,i)=>row(String(i))));
+  const messages=await loadMessageSnapshot(options,[],123);
+  expect(messages).toHaveLength(251);
+  expect(mocks.recovery).toHaveBeenCalledWith("chat",123);
+  expect(mocks.latest).not.toHaveBeenCalled();
+  expect(mocks.reactions).toHaveBeenCalledTimes(6);
+  expect(Math.max(...mocks.reactions.mock.calls.map(args=>args[0].length))).toBe(50);
 });
