@@ -33,8 +33,10 @@ jobs:
           deno-version: v2.x
       - name: Edge function security tests
         run: |
-          deno check --no-config --node-modules-dir=none supabase/functions/link-preview/index.ts supabase/functions/push-notify/index.ts supabase/functions/delete-account/index.ts
-          deno test --allow-env --no-config --node-modules-dir=none supabase/tests/edge-functions.test.ts supabase/tests/public-page.test.ts
+          deno check --no-config --node-modules-dir=none supabase/functions/link-preview/index.ts supabase/functions/push-notify/index.ts supabase/functions/delete-account/index.ts supabase/functions/push-dispatch/index.ts
+          deno test --allow-env --no-config --node-modules-dir=none supabase/tests/edge-functions.test.ts supabase/tests/public-page.test.ts supabase/tests/push-delivery.test.ts
+      - name: Push queue database checks
+        run: node scripts/check-push-queue.mjs
       - name: Single-view database permissions
         run: npm run test:db
       - name: Moderation queue permissions

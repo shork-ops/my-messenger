@@ -22,6 +22,9 @@ globalThis.fetch = ((input: string | URL | Request, init?: RequestInit) => {
   }
   if (url.includes("/rest/v1/profiles")) return Promise.resolve(Response.json(profileExists ? { id: "caller" } : null));
   if (url.includes("/auth/v1/admin/users/")) { if ((input instanceof Request ? input.method : init?.method) === "DELETE") authDeletes++; return Promise.resolve(Response.json({ user: { id: "00000000-0000-0000-0000-000000000002" } })); }
+  if (url.includes("/rpc/claim_message_push")) return Promise.resolve(Response.json(pushMessage.send_at && Date.parse(String(pushMessage.send_at)) > Date.now() ? null : "lease-token"));
+  if (url.includes("/rpc/finish_message_push")) return Promise.resolve(Response.json(true));
+  if (url.includes("/rest/v1/push_jobs")) return Promise.resolve(Response.json([]));
   if (url.includes("/rest/v1/messages")) return Promise.resolve(Response.json(pushMessage));
   if (url.includes("/rest/v1/chat_members")) { recipientQueries++; return Promise.resolve(Response.json(pushMembers)); }
   if (url.includes("/rpc/claim_view_once_message")) {
@@ -90,4 +93,15 @@ Deno.test("push suppresses future, deleted and expired messages and muted recipi
   pushMembers = [{ user_id: "sender" }, { user_id: "muted", muted_until: "2999-01-01T00:00:00Z" }];
   const result = await push(request(event, "dedicated-webhook-secret"));
   if (result.status !== 200 || !(await result.json()).skipped) throw new Error("Muted recipient received push");
+});
+
+Deno.test("scheduled push worker requires the webhook secret and handles an empty queue", async () => {
+  let worker: typeof handler;
+  Object.defineProperty(Deno, "serve", { configurable: true, value: (next: typeof handler) => { worker = next; } });
+  await import("../functions/push-dispatch/index.ts");
+  const before = calls;
+  if ((await worker!(request({}, "test-user"))).status !== 401 || calls !== before) throw new Error("User reached queue");
+  const response = await worker!(request({}, "dedicated-webhook-secret"));
+  const result = await response.json();
+  if (response.status !== 200 || result.processed !== 0 || result.failed !== 0) throw new Error("Empty queue failed");
 });
