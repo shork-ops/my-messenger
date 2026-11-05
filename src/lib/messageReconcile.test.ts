@@ -16,3 +16,10 @@ it("an empty successful snapshot clears checked rows while preserving optimistic
  const old=message(1),pending={...message(2),remoteId:undefined};
  expect(reconcileMessageSnapshot([old,pending],[old],[])).toEqual([pending]);
 });
+
+it("replaces an optimistic operation with the server row during a reload",()=>{
+ const pending={...message(7),remoteId:undefined,outboxId:"remote-7",delivery:"queued" as const};
+ const server=message(7,"accepted");
+ const result=reconcileMessageSnapshot([pending],[pending],[server]);
+ expect(result).toHaveLength(1);expect(result[0].remoteId).toBe("remote-7");expect(result[0].delivery).toBe("sent");
+});

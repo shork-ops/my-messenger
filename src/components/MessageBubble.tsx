@@ -618,7 +618,7 @@ export default function MessageBubble({
                 {message.time}
               </>
             )}
-            {!pendingSend && !message.delivery?.match(/sending|failed/) && receipt && (
+            {!pendingSend && !message.delivery?.match(/queued|sending|failed/) && receipt && (
               <span className={`message-receipt ${receipt === "read" ? "read" : ""}`} aria-label={receipt === "read" ? "Прочитано" : "Отправлено"}>
                 {receipt === "read" ? "✓✓" : "✓"}
               </span>
@@ -631,6 +631,7 @@ export default function MessageBubble({
           )}
         </div>
 
+        {message.delivery === "queued" && <small className="delivery-status" role="status">В очереди · ждём отправки</small>}
         {message.delivery === "sending" && <small className="delivery-status" role="status">Отправляется…</small>}
         {message.delivery === "failed" && <button type="button" className="delivery-retry" onClick={onRetry}>Не отправлено · Повторить</button>}
         {message.delivery === "sent" && <small className="delivery-status">Принято сервером</small>}

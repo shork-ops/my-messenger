@@ -874,3 +874,37 @@ a:focus-visible,
 .game-play-label,
 .game-picker-card .btn-primary { border: 1px solid transparent; background: var(--accent-fill, var(--yellow)); color: #1a1400; }
 .game-picker-card .btn-ghost { border: 1px solid var(--border-strong); background: transparent; color: var(--fg); }
+
+/* Connectivity state overlays the shell; it must never become an extra grid column. */
+.connection-status {
+  position: fixed;
+  z-index: 120;
+  pointer-events: auto;
+  top: max(12px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: min(640px, calc(100vw - 24px));
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface-1);
+  color: var(--fg);
+  box-shadow: 0 6px 24px #0006;
+  font-size: var(--text-caption);
+}
+.connection-status button {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--fg);
+  cursor: pointer;
+}
+.upload-retry-name small { display: block; color: var(--fg-muted); font-size: var(--text-meta); }

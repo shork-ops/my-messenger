@@ -129,3 +129,8 @@ describe("isTransientError", () => {
     expect(isTransientError("a string")).toBe(false);
   });
 });
+
+it("treats Storage HTTP 503 as transient while preserving permission denials",()=>{
+ expect(isTransientError({statusCode:"503",message:"Service unavailable"})).toBe(true);
+ expect(isTransientError({statusCode:"403",message:"permission denied"})).toBe(false);
+});

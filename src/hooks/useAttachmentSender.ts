@@ -1,38 +1,35 @@
-/**
- * Sending files into a conversation.
- *
- * Attachments are the most failure-prone part of a messenger, and every failure has to end in a
- * conversation with no half-sent album: a group of photos is uploaded, published and appended
- * together, or not at all. That rule is why this is one module rather than calls scattered
- * through the composer - the upload, the rollback and the "try again" shelf are one decision.
- *
- * The hook takes what it needs explicitly: the account, the open conversation, a way to write
- * into the chat list and a way to say something went wrong.
- */
-
-import { useRef, useState } from "react";
+import { withOutboxLock } from "../lib/outboxLock";
+import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
-import type { Attachment, Chat, Message } from "../types";
+import type { Chat, Message } from "../types";
 import { supabase } from "../lib/supabase";
-import {
-  MAX_UPLOAD_BYTES,
-  buildStoragePath,
-  formatBytes,
-  isSupportedFile,
-  prepareImage,
-  shouldCompress,
-} from "../lib/media";
-import { splitIntoAlbums } from "../lib/albums";
-import { addPending, removePending, type PendingAttachment } from "../lib/retryQueue";
+import { MAX_UPLOAD_BYTES, formatBytes, isSupportedFile, blobToDataUrl } from "../lib/media";
+import type { PendingAttachment } from "../lib/retryQueue";
 import { appendMessage } from "../lib/chats";
-import { clockTime, numericId } from "../lib/format";
-import { viewOnceReady } from "../lib/viewOnceCloud";
+import { clockTime } from "../lib/format";
 import { formatNoteTime } from "../lib/videoNoteKind";
-import { blobToDataUrl } from "../lib/media";
-import { SIGNED_URL_TTL_SECONDS } from "../lib/messageSync";
+import { isTransientError } from "../lib/retry";
+import { mapMessageRow } from "../lib/messageSync";
+import { placeNewMessage } from "../lib/messageOrder";
+import {
+  loadAttachmentJobs,
+  saveAttachmentJobs,
+  deleteAttachmentJob,
+  AttachmentQueueFullError,
+  type AttachmentJob,
+} from "../lib/attachmentOutbox";
+import { deliverAttachment } from "../lib/attachmentDelivery";
 
 export type UploadProgress = { name: string; percent: number; stage: string };
-
+type State = {
+  owner: string;
+  alive: boolean;
+  busy: boolean;
+  running: string | null;
+  jobs: Map<string, AttachmentJob>;
+  unsaved: Set<string>;
+  ready: Promise<void>;
+};
 export function useAttachmentSender(deps: {
   accountId: string | null;
   profileName: string;
@@ -43,304 +40,384 @@ export function useAttachmentSender(deps: {
   recordingStartedRef: { current: number | null };
   setRecordingSeconds: (value: number) => void;
 }) {
+  const current = useRef(deps);
+  current.current = deps;
+  const stateRef = useRef<State | null>(null);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [failedUploads, setFailedUploads] = useState<PendingAttachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  function dismissFailedUpload(key: string) {
-    setFailedUploads((current) => removePending(current, key));
+  const valid = (state: State) =>
+    state.alive && stateRef.current === state && current.current.accountId === state.owner;
+  const render = (state: State) => {
+    if (!valid(state)) return;
+    setFailedUploads(
+      [...state.jobs.values()]
+        .filter((job) => job.key !== state.running)
+        .map((job) => ({
+          key: job.key,
+          file: new File([job.files[0].blob], job.files[0].name, {
+            type: job.files[0].type,
+            lastModified: job.files[0].lastModified,
+          }),
+          chatId: current.current.chats.find((chat) => chat.remoteId === job.remoteChatId)?.id ?? job.chatId,
+          viewOnce: job.viewOnce,
+          videoNoteMs: job.videoNoteMs,
+          fileCount: job.files.length,
+          state: job.retryable === false ? ("failed" as const) : ("queued" as const),
+          reason: job.reason ?? "В очереди · отправим при подключении",
+        })),
+    );
+  };
+  async function drain(state: State) {
+    if (!valid(state) || state.busy || !navigator.onLine || !supabase) return;
+    if (
+      ![...state.jobs.values()].some(
+        (job) =>
+          job.retryable !== false &&
+          (job.nextAttemptAt ?? 0) <= Date.now() &&
+          current.current.chats.some((chat) => chat.remoteId === job.remoteChatId),
+      )
+    )
+      return;
+    state.busy = true;
+    const run = async () => {
+      const disk = await loadAttachmentJobs(state.owner);
+      if (!valid(state)) return;
+      const persisted = new Set(disk.map((job) => job.key));
+      for (const key of state.jobs.keys())
+        if (!persisted.has(key) && !state.unsaved.has(key)) state.jobs.delete(key);
+      for (const job of disk) if (!state.jobs.has(job.key)) state.jobs.set(job.key, job);
+      for (const job of [...state.jobs.values()].sort((a, b) => a.queuedAt - b.queuedAt)) {
+        if (!valid(state) || !navigator.onLine) break;
+        if (
+          job.retryable === false ||
+          (job.nextAttemptAt ?? 0) > Date.now() ||
+          !current.current.chats.some((chat) => chat.remoteId === job.remoteChatId)
+        )
+          continue;
+        state.running = job.key;
+        render(state);
+        try {
+          // Also commits any entry retained only in memory after an earlier quota failure.
+          await saveAttachmentJobs([job]);
+          state.unsaved.delete(job.key);
+          const row = await deliverAttachment(
+            supabase!,
+            job,
+            () => valid(state) && state.jobs.has(job.key),
+            (name, percent, stage) => {
+              if (valid(state) && current.current.activeChatId === job.chatId)
+                setUploadProgress({ name, percent, stage });
+            },
+          );
+          if (!valid(state)) break;
+          state.jobs.delete(job.key);
+          try {
+            await deleteAttachmentJob(state.owner, job.key);
+          } catch {
+            /* A later restore acknowledges the same server ID. */
+          }
+          const message = await mapMessageRow(row, {
+            accountId: state.owner,
+            selfName: current.current.profileName,
+            authorName: "Собеседник",
+          });
+          if (!valid(state)) break;
+          if (message)
+            current.current.setChats((items) =>
+              valid(state)
+                ? items.map((chat) =>
+                    chat.remoteId === job.remoteChatId
+                      ? {
+                          ...chat,
+                          messages: placeNewMessage(
+                            chat.messages.filter(
+                              (item) => item.remoteId !== row.id && item.id !== message.id,
+                            ),
+                            { ...message, delivery: "sent" },
+                          ),
+                          preview: job.voice
+                            ? "🎤 Голосовое сообщение"
+                            : job.videoNoteMs !== undefined
+                              ? "⭕ " + message.text
+                              : "📎 " + message.text,
+                          time: message.time,
+                        }
+                      : chat,
+                  )
+                : items,
+            );
+        } catch (error) {
+          if (!valid(state) || !state.jobs.has(job.key)) break;
+          job.attempts = (job.attempts ?? 0) + 1;
+          job.retryable = isTransientError(error) || !navigator.onLine;
+          job.nextAttemptAt = Date.now() + Math.min(30_000, 1000 * 2 ** Math.min(job.attempts - 1, 5));
+          job.reason = job.retryable
+            ? "Ожидаем подключения. Файл сохранён в очереди."
+            : "Не удалось отправить. Повтори попытку или убери файл из очереди.";
+          try {
+            await saveAttachmentJobs([job]);
+          } catch {
+            job.reason = "Не удалось сохранить файл на устройстве. Не закрывай вкладку и повтори попытку.";
+            job.retryable = false;
+          }
+          if (job.retryable) break;
+        } finally {
+          state.running = null;
+          if (valid(state)) setUploadProgress(null);
+          render(state);
+        }
+      }
+    };
+    try {
+      await withOutboxLock(`nexus-attachment-outbox:${state.owner}`, run);
+    } catch {
+      for (const job of state.jobs.values()) {
+        job.retryable = false;
+        job.reason = state.unsaved.has(job.key)
+          ? "Хранилище недоступно. Не закрывай вкладку и повтори попытку."
+          : "Не удалось открыть сохранённый файл. Повтори попытку.";
+      }
+      if (valid(state)) current.current.notify("Не удалось прочитать очередь файлов. Повторим подключение.");
+    } finally {
+      state.busy = false;
+      render(state);
+    }
   }
-
-  async function retryFailedUpload(entry: PendingAttachment) {
-    setFailedUploads((current) => removePending(current, entry.key));
-    const transfer = new DataTransfer();
-    transfer.items.add(entry.file);
-    // The upload path reads the chosen files from an input event, so the retry goes through
-    // the same door rather than a second copy of the same logic that could drift.
-    const input = fileInputRef.current;
-    if (!input) {
-      deps.notify("Повторить не удалось: поле выбора файла недоступно");
+  useEffect(() => {
+    setUploadProgress(null);
+    setFailedUploads([]);
+    if (!deps.accountId) {
+      stateRef.current = null;
       return;
     }
-    Object.defineProperty(input, "files", { value: transfer.files, configurable: true });
-    if (entry.viewOnce) input.dataset.viewOnce = "true";
-    await handleAttachment({ target: input } as unknown as ChangeEvent<HTMLInputElement>, {
-      viewOnce: entry.viewOnce,
-      videoNoteMs: entry.videoNoteMs,
-    });
-  }
-
-  async function uploadPicture(
-    client: NonNullable<typeof supabase>,
-    chatRemoteId: string,
-    ownerId: string,
-    file: File,
-    percentFrom: number,
-    percentTo: number,
-    viewOnce = false,
-    extra: Partial<Attachment> = {},
-  ): Promise<{ meta: Attachment; path: string } | null> {
-    let payload: Blob = file;
-    let uploadName = file.name;
-    const base = { name: file.name, type: file.type || "application/octet-stream", size: file.size, ...extra };
-    let meta: Omit<Attachment, "data"> = base;
-
-    if (shouldCompress(file)) {
-      setUploadProgress({ name: file.name, percent: percentFrom, stage: "Сжимаю фото…" });
-      const prepared = await prepareImage(file);
-      payload = prepared.blob;
-      uploadName = prepared.fileName;
-      meta = {
-        name: prepared.fileName,
-        type: prepared.blob.type || file.type,
-        size: prepared.blob.size,
-        width: prepared.width || undefined,
-        height: prepared.height || undefined,
-        thumbnail: prepared.thumbnail || undefined,
-      };
-    }
-
-    setUploadProgress({ name: uploadName, percent: Math.round((percentFrom + percentTo) / 2), stage: "Отправляю файл…" });
-    const path = buildStoragePath(chatRemoteId, ownerId, uploadName, crypto.randomUUID());
-    const bucket = viewOnce ? "view-once-media" : "chat-media";
-    const uploaded = await client.storage.from(bucket).upload(path, payload, { contentType: meta.type, cacheControl: viewOnce ? "0" : "3600" });
-    if (uploaded.error) return null;
-    if (viewOnce) {
-      const { thumbnail: _preview, ...safe } = meta;
-      return { meta: { ...safe, path, data: "", viewOnce: true, bucket: "view-once-media" }, path };
-    }
-    const signed = await client.storage.from("chat-media").createSignedUrl(path, 3600);
-    if (signed.error || !signed.data?.signedUrl) {
-      // A stored file whose message is never written is an orphan; remove it rather than
-      // leave the bucket to grow with files nobody can reach.
-      await client.storage.from("chat-media").remove([path]);
-      return null;
-    }
-    return {
-      meta: {
-        ...meta,
-        path,
-        data: signed.data.signedUrl,
-        expiresAt: Date.now() + SIGNED_URL_TTL_SECONDS * 1000,
-        // The marker rides along with the attachment, so it survives every path that already
-        // knows how to store one and needs no migration.
-        ...(viewOnce ? { viewOnce: true } : {}),
-      },
-      path,
+    const state: State = {
+      owner: deps.accountId,
+      alive: true,
+      busy: false,
+      running: null,
+      jobs: new Map(),
+      unsaved: new Set(),
+      ready: Promise.resolve(),
     };
+    stateRef.current = state;
+    state.ready = loadAttachmentJobs(state.owner)
+      .then((jobs) => {
+        if (!valid(state)) return;
+        for (const job of jobs) if (!state.jobs.has(job.key)) state.jobs.set(job.key, job);
+        render(state);
+        void drain(state);
+      })
+      .catch(() => {
+        if (valid(state))
+          current.current.notify(
+            "Не удалось открыть очередь файлов на устройстве. Повторная отправка будет доступна после восстановления хранилища.",
+          );
+      });
+    const reconnect = () => {
+      if (valid(state)) void state.ready.then(() => drain(state));
+    };
+    const online = () => {
+      for (const job of state.jobs.values()) if (job.retryable !== false) job.nextAttemptAt = 0;
+      reconnect();
+    };
+    const visible = () => {
+      if (document.visibilityState === "visible") reconnect();
+    };
+    const timer = setInterval(visible, 2000);
+    window.addEventListener("online", online);
+    document.addEventListener("visibilitychange", visible);
+    return () => {
+      state.alive = false;
+      clearInterval(timer);
+      window.removeEventListener("online", online);
+      document.removeEventListener("visibilitychange", visible);
+    };
+  }, [deps.accountId]);
+  useEffect(() => {
+    const state = stateRef.current;
+    if (state && valid(state)) {
+      render(state);
+      void state.ready.then(() => drain(state));
+    }
+  }, [deps.chats]);
+  async function dismissFailedUpload(key: string) {
+    const state = stateRef.current;
+    if (!state || !valid(state) || state.running === key) return;
+    try {
+      if (!state.unsaved.has(key)) await deleteAttachmentJob(state.owner, key);
+    } catch {
+      current.current.notify("Не удалось убрать файл из очереди. Повтори попытку.");
+      return;
+    }
+    if (!valid(state)) return;
+    state.jobs.delete(key);
+    state.unsaved.delete(key);
+    render(state);
   }
-
+  async function retryFailedUpload(entry: PendingAttachment) {
+    const state = stateRef.current,
+      job = state?.jobs.get(entry.key);
+    if (!state || !job || !valid(state)) return;
+    job.retryable = true;
+    job.nextAttemptAt = 0;
+    job.reason = undefined;
+    render(state);
+    await drain(state);
+  }
+  async function enqueue(
+    files: File[],
+    options: {
+      viewOnce?: boolean;
+      videoNoteMs?: number;
+      voice?: { duration: number; waveform: number[] };
+    } = {},
+    target?: HTMLInputElement,
+  ) {
+    const state = stateRef.current,
+      owner = current.current.accountId;
+    const chat = current.current.chats.find((item) => item.id === current.current.activeChatId);
+    if (!owner || !supabase || !chat?.remoteId || !state || !valid(state)) {
+      current.current.notify("Открой облачный диалог, чтобы отправить файл");
+      return false;
+    }
+    await state.ready;
+    if (!valid(state)) return false;
+    for (const file of files) {
+      if (file.size > MAX_UPLOAD_BYTES) {
+        current.current.notify(`Файл «${file.name}» больше ${formatBytes(MAX_UPLOAD_BYTES)}`);
+        return false;
+      }
+      if (!options.voice && !isSupportedFile(file.type)) {
+        current.current.notify(`Формат файла «${file.name}» пока не поддерживается`);
+        return false;
+      }
+    }
+    if (options.viewOnce && (!files[0]?.type.startsWith("image/") || files.length !== 1)) {
+      current.current.notify("Выбери одно фото для одноразового просмотра");
+      return false;
+    }
+    const groups: File[][] = [];
+    for (const file of files) {
+      const previous = groups[groups.length - 1];
+      if (
+        !options.viewOnce &&
+        options.videoNoteMs === undefined &&
+        !options.voice &&
+        file.type.startsWith("image/") &&
+        previous?.every((item) => item.type.startsWith("image/")) &&
+        previous.length < 10
+      )
+        previous.push(file);
+      else groups.push([file]);
+    }
+    const jobs: AttachmentJob[] = groups.map((group) => ({
+      key: crypto.randomUUID(),
+      owner,
+      chatId: chat.id,
+      remoteChatId: chat.remoteId!,
+      queuedAt: Date.now(),
+      files: group.map((file) => ({
+        blob: file,
+        name: file.name,
+        type: file.type,
+        lastModified: file.lastModified,
+      })),
+      viewOnce: Boolean(options.viewOnce),
+      videoNoteMs: options.videoNoteMs,
+      voice: options.voice,
+      retryable: true,
+      ...(options.voice
+        ? { body: `Голосовое сообщение · ${options.voice.duration} сек.` }
+        : options.videoNoteMs !== undefined
+          ? { body: `Видеозаметка ${formatNoteTime(options.videoNoteMs)}` }
+          : {}),
+    }));
+    try {
+      await saveAttachmentJobs(jobs);
+    } catch (error) {
+      if (error instanceof AttachmentQueueFullError) {
+        if (valid(state)) current.current.notify(error.message);
+        return false;
+      }
+      if (!valid(state)) return false;
+      for (const job of jobs) {
+        job.retryable = false;
+        job.reason = "Не удалось сохранить на устройстве. Не закрывай вкладку и повтори попытку.";
+        state.jobs.set(job.key, job);
+        state.unsaved.add(job.key);
+      }
+      render(state);
+      current.current.notify(
+        "Файлы пока сохранены только в этой вкладке. Освободи место и нажми «Повторить».",
+      );
+      return false;
+    }
+    if (!valid(state)) return true;
+    for (const job of jobs) state.jobs.set(job.key, job);
+    if (target) target.value = "";
+    render(state);
+    void drain(state);
+    return true;
+  }
   async function handleAttachment(
     event: ChangeEvent<HTMLInputElement>,
-    options: { viewOnce?: boolean; /** Set for a round video note: its length in ms. */ videoNoteMs?: number } = {}
+    options: { viewOnce?: boolean; videoNoteMs?: number } = {},
   ) {
-    const chosen = Array.from(event.target.files ?? []);
-    // The composer sets this just before opening the picker for "look once"; reading it from the
-    // input keeps one file picker rather than two that drift apart.
-    const viewOnce = options.viewOnce ?? event.target.dataset.viewOnce === "true";
-    delete event.target.dataset.viewOnce;
-    event.target.value = "";
-    if (chosen.length === 0) return;
-    const chat = deps.chats.find((item) => item.id === deps.activeChatId);
-    const client = supabase;
-    if (!client || !deps.accountId || !chat?.remoteId) {
-      deps.notify("Открой облачный диалог, чтобы отправить файл");
-      return;
-    }
-
-    if (viewOnce && (!chosen[0].type.startsWith("image/") || !await viewOnceReady())) {
-      deps.notify("Одноразовые фото пока недоступны: требуется серверное обновление. Обычные вложения работают.");
-      return;
-    }
-    // Every file is checked before anything is uploaded: a selection that fails halfway
-    // would leave half an album in the bucket and half in the conversation.
-    for (const file of chosen) {
-      if (file.size > MAX_UPLOAD_BYTES) {
-        deps.notify(`Файл «${file.name}» больше ${formatBytes(MAX_UPLOAD_BYTES)}`);
-        return;
-      }
-      if (!isSupportedFile(file.type)) {
-        deps.notify(`Формат файла «${file.name}» пока не поддерживается`);
-        return;
-      }
-    }
-
-    // A photo meant to be seen once is one photo, never part of an album: the promise is about
-    // that picture, and an album of nine others would leave the rest readable.
-    const noteMs = options.videoNoteMs;
-    // The marker rides on the attachment JSON, like viewOnce, so a note needs no migration.
-    const noteMeta: Partial<Attachment> =
-      noteMs === undefined ? {} : { videoNote: true, duration: Math.max(1, Math.round(noteMs / 1000)) };
-    const albums = viewOnce || noteMs !== undefined ? [chosen.slice(0, 1)] : splitIntoAlbums(chosen);
-    if (viewOnce && chosen.length > 1) {
-      deps.notify("Для фото «посмотреть один раз» можно выбрать одно фото");
-    }
-    let sent = 0;
-    for (const group of albums) {
-      const pictures: Attachment[] = [];
-      const stored: Omit<Attachment, "data">[] = [];
-      const paths: string[] = [];
-      let failed = false;
-      for (const [index, file] of group.entries()) {
-        const from = 10 + Math.round((index / group.length) * 70);
-        const to = 10 + Math.round(((index + 1) / group.length) * 70);
-        const uploaded = await uploadPicture(client, chat.remoteId, deps.accountId, file, from, to, viewOnce, noteMeta);
-        if (!uploaded) {
-          failed = true;
-          break;
-        }
-        pictures.push(uploaded.meta);
-        const { data: _url, ...withoutUrl } = uploaded.meta;
-        stored.push(withoutUrl);
-        paths.push(uploaded.path);
-      }
-      if (failed) {
-        // Nothing half-sent: the whole group is undone, or the conversation would show a
-        // message that is missing the picture the person meant to send.
-        await client.storage.from(viewOnce ? "view-once-media" : "chat-media").remove(paths);
-        setUploadProgress(null);
-        // Keep the files so "try again" does not mean "find the file again".
-        const reason = "Не удалось загрузить файл. Проверь миграцию online_media в Supabase.";
-        setFailedUploads((current) =>
-          group.reduce(
-            (list, item) =>
-              addPending(list, {
-                key: `${chat.remoteId}:${item.name}:${item.size}:${item.lastModified}`,
-                file: item,
-                chatId: deps.activeChatId,
-                viewOnce,
-                videoNoteMs: noteMs,
-                reason,
-              }),
-            current
-          )
-        );
-        deps.notify(reason);
-        return;
-      }
-
-      setUploadProgress({ name: group[0].name, percent: 85, stage: "Публикую сообщение…" });
-      const first = pictures[0];
-      const isAlbum = pictures.length > 1;
-      const body = isAlbum ? `${pictures.length} фото` : noteMs !== undefined ? `Видеозаметка ${formatNoteTime(noteMs)}` : first.name;
-      const attachmentValue = isAlbum ? { items: stored } : stored[0];
-      const inserted = await client
-        .from("messages")
-        .insert({ chat_id: chat.remoteId, sender_id: deps.accountId, body, attachment: attachmentValue })
-        .select("id, created_at")
-        .single();
-      if (inserted.error || !inserted.data) {
-        await client.storage.from(viewOnce ? "view-once-media" : "chat-media").remove(paths);
-        setUploadProgress(null);
-        deps.notify("Не удалось отправить вложение");
-        return;
-      }
-      const row = inserted.data;
-      const created = new Date(row.created_at);
-      const message: Message = {
-        id: numericId(row.id),
-        remoteId: row.id,
-        author: deps.profileName,
-        text: body,
-        time: clockTime(created),
-        mine: true,
-        createdAt: created.getTime(),
-        ...(isAlbum ? { album: pictures } : { attachment: first }),
-      };
-      deps.setChats((current) =>
-        appendMessage(current, deps.activeChatId, message, isAlbum ? `${pictures.length} фото` : noteMs !== undefined ? "⭕ " + body : "📎 " + first.name, message.time)
-      );
-      sent += isAlbum ? pictures.length : 1;
-    }
-
-    setUploadProgress({ name: chosen[0].name, percent: 100, stage: "Готово" });
-    window.setTimeout(() => setUploadProgress(null), 900);
-    deps.notify(noteMs !== undefined ? "Видеозаметка отправлена" : sent === 1 ? "Вложение отправлено" : `Отправлено: ${sent}`);
+    const target = event.target,
+      files = Array.from(target.files ?? []);
+    if (!files.length) return;
+    const viewOnce = options.viewOnce ?? target.dataset.viewOnce === "true";
+    delete target.dataset.viewOnce;
+    await enqueue(files, { ...options, viewOnce }, target);
   }
-
   async function sendVoiceMessage(blob: Blob) {
-    const duration = Math.max(1, Math.round((Date.now() - (deps.recordingStartedRef.current || Date.now())) / 1000));
-    const time = clockTime();
-    const createdAt = Date.now();
-    const extension = blob.type.includes("ogg") ? "ogg" : blob.type.includes("mp4") ? "m4a" : "webm";
-    const fileName = `voice-${createdAt}.${extension}`;
-    const chat = deps.chats.find((item) => item.id === deps.activeChatId);
-    const client = supabase;
-
-    // A local-only chat has nowhere to upload to; keep an inline copy so the
-    // bubble still plays back in this session.
-    if (!chat?.remoteId || !client || !deps.accountId) {
+    const duration = Math.max(
+      1,
+      Math.round((Date.now() - (current.current.recordingStartedRef.current || Date.now())) / 1000),
+    );
+    const createdAt = Date.now(),
+      time = clockTime(),
+      extension = blob.type.includes("ogg") ? "ogg" : blob.type.includes("mp4") ? "m4a" : "webm",
+      name = `voice-${createdAt}.${extension}`;
+    const chat = current.current.chats.find((item) => item.id === current.current.activeChatId);
+    if (!chat?.remoteId || !supabase || !current.current.accountId) {
+      const targetId = current.current.activeChatId,
+        owner = current.current.accountId;
       const data = await blobToDataUrl(blob);
+      if (current.current.accountId !== owner) return;
       const message: Message = {
         id: createdAt,
-        author: deps.profileName,
+        author: current.current.profileName,
         text: `Голосовое сообщение · ${duration} сек.`,
         time,
         mine: true,
         createdAt,
-        attachment: { name: fileName, type: blob.type || "audio/webm", data, size: blob.size, duration },
+        attachment: { name, type: blob.type || "audio/webm", data, size: blob.size, duration },
       };
-      deps.setChats((current) => appendMessage(current, deps.activeChatId, message, "🎤 Голосовое сообщение", time));
-      deps.setRecordingSeconds(0);
-      deps.notify("Голосовое сообщение добавлено в этот браузер");
+      current.current.setChats((items) =>
+        appendMessage(items, targetId, message, "🎤 Голосовое сообщение", time),
+      );
+      current.current.setRecordingSeconds(0);
       return;
     }
-
-    setUploadProgress({ name: fileName, percent: 30, stage: "Отправляю голосовое…" });
-    const path = buildStoragePath(chat.remoteId, deps.accountId, fileName, crypto.randomUUID());
-    const uploaded = await client.storage.from("chat-media").upload(path, blob, { contentType: blob.type || "audio/webm" });
-    if (uploaded.error) {
-      setUploadProgress(null);
-      deps.notify("Не удалось загрузить голосовое сообщение");
-      return;
-    }
-
-    // Loaded on demand with the rest of the voice code, which the first screen does not need.
-    const { analyseWaveform } = await import("../lib/voice");
-    const waveform = await analyseWaveform(blob);
-    setUploadProgress({ name: fileName, percent: 70, stage: "Публикую сообщение…" });
-    const signed = await client.storage.from("chat-media").createSignedUrl(path, 3600);
-    const meta = {
-      name: fileName,
-      type: blob.type || "audio/webm",
-      size: blob.size,
-      path,
-      duration,
-      waveform,
-    };
-    const inserted = await client
-      .from("messages")
-      .insert({ chat_id: chat.remoteId, sender_id: deps.accountId, body: `Голосовое сообщение · ${duration} сек.`, attachment: meta })
-      .select("id, created_at")
-      .single();
-    if (inserted.error || !inserted.data) {
-      await client.storage.from("chat-media").remove([path]);
-      setUploadProgress(null);
-      deps.notify("Не удалось отправить голосовое сообщение");
-      return;
-    }
-
-    const row = inserted.data;
-    const created = new Date(row.created_at);
-    const message: Message = {
-      id: numericId(row.id),
-      remoteId: row.id,
-      author: deps.profileName,
-      text: `Голосовое сообщение · ${duration} сек.`,
-      time: clockTime(created),
-      mine: true,
-      createdAt: created.getTime(),
-      attachment: {
-        ...meta,
-        data: signed.data?.signedUrl ?? "",
-        expiresAt: Date.now() + SIGNED_URL_TTL_SECONDS * 1000,
-      },
-    };
-    deps.setChats((current) => appendMessage(current, deps.activeChatId, message, "🎤 Голосовое сообщение", message.time));
-    setUploadProgress(null);
-    deps.setRecordingSeconds(0);
-    deps.notify("Голосовое сообщение отправлено");
+    const owner = current.current.accountId;
+    if (
+      (await enqueue([new File([blob], name, { type: blob.type || "audio/webm" })], {
+        voice: { duration, waveform: [] },
+      })) &&
+      current.current.accountId === owner
+    )
+      current.current.setRecordingSeconds(0);
   }
-
-  return { uploadProgress, setUploadProgress, failedUploads, fileInputRef, handleAttachment, dismissFailedUpload, retryFailedUpload, sendVoiceMessage };
+  return {
+    uploadProgress,
+    setUploadProgress,
+    failedUploads,
+    fileInputRef,
+    handleAttachment,
+    dismissFailedUpload,
+    retryFailedUpload,
+    sendVoiceMessage,
+  };
 }

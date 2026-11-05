@@ -69,7 +69,7 @@ export async function withRetry<T>(operation: () => Promise<T>, options: RetryOp
  */
 export function isTransientError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
-  const record = error as { message?: unknown; code?: unknown; status?: unknown };
+  const record = error as { message?: unknown; code?: unknown; status?: unknown; statusCode?: unknown };
 
   if (typeof record.message === "string") {
     const message = record.message.toLowerCase();
@@ -90,9 +90,8 @@ export function isTransientError(error: unknown): boolean {
   }
 
   // 5xx from the gateway is the server being briefly unavailable.
-  if (typeof record.status === "number") {
-    return record.status >= 500 && record.status < 600;
-  }
+  const status = Number(record.status ?? record.statusCode);
+  if (Number.isFinite(status)) return status >= 500 && status < 600;
 
   return false;
 }

@@ -17,6 +17,7 @@ export const SIGNED_URL_TTL_SECONDS = 3600;
 export const SIGNED_URL_REFRESH_MARGIN_MS = 5 * 60_000;
 
 type AttachmentMeta = {
+  items?: AttachmentMeta[];
   name?: string;
   type?: string;
   size?: number;
@@ -71,17 +72,22 @@ export async function mapMessageRow(row: ChatMessageRow, options: MapOptions): P
   if (!row?.id) return null;
   const attachmentMeta = row.deleted_at ? null : row.attachment as AttachmentMeta | null;
   let attachment: Message["attachment"];
+  let album: Message["album"];
   if (attachmentMeta && supabase) {
-    let data = "";
-    let expiresAt: number | undefined;
-    if (attachmentMeta.path && !attachmentMeta.viewOnce) {
-      const { data: signed } = await supabase.storage
-        .from("chat-media")
-        .createSignedUrl(attachmentMeta.path, SIGNED_URL_TTL_SECONDS);
-      data = signed?.signedUrl || "";
-      if (data) expiresAt = Date.now() + SIGNED_URL_TTL_SECONDS * 1000;
-    }
-    attachment = toAttachment(attachmentMeta, data, expiresAt);
+    const entries = Array.isArray(attachmentMeta.items) ? attachmentMeta.items.slice(0,10) : [attachmentMeta];
+    const pictures = await Promise.all(entries.map(async meta => {
+      let data = "";let expiresAt: number | undefined;
+      if (meta.path && !meta.viewOnce) {
+        try {
+          const signed = await supabase!.storage.from("chat-media").createSignedUrl(meta.path,SIGNED_URL_TTL_SECONDS);
+          data = signed.data?.signedUrl ?? "";
+          if (data) expiresAt = Date.now()+SIGNED_URL_TTL_SECONDS*1000;
+        } catch { /* A URL failure must not hide an acknowledged message. */ }
+      }
+      return toAttachment(meta,data,expiresAt);
+    }));
+    if (Array.isArray(attachmentMeta.items)) album = pictures;
+    else attachment = pictures[0];
   }
   const historyAt = row.timeline_at ?? row.send_at ?? row.created_at;
   const created = new Date(historyAt);
@@ -101,7 +107,8 @@ export async function mapMessageRow(row: ChatMessageRow, options: MapOptions): P
     effect: row.deleted_at ? undefined : row.effect ?? undefined,
     poll: row.deleted_at ? undefined : (row.poll as Message["poll"]) ?? undefined,
     attachment,
-    ...(row.deleted_at ? { replyTo: undefined, album: undefined } : {}),
+    album,
+    ...(row.deleted_at ? { replyTo: undefined } : {}),
     reactions: [],
   };
 }

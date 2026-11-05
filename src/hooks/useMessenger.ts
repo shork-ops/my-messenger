@@ -190,6 +190,8 @@ export function useMessenger() {
     usernameSaving,
     accountId,
     profileReady,
+    profileLoadStatus,
+    retryProfile,
     saveUsername,
     savedUsername,
     avatarPath,
@@ -231,12 +233,15 @@ export function useMessenger() {
 
   // Mirrors the chat list for timers and callbacks that must not be rebuilt
   // every time a message arrives.
-  const { queueText, retryMessage } = useTextOutbox({ accountId, profileName, chats, setChats });
+  const { queueText, retryMessage, cancelQueuedMessage } = useTextOutbox({ accountId, profileName, chats, setChats, notify: action });
   usePeerProfiles({ accountId, chats, setChats });
   const chatsRef = useRef(chats);
   chatsRef.current = chats;
     const reloadChatsRef = useRef<(() => void) | null>(null);
-  useCloudChats({ accountId, profileReady, profileName, notify: action, setChats, setActiveId, reloadRef: reloadChatsRef });
+  const {chatLoadStatus,retryChats} = useCloudChats({ accountId, profileReady, profileName, notify: action, chats, setChats, setActiveId, reloadRef: reloadChatsRef });
+  const dataLoadError = profileLoadStatus === "error" ? "Не удалось загрузить аккаунт. Твои данные остаются на сервере." : chatLoadStatus === "error" ? "Не удалось обновить переписку. Повторяем подключение." : null;
+  const dataLoading = profileLoadStatus === "loading" || chatLoadStatus === "loading";
+  const retryDataLoad = () => { if (profileLoadStatus === "error") retryProfile(); else retryChats(); };
   const chatOnScreen = openedChatId !== null && openedChatId === activeId;
   useRealtimeChat({
     accountId,
@@ -328,6 +333,7 @@ export function useMessenger() {
     copyMessage,
     startEditing,
   } = useMessageActions({
+    cancelQueuedMessage,
     accountId: accountId ?? null,
     profileName,
     activeId,
@@ -1174,6 +1180,7 @@ export function useMessenger() {
   });
 
   return {
+    dataLoadError, dataLoading, retryDataLoad,
     about,
     accountId,
     action,

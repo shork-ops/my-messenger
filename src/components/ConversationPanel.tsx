@@ -704,10 +704,11 @@ export default function ConversationPanel({
           {failedUploads.map((entry) => (
             <div className="upload-retry-row" key={entry.key}>
               <span className="upload-retry-name" title={entry.file.name}>
-                {entry.file.name}
+                {entry.file.name}{entry.fileCount && entry.fileCount > 1 ? ` + ещё ${entry.fileCount-1}` : ""}
+                <small>{entry.reason}</small>
               </span>
-              <button type="button" className="upload-retry-button" onClick={() => onRetryUpload(entry)}>
-                Повторить
+              <button type="button" className="upload-retry-button" disabled={entry.state === "queued" && !navigator.onLine} onClick={() => onRetryUpload(entry)}>
+                {entry.state === "queued" ? navigator.onLine ? "Отправить сейчас" : "Ждём сеть" : "Повторить"}
               </button>
               <button
                 type="button"

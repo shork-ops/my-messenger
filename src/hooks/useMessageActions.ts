@@ -23,6 +23,7 @@ import { clockTime } from "../lib/format";
 export type DeletedMessage = { chatId: number; message: Message; index: number } | null;
 
 export function useMessageActions(deps: {
+  cancelQueuedMessage?: (id:number)=>boolean|undefined;
   accountId: string | null;
   profileName: string;
   activeId: number;
@@ -111,6 +112,11 @@ export function useMessageActions(deps: {
     const chat = findChat();
     const index = chat?.messages.findIndex((message) => message.id === messageId) ?? -1;
     const message = index >= 0 ? chat?.messages[index] : undefined;
+    if(message && !message.remoteId){
+      const cancelled=deps.cancelQueuedMessage?.(messageId);
+      if(cancelled===false){deps.notify("Сообщение уже отправляется. Дождись ответа сервера.");return;}
+      if(cancelled===true){deps.setOpenMessageActionsId(null);deps.setChats(items=>removeMessage(items,deps.activeId,messageId).chats);deps.notify("Отправка отменена");return;}
+    }
     if (!chat || !message) return;
     if (chat.remoteId && message.remoteId && supabase) {
       const { error } = await supabase
@@ -144,6 +150,11 @@ export function useMessageActions(deps: {
     const chat = findChat();
     const index = chat?.messages.findIndex((message) => message.id === messageId) ?? -1;
     const message = index >= 0 ? chat?.messages[index] : undefined;
+    if(message && !message.remoteId){
+      const cancelled=deps.cancelQueuedMessage?.(messageId);
+      if(cancelled===false){deps.notify("Сообщение уже отправляется. Дождись ответа сервера.");return;}
+      if(cancelled===true){deps.setChats(items=>removeMessage(items,deps.activeId,messageId).chats);deps.notify("Отправка отменена");return;}
+    }
     if (!chat || !message) return;
     if (chat.remoteId && message.remoteId && supabase && deps.accountId) {
       // Recorded per account so the row does not come back on reload.

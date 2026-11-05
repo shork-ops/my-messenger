@@ -39,6 +39,8 @@ jobs:
         run: npm run test:install
       - name: Account access database checks
         run: node scripts/check-account-access.mjs
+      - name: Push webhook setup checks
+        run: node scripts/check-push-webhook.mjs
       - name: Push queue database checks
         run: node scripts/check-push-queue.mjs
       - name: Single-view database permissions

@@ -46,7 +46,7 @@ export function useComposer(deps: {
     text: string,
     replyTo?: { author: string; text: string },
     options?: { body: string; stickerId: string }
-  ) => void;
+  ) => boolean;
   setStickerOpen: Dispatch<SetStateAction<boolean>>;
   setScheduleOpen: Dispatch<SetStateAction<boolean>>;
 }) {
@@ -142,7 +142,7 @@ export function useComposer(deps: {
         return;
       }
       // The outbox owns delivery; it retries and reports, so the composer is cleared now.
-      deps.queueText(targetChat, text, replyTo);
+      if (!deps.queueText(targetChat, text, replyTo)) return;
       clearComposer();
       return;
     }
@@ -191,7 +191,7 @@ export function useComposer(deps: {
         deps.notify("Нужно войти в аккаунт, чтобы отправить стикер");
         return;
       }
-      deps.queueText(targetChat, sticker.label, undefined, { body: stickerMarkup(stickerId), stickerId });
+      if (!deps.queueText(targetChat, sticker.label, undefined, { body: stickerMarkup(stickerId), stickerId })) return;
       deps.setStickerOpen(false);
       return;
     }

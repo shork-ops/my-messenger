@@ -15,6 +15,8 @@ const rpc = vi.hoisted(() => vi.fn());
 vi.mock("./supabase", () => ({ supabase: { auth, rpc }, isSupabaseConfigured: true }));
 vi.mock("./constants", () => ({ isDemoMode: false }));
 import AuthGate from "./AuthGate";
+// Preload the form module; these tests exercise sign-in behavior, not chunk loading.
+import "./SignInScreens";
 
 type Listener = (event: string, session: unknown) => void;
 let listener: Listener = () => undefined;

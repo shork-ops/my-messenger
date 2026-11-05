@@ -1,4 +1,6 @@
-import { useEffect, useRef } from "react";
+import { reconcileMessageSnapshot } from "../lib/messageReconcile";
+import { recoverLoad, type LoadStatus } from "../lib/loadRecovery";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import { supabase } from "../lib/supabase";
 import { numericId } from "../lib/format";
@@ -15,6 +17,7 @@ type UseCloudChatsOptions = {
   profileReady: boolean;
   profileName: string;
   notify: (message: string) => void;
+  chats: Chat[];
   setChats: Dispatch<SetStateAction<Chat[]>>;
   setActiveId: Dispatch<SetStateAction<number>>;
   /** Filled with a function that reloads the chat list from the database. */
@@ -30,32 +33,67 @@ export function useCloudChats({
   profileReady,
   profileName,
   notify,
+  chats,
   setChats,
   setActiveId,
   reloadRef,
 }: UseCloudChatsOptions) {
   const reloadRefInternal = useRef<(() => void) | null>(null);
   const target = reloadRef ?? reloadRefInternal;
+  const currentChats = useRef(chats);
+  currentChats.current = chats;
+  const [chatLoadStatus, setChatLoadStatus] = useState<LoadStatus>("loading");
+  const retryChats = useCallback(() => target.current?.(), [target]);
   useEffect(() => {
     const client = supabase;
-    if (!client || !accountId || !profileReady) return;
+    if (!client || !accountId || !profileReady) {
+      setChatLoadStatus(!client ? "ready" : "loading");
+      return;
+    }
+    let request = 0;
     let alive = true;
 
     const loadCloudChats = async () => {
+      const snapshot = currentChats.current;
+      const sequence = ++request;
+      const currentRequest = () => alive && sequence === request;
       // «Избранное» is read beside the chats. A server without the table gives null, and the
       // favourites of this tab are kept as they are.
-      const savedLoad = import("../lib/savedMessages").then(
-        async (module) => ({ module, saved: await module.loadSavedMessages(client, profileName) }),
-        () => null
-      ).catch(() => null);
+      const savedLoad = import("../lib/savedMessages")
+        .then(
+          async (module) => ({ module, saved: await module.loadSavedMessages(client, profileName) }),
+          () => null,
+        )
+        .catch(() => null);
       /** The new chat list with «Избранное» first, put together with what this tab holds. */
       const withFavourites = async (chats: Chat[]) => {
         const loaded = await savedLoad.catch(() => null);
-        if (!alive) return;
+        if (!currentRequest()) return;
         setChats((current) => {
           const local = current.find(isFavouritesChat);
-          const favourites = loaded ? loaded.module.mergeFavourites(loaded.saved, local) : local ?? null;
-          return favourites ? [favourites, ...chats] : chats;
+          const favourites = loaded ? loaded.module.mergeFavourites(loaded.saved, local) : (local ?? null);
+          const merged = chats.map((chat) => {
+            const previous = current.find((item) => item.remoteId === chat.remoteId);
+            if (!previous) return chat;
+            const fetched = new Set(chat.messages.map((message) => message.remoteId));
+            const checked = (snapshot.find((item) => item.remoteId === chat.remoteId)?.messages ?? []).filter(
+              (message) => fetched.has(message.remoteId),
+            );
+            const messages = reconcileMessageSnapshot(previous.messages, checked, chat.messages);
+            const delivered = messages.filter((message) => !message.sendAt);
+            const last = delivered[delivered.length - 1];
+            return {
+              ...chat,
+              messages,
+              preview: last?.text ?? chat.preview,
+              time: last?.time ?? chat.time,
+              historyExhausted:
+                previous.messages.length > chat.messages.length
+                  ? previous.historyExhausted
+                  : chat.historyExhausted,
+            };
+          });
+          return favourites ? [favourites, ...merged] : merged;
         });
       };
       // Read this account's own membership rows in full: muting and archiving are
@@ -64,45 +102,54 @@ export function useCloudChats({
         .from("chat_members")
         .select("chat_id, muted_until, archived_at")
         .eq("user_id", accountId);
-      if (!alive) return;
-      if (membershipError) {
-        notify("Не удалось загрузить облачные чаты");
-        return;
-      }
+      if (!currentRequest()) return;
+      if (membershipError) throw membershipError;
       const chatIds = [...new Set((memberships ?? []).map((item) => item.chat_id as string))];
       // Keyed by chat so the mapping below can look up this account's settings.
       const myMembership = new Map(
-        (memberships ?? []).map((item) => [item.chat_id as string, item as { muted_until?: string | null; archived_at?: string | null }])
+        (memberships ?? []).map((item) => [
+          item.chat_id as string,
+          item as { muted_until?: string | null; archived_at?: string | null },
+        ]),
       );
       if (chatIds.length === 0) {
         await withFavourites([]);
         return;
       }
-      const [{ data: cloudChatRows, error: chatsError }, { data: profileRows }, timers] = await Promise.all([
-        client.from("chats").select("id, title, is_group, invite_code, created_at").in("id", chatIds).order("updated_at", { ascending: false }),
-        client.from("chat_members").select("chat_id, user_id, last_read_at").in("chat_id", chatIds),
-        // Asked separately so a server without the timer column still loads every chat.
-        import("../lib/disappearingLive").then(
-          (module) => module.fetchChatTimers(client, chatIds),
-          () => new Map<string, number>()
-        ),
-      ]);
+      const [{ data: cloudChatRows, error: chatsError }, { data: profileRows, error: membersError }, timers] =
+        await Promise.all([
+          client
+            .from("chats")
+            .select("id, title, is_group, invite_code, created_at")
+            .in("id", chatIds)
+            .order("updated_at", { ascending: false }),
+          client.from("chat_members").select("chat_id, user_id, last_read_at").in("chat_id", chatIds),
+          // Asked separately so a server without the timer column still loads every chat.
+          import("../lib/disappearingLive").then(
+            (module) => module.fetchChatTimers(client, chatIds),
+            () => new Map<string, number>(),
+          ),
+        ]);
       const loadedAt = Date.now();
-      if (!alive) return;
-      if (chatsError) {
-        notify("Не удалось загрузить список чатов");
-        return;
-      }
-      const memberIds = [...new Set((profileRows ?? []).map((row) => row.user_id as string).filter((id) => id !== accountId))];
-      const [{ data: memberProfiles }, memberDetails, lastSeen] = await Promise.all([
+      if (!currentRequest()) return;
+      if (chatsError) throw chatsError;
+      if (membersError) throw membersError;
+      const memberIds = [
+        ...new Set((profileRows ?? []).map((row) => row.user_id as string).filter((id) => id !== accountId)),
+      ];
+      const [{ data: memberProfiles, error: profilesError }, memberDetails, lastSeen] = await Promise.all([
         memberIds.length
           ? client.from("profiles").select("id, username, display_name, avatar").in("id", memberIds)
-          : { data: [] as { id: string; username: string | null; display_name: string; avatar: string }[] },
+          : {
+              error: null,
+              data: [] as { id: string; username: string | null; display_name: string; avatar: string }[],
+            },
         // Photos and "about" lines by each owner's rule (20261057), «был(а) в сети» too (20261058).
         fetchProfileDetails(client, memberIds),
         fetchLastSeen(client, memberIds),
       ]);
 
+      if (profilesError) throw profilesError;
       // One first page per chat, loaded in parallel instead of the old single limit(1000) request.
       const pages = await Promise.all(
         (cloudChatRows ?? []).map(async (row) => {
@@ -110,12 +157,12 @@ export function useCloudChats({
           const otherId = chatMembers.find((member) => member.user_id !== accountId)?.user_id;
           const other = (memberProfiles ?? []).find((profile) => profile.id === otherId);
           const page = await loadMessagePage({
-              chatId: row.id,
-              accountId,
-              selfName: profileName,
-              authorName: other?.display_name || "Пользователь",
-              pageSize: DEFAULT_MESSAGE_PAGE_SIZE,
-            });
+            chatId: row.id,
+            accountId,
+            selfName: profileName,
+            authorName: other?.display_name || "Пользователь",
+            pageSize: DEFAULT_MESSAGE_PAGE_SIZE,
+          });
           if (page === null) throw new Error("history-unavailable");
           const reactions = await fetchReactions(page.map((message) => message.remoteId!).filter(Boolean));
           const chatMessages: Message[] = page.map((message) => ({
@@ -123,27 +170,30 @@ export function useCloudChats({
             reactions: message.remoteId ? (reactions[message.remoteId] ?? []) : [],
           }));
           return { row, chatMembers, other, chatMessages };
-        })
+        }),
       );
-      if (!alive) return;
+      if (!currentRequest()) return;
 
       const mappedChats: Chat[] = pages.map(({ row, chatMembers, other, chatMessages }) => {
         const last = chatMessages[chatMessages.length - 1];
         const memberReadAt: Record<string, number> = {};
         for (const member of chatMembers) {
-          memberReadAt[member.user_id as string] = member.last_read_at ? Date.parse(member.last_read_at as string) : 0;
+          memberReadAt[member.user_id as string] = member.last_read_at
+            ? Date.parse(member.last_read_at as string)
+            : 0;
         }
         const lastReadAt = memberReadAt[accountId] ?? 0;
         const memberLastSeenAt: Record<string, number> = {};
-        for (const member of chatMembers) memberLastSeenAt[member.user_id as string] = lastSeen.get(member.user_id as string) ?? 0;
+        for (const member of chatMembers)
+          memberLastSeenAt[member.user_id as string] = lastSeen.get(member.user_id as string) ?? 0;
         return {
           id: numericId(row.id),
           remoteId: row.id,
           peerId: row.is_group ? undefined : other?.id,
           name: row.is_group ? row.title : other?.display_name || row.title,
           avatar: row.is_group ? "👥" : other?.avatar || other?.display_name?.slice(0, 1) || "N",
-          avatarPath: row.is_group || !other ? null : memberDetails.get(other.id)?.avatar_path ?? null,
-          about: row.is_group || !other ? null : memberDetails.get(other.id)?.about ?? null,
+          avatarPath: row.is_group || !other ? null : (memberDetails.get(other.id)?.avatar_path ?? null),
+          about: row.is_group || !other ? null : (memberDetails.get(other.id)?.about ?? null),
           color: row.is_group ? `group ${avatarTone(row.id)}` : avatarTone(other?.id ?? row.id),
           preview: last?.text || "Начни общение",
           time: last?.time || "",
@@ -160,31 +210,29 @@ export function useCloudChats({
             : null,
           archived: Boolean(myMembership.get(row.id as string)?.archived_at),
           ...(timers.has(row.id) ? { messageTtlSeconds: timers.get(row.id), messageTtlSince: loadedAt } : {}),
-          members: chatMembers.map(
-            (member) =>
-              member.user_id === accountId
-                ? profileName
-                : (memberProfiles ?? []).find((profile) => profile.id === member.user_id)?.display_name || "Пользователь"
+          members: chatMembers.map((member) =>
+            member.user_id === accountId
+              ? profileName
+              : (memberProfiles ?? []).find((profile) => profile.id === member.user_id)?.display_name ||
+                "Пользователь",
           ),
         };
       });
       await withFavourites(mappedChats);
-      if (!alive) return;
-      setActiveId(mappedChats[0]?.id ?? 0);
+      if (!currentRequest()) return;
+      setActiveId((current) =>
+        mappedChats.some((chat) => chat.id === current) ? current : (mappedChats[0]?.id ?? 0),
+      );
     };
 
-    const load = () => { void loadCloudChats().catch(() => {
-      if (alive) notify("Не удалось загрузить историю. Проверь подключение и повтори попытку.");
-    }); };
-    load();
-    // A realtime event can arrive before the first fetch finishes. Reloading the
-    // list recovers that event instead of letting the message vanish.
-    target.current = () => {
-      if (alive) load();
-    };
+    const controller = recoverLoad(loadCloudChats, setChatLoadStatus);
+    target.current = controller.retry;
+    window.addEventListener("online",controller.retry);
     return () => {
       alive = false;
-      target.current = null;
+      controller.dispose();
+      window.removeEventListener("online",controller.retry);
+      if (target.current === controller.retry) target.current = null;
     };
   }, [accountId, profileReady, profileName, notify, setChats, setActiveId, reloadRef]);
 
@@ -200,7 +248,11 @@ export function useCloudChats({
       url.searchParams.delete("join");
       window.history.replaceState({}, "", url.toString());
       if (error) {
-        notify(error.message.includes("join_group_by_invite") ? "Примени миграцию облачных групп в Supabase" : "Ссылка недействительна или не удалось вступить в группу");
+        notify(
+          error.message.includes("join_group_by_invite")
+            ? "Примени миграцию облачных групп в Supabase"
+            : "Ссылка недействительна или не удалось вступить в группу",
+        );
         return;
       }
       notify("Ты вступил в группу");
@@ -211,4 +263,5 @@ export function useCloudChats({
       cancelled = true;
     };
   }, [accountId, notify]);
+  return { chatLoadStatus, retryChats };
 }

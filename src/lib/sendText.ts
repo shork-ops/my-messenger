@@ -7,7 +7,7 @@ export async function sendText(client: SupabaseClient, message: { id: string; ch
   if (exceedsMessageLimit(message.body)) throw new Error(MESSAGE_TOO_LONG);
   return withRetry(async () => {
     const result = await client.from("messages").insert(message).select("id, created_at").single();
-    if (result.error?.code === "23505") {
+    if (result.error && (result.error.code === "23505" || isTransientError(result.error))) {
       const existing = await client.from("messages").select("id, created_at, body").eq("id", message.id).eq("chat_id", message.chat_id).eq("sender_id", message.sender_id).single();
       if (!existing.error && existing.data?.body === message.body) return existing.data as { id: string; created_at: string };
     }
