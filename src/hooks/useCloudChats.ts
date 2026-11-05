@@ -47,7 +47,7 @@ export function useCloudChats({
       const savedLoad = import("../lib/savedMessages").then(
         async (module) => ({ module, saved: await module.loadSavedMessages(client, profileName) }),
         () => null
-      );
+      ).catch(() => null);
       /** The new chat list with «Избранное» first, put together with what this tab holds. */
       const withFavourites = async (chats: Chat[]) => {
         const loaded = await savedLoad.catch(() => null);
@@ -109,14 +109,14 @@ export function useCloudChats({
           const chatMembers = (profileRows ?? []).filter((member) => member.chat_id === row.id);
           const otherId = chatMembers.find((member) => member.user_id !== accountId)?.user_id;
           const other = (memberProfiles ?? []).find((profile) => profile.id === otherId);
-          const page =
-            (await loadMessagePage({
+          const page = await loadMessagePage({
               chatId: row.id,
               accountId,
               selfName: profileName,
               authorName: other?.display_name || "Пользователь",
               pageSize: DEFAULT_MESSAGE_PAGE_SIZE,
-            })) ?? [];
+            });
+          if (page === null) throw new Error("history-unavailable");
           const reactions = await fetchReactions(page.map((message) => message.remoteId!).filter(Boolean));
           const chatMessages: Message[] = page.map((message) => ({
             ...message,
@@ -173,11 +173,14 @@ export function useCloudChats({
       setActiveId(mappedChats[0]?.id ?? 0);
     };
 
-    void loadCloudChats();
+    const load = () => { void loadCloudChats().catch(() => {
+      if (alive) notify("Не удалось загрузить историю. Проверь подключение и повтори попытку.");
+    }); };
+    load();
     // A realtime event can arrive before the first fetch finishes. Reloading the
     // list recovers that event instead of letting the message vanish.
     target.current = () => {
-      if (alive) void loadCloudChats();
+      if (alive) load();
     };
     return () => {
       alive = false;

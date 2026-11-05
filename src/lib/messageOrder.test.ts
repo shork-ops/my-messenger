@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { placeNewMessage } from "./messageOrder";
+import { placeNewMessage, compareMessages } from "./messageOrder";
 import type { Message } from "../types";
 
 function message(overrides: Partial<Message> = {}): Message {
@@ -45,4 +45,12 @@ describe("placeNewMessage", () => {
     const result = placeNewMessage(existing, message({ id: 2, createdAt: undefined }));
     expect(result.map((item) => item.id)).toEqual([1, 2]);
   });
+});
+
+it("orders same-millisecond rows by precise timestamp before ID",()=>{
+ const message=(id:string,stamp:string):Message=>({id:1,remoteId:id,text:"",time:"",author:"",createdAt:Date.parse(stamp),historyAt:stamp});
+ const earlier=message("z","2026-11-01T10:00:00.123100+00:00");
+ const later=message("a","2026-11-01T10:00:00.123900+00:00");
+ expect([later,earlier].sort(compareMessages)).toEqual([earlier,later]);
+ expect(compareMessages({...earlier,remoteId:"a"},{...earlier,remoteId:"b"})).toBeLessThan(0);
 });

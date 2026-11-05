@@ -79,3 +79,8 @@ describe("badgeCount", () => {
     expect(badgeCount(-2)).toBe(0);
   });
 });
+
+it("keeps all PostgreSQL timestamp digits in the older-history cursor",()=>{
+ const historyAt="2026-11-01T10:00:00.123456+00:00";
+ expect(olderThanCursor([{id:1,remoteId:"a",text:"",author:"",time:"",createdAt:Date.parse(historyAt),historyAt}])).toEqual({createdAt:historyAt,id:"a"});
+});

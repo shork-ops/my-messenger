@@ -1,3 +1,4 @@
+import { enforceAccountAccess } from "../_shared/accountAccess.ts";
 // Supabase Edge Function: fetches the preview card for a link.
 //
 // Deploy:
@@ -18,6 +19,7 @@
 //
 // The project's own tables are never touched here. Caching happens in the client, which
 // already has a session and can store the card per URL in this browser.
+import { publicPage } from "../_shared/publicPage.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -36,38 +38,6 @@ type Card = {
   image: string;
   site: string;
 };
-
-/** True for an address the function must not follow. */
-function isPrivateAddress(host: string): boolean {
-  // IPv4 literals, including the ranges that only exist inside a host.
-  const v4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (v4) {
-    const [a, b] = [Number(v4[1]), Number(v4[2])];
-    if (a === 10 || a === 127 || a === 0) return true;
-    if (a === 192 && b === 168) return true;
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    if (a === 169 && b === 254) return true;
-    if (a === 100 && b >= 64 && b <= 127) return true;
-    return false;
-  }
-  const lowered = host.toLowerCase().replace(/^\[|\]$/g, "");
-  if (lowered === "::1" || lowered === "::" || lowered.startsWith("fc") || lowered.startsWith("fd")) return true;
-  if (lowered.startsWith("fe80")) return true;
-  // "localhost" and any name ending in it resolve to the loopback on most systems, and
-  // refusing the names is the cheap half of the check - the DNS half happens below.
-  if (lowered === "localhost" || lowered.endsWith(".localhost")) return true;
-  return false;
-}
-
-/** Resolves a hostname and refuses if any resolved address is private. */
-async function assertPublicHost(hostname: string): Promise<void> {
-  if (isPrivateAddress(hostname)) throw new Error("private");
-  // A hostname can point at a private address, so the name has to be resolved, not trusted.
-  const records = await Deno.resolveDns(hostname, "A").catch(() => []);
-  for (const address of records) {
-    if (isPrivateAddress(address)) throw new Error("private");
-  }
-}
 
 function decodeEntities(value: string): string {
   return value
@@ -109,25 +79,6 @@ function parseCard(html: string, url: URL): Card {
   };
 }
 
-/** Reads at most MAX_BYTES of the response body. */
-async function readLimited(response: Response): Promise<string> {
-  const reader = response.body?.getReader();
-  if (!reader) return "";
-  const decoder = new TextDecoder("utf-8", { fatal: false });
-  let text = "";
-  let bytes = 0;
-  while (bytes < MAX_BYTES) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    bytes += value.byteLength;
-    text += decoder.decode(value, { stream: true });
-    // The card lives in the head; there is no reason to read a whole article.
-    if (text.includes("</head>")) break;
-  }
-  await reader.cancel().catch(() => {});
-  return text.slice(0, MAX_BYTES);
-}
-
 async function fetchCard(raw: string): Promise<Card> {
   let url: URL;
   try {
@@ -138,17 +89,7 @@ async function fetchCard(raw: string): Promise<Card> {
   if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("bad-scheme");
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
-    await assertPublicHost(url.hostname);
-    const response = await fetch(url, {
-      redirect: "manual",
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: {
-        // Identify the bot honestly and ask for the cheap representation.
-        "user-agent": "NexusMessengerBot/1.0 (+link preview)",
-        accept: "text/html,application/xhtml+xml",
-        "accept-language": "ru,en;q=0.8",
-      },
-    });
+    const response = await publicPage(url, MAX_BYTES, TIMEOUT_MS);
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("location");
       if (!location) throw new Error("bad-redirect");
@@ -158,7 +99,7 @@ async function fetchCard(raw: string): Promise<Card> {
     if (!response.ok) throw new Error("fetch-failed");
     const type = response.headers.get("content-type") ?? "";
     if (!type.includes("text/html")) throw new Error("not-html");
-    return parseCard(await readLimited(response), url);
+    return parseCard(await response.text(), url);
   }
   throw new Error("too-many-redirects");
 }
@@ -183,7 +124,10 @@ Deno.serve(async (request) => {
     return new Response(JSON.stringify({ error: "auth" }), { status: 401, headers: corsHeaders });
   }
 
-  const { url } = await request.json().catch(() => ({ url: "" }));
+  if (!await enforceAccountAccess(client)) return new Response(JSON.stringify({ error: "Session expired or MFA required" }), { status: 403, headers: corsHeaders });
+
+  const body = await request.json().catch(() => null);
+  const url = body?.url;
   if (typeof url !== "string" || url.length === 0 || url.length > 2048) {
     return new Response(JSON.stringify({ error: "bad-url" }), { status: 400, headers: corsHeaders });
   }

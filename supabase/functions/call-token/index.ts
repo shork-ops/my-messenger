@@ -1,3 +1,4 @@
+import { enforceAccountAccess } from "../_shared/accountAccess.ts";
 // Edge Function: mints an SFU access token for a call.
 //
 // The provider is chosen by configuration, not by code changes:
@@ -112,19 +113,24 @@ Deno.serve(async (request) => {
   const { data: userData, error: userError } = await callerClient.auth.getUser();
   if (userError || !userData.user) return json({ error: "Authentication required" }, 401);
 
-  let body: { callId?: string };
+  if (!await enforceAccountAccess(callerClient)) return json({ error: "Session expired or MFA required" }, 403);
+
+  let body: unknown;
   try {
     body = await request.json();
   } catch {
     return json({ error: "Invalid JSON body" }, 400);
   }
-  if (!body.callId) return json({ error: "callId is required" }, 400);
+  const callId = body && typeof body === "object" && "callId" in body ? body.callId : null;
+  if (typeof callId !== "string" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(callId)) {
+    return json({ error: "A valid callId is required" }, 400);
+  }
 
   const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
   const { data: call, error: callError } = await admin
     .from("calls")
     .select("id, chat_id, created_by, status, room_name, kind")
-    .eq("id", body.callId)
+    .eq("id", callId)
     .maybeSingle<CallRow>();
   if (callError) return json({ error: callError.message }, 500);
   if (!call) return json({ error: "Call not found" }, 404);

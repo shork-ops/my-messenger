@@ -7,6 +7,7 @@ import { secondFactorFor } from "./twoFactor";
 import { authBaseStyles as styles } from "./authStyles";
 
 // The forms are only needed by someone who is not signed in yet, so they load on demand.
+const AccountAccessBoundary = lazy(() => import("./AccountAccessBoundary").then(module => ({ default: module.AccountAccessBoundary })));
 const SignInScreen = lazy(() => import("./SignInScreens").then((module) => ({ default: module.SignInScreen })));
 const SecondFactorScreen = lazy(() => import("./SignInScreens").then((module) => ({ default: module.SecondFactorScreen })));
 
@@ -66,7 +67,7 @@ export default function AuthGate({ children }: AuthGateProps) {
         </Suspense>
       );
     }
-    return <>{children}</>;
+    return <Suspense fallback={<Checking />}><AccountAccessBoundary userId={session.user.id} token={session.access_token}>{children}</AccountAccessBoundary></Suspense>;
   }
   return (
     <Suspense fallback={<Checking />}>

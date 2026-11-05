@@ -1,7 +1,7 @@
 import type { Message } from "../types";
 
 /**
- * Keyset cursor for loading older history: the whole tuple `(created_at, id)` is sent back
+ * Keyset cursor for loading older history: the whole tuple `(timeline_at, id)` is sent back
  * to Supabase so messages created in the same millisecond are never skipped or duplicated.
  */
 export type HistoryCursor = { createdAt: string; id: string };
@@ -10,7 +10,7 @@ export type HistoryCursor = { createdAt: string; id: string };
 export function olderThanCursor(messages: Message[]): HistoryCursor | null {
   const oldest = messages[0];
   if (!oldest?.remoteId || !oldest.createdAt) return null;
-  return { createdAt: new Date(oldest.createdAt).toISOString(), id: oldest.remoteId };
+  return { createdAt: oldest.historyAt ?? new Date(oldest.createdAt).toISOString(), id: oldest.remoteId };
 }
 
 /** A page can be requested while the first message came from the server and nothing is loading. */

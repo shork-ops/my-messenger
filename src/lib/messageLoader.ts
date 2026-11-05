@@ -1,10 +1,11 @@
+import { compareMessages } from "./messageOrder";
 import { fetchLatestMessages, fetchOlderMessages, mapMessageRow } from "../lib/messageSync";
 import type { HistoryCursor } from "../lib/history";
 import type { Message } from "../types";
 
 export const DEFAULT_MESSAGE_PAGE_SIZE = 50;
 
-type LoadOptions = {
+export type LoadOptions = {
   chatId: string;
   accountId: string;
   selfName: string;
@@ -23,7 +24,7 @@ export async function loadMessagePage({
   const rows = await fetchLatestMessages(chatId, pageSize);
   if (!rows) return null;
   const mapped = await Promise.all(rows.map((row) => mapMessageRow(row, { accountId, selfName, authorName })));
-  const messages = mapped.filter((item): item is Message => item !== null).sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
+  const messages = mapped.filter((item): item is Message => item !== null).sort(compareMessages);
   return messages;
 }
 
@@ -33,5 +34,5 @@ export async function loadOlderMessagePage(options: LoadOptions & { cursor: Hist
   const rows = await fetchOlderMessages(chatId, cursor, pageSize);
   if (!rows) return null;
   const mapped = await Promise.all(rows.map((row) => mapMessageRow(row, { accountId, selfName, authorName })));
-  return mapped.filter((item): item is Message => item !== null).sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
+  return mapped.filter((item): item is Message => item !== null).sort(compareMessages);
 }

@@ -1,3 +1,4 @@
+import { compareMessages } from "../lib/messageOrder";
 import { useEffect, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { supabase } from "../lib/supabase";
@@ -48,18 +49,37 @@ export function useRealtimeChat({ accountId, profileName, remoteId, setChats, vi
     if (!client || !accountId || !remoteId) return;
     // Reset per subscription: a fresh channel has not joined yet, so its first join is not
     // a recovery and must not trigger a refetch of a conversation that was just loaded.
+    let active = true;
+    const versions = new Map<string,number>();
     let previousStatus: "joined" | "lost" | null = null;
     const channel = client
       .channel(`nexus-messages-${remoteId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "messages", filter: `chat_id=eq.${remoteId}` }, async (payload) => {
-        const row = payload.new as ChatMessageRow;
+        if (!active) return;
+        const row = (payload.eventType === "DELETE" ? payload.old : payload.new) as ChatMessageRow;
         if (!row?.id) return;
+        const version=(versions.get(row.id)??0)+1;versions.set(row.id,version);
+        if (payload.eventType === "DELETE") {
+          setChats(chats=>chats.map(chat=>{
+            if(chat.remoteId!==remoteId)return chat;
+            const messages=chat.messages.filter(message=>message.remoteId!==row.id);
+            const last=messages[messages.length-1];
+            return {...chat,messages,preview:last?.text??"Начни общение",time:last?.time??""};
+          }));
+          return;
+        }
+        // A scheduled row can be readable by its sender before it is due.
+        // Let the server history RPC decide visibility instead of the device clock.
+        if (row.send_at) { await onReconnectRef.current?.(); return; }
         // Inbound INSERTs become new bubbles; everything else only refreshes an existing message (e.g. a poll).
-        if (payload.eventType === "INSERT" && row.sender_id !== accountId) {
+        if (payload.eventType === "INSERT") {
           const message = await mapMessageRow(row, { accountId, selfName: profileName, authorName: "Собеседник" });
-          if (!message) return;
+          if (!message || !active || versions.get(row.id)!==version) return;
           let chatMissing = false;
           setChats((current) => {
+            if(message.mine && current.some(chat=>chat.remoteId===row.chat_id && chat.messages.some(item=>!item.remoteId && item.id===message.id))) {
+              return current.map(chat=>chat.remoteId===row.chat_id?{...chat,messages:chat.messages.map(item=>item.id===message.id?{...item,...message,delivery:"sent" as const}:item)}:chat);
+            }
             const plan = planRealtimeMessage(current, row.chat_id, row.id);
             // The chat list has not finished loading, or this chat appeared after
             // the last fetch. Dropping the event loses the message silently, so
@@ -70,14 +90,20 @@ export function useRealtimeChat({ accountId, profileName, remoteId, setChats, vi
             }
             if (plan.action === "skip") return current;
             const preview = row.poll ? "📊 " + row.body : message.attachment ? (isVideoNote(message.attachment) ? "⭕ " : "📎 ") + message.text : message.text;
-            return appendMessage(current, plan.chatId, message, preview, message.time);
+            return appendMessage(current, plan.chatId, message, preview, message.time).map(chat => {
+              if (chat.id !== plan.chatId) return chat;
+              const messages = [...chat.messages].sort(compareMessages);
+              const delivered = messages.filter(item=>!item.sendAt);
+              const last = delivered[delivered.length-1]!;
+              return {...chat,messages,preview:last === message ? preview : last.text,time:last.time};
+            });
           });
           if (chatMissing) await onMissingChatRef.current?.(row.chat_id);
           // Read receipts are the reader's statement that they have seen it. Only a
           // conversation that is actually on screen counts; anything else stays unread.
-          if (!canMarkRead(visibleRef.current)) return;
+          if (!active || row.sender_id === accountId || !canMarkRead(visibleRef.current)) return;
           const marked = await client.rpc("mark_chat_read", { target_chat_id: row.chat_id });
-          if (typeof marked.data === "string") {
+          if (active && typeof marked.data === "string") {
             const at = Date.parse(marked.data);
             if (!Number.isNaN(at)) setChats((current) => applyRemoteMemberRead(current, row.chat_id, accountId, at, accountId));
           }
@@ -93,7 +119,9 @@ export function useRealtimeChat({ accountId, profileName, remoteId, setChats, vi
         if (row.poll !== undefined) patch.poll = (row.poll as Message["poll"] | null) ?? undefined;
         if (rowExtra.effect !== undefined) patch.effect = rowExtra.effect ?? undefined;
         if (rowExtra.body !== undefined) patch.text = rowExtra.body;
-        if (rowExtra.edited !== undefined) patch.edited = rowExtra.edited ?? false;
+        if (row.edited_at !== undefined) patch.edited = Boolean(row.edited_at);
+        if (row.attachment === null) patch.attachment = undefined;
+        if (row.deleted_at) Object.assign(patch,{text:"Сообщение удалено",attachment:undefined,poll:undefined,effect:undefined,replyTo:undefined,album:undefined});
         if (Object.keys(patch).length === 0) return;
         setChats((current) => mapMessagesByRemoteId(current, row.id, (message) => ({ ...message, ...patch })));
       })
@@ -107,7 +135,8 @@ export function useRealtimeChat({ accountId, profileName, remoteId, setChats, vi
       .on("postgres_changes", { event: "*", schema: "public", table: "message_reactions" }, async (payload) => {
         const row = (payload.new && Object.keys(payload.new).length ? payload.new : payload.old) as { message_id?: string };
         if (!row.message_id) return;
-        const { data: reactions } = await client.from("message_reactions").select("emoji").eq("message_id", row.message_id);
+        const { data: reactions, error } = await client.from("message_reactions").select("emoji").eq("message_id", row.message_id);
+        if (!active || error) return;
         const emojis = (reactions ?? []).map((item) => item.emoji);
         setChats((current) => mapMessagesByRemoteId(current, row.message_id!, (message) => ({ ...message, reactions: emojis })));
       })
@@ -119,6 +148,7 @@ export function useRealtimeChat({ accountId, profileName, remoteId, setChats, vi
         if (next !== "other") previousStatus = next;
       });
     return () => {
+      active = false;
       void client.removeChannel(channel);
     };
   }, [accountId, profileName, remoteId, setChats]);

@@ -1,3 +1,4 @@
+import { accountStorageKey, useStoredState } from "./useStoredState";
 import { useEffect, useMemo, useState } from "react";
 import type { Chat, ChatFilter } from "../types";
 import {
@@ -16,6 +17,7 @@ import { createDemoSeedChats } from "../lib/demoSeed";
 import { chatsForStorage } from "../lib/disappearing";
 
 type UseChatCollectionOptions = {
+  accountId?: string | null;
   search: string;
   chatFilter: ChatFilter;
   messageSearch: string;
@@ -32,7 +34,14 @@ const EMPTY_CHAT: Chat = {
   messages: [],
 };
 
-export function useChatCollection({ search, chatFilter, messageSearch, notify }: UseChatCollectionOptions) {
+function parseDrafts(raw: string | null): Record<number,string> {
+  try {const value=JSON.parse(raw||"{}");return value && typeof value==="object" && !Array.isArray(value) ? Object.fromEntries(Object.entries(value).filter(([,text])=>typeof text==="string")) as Record<number,string> : {};} catch{return {};}
+}
+function parseReplyDrafts(raw: string | null): Record<number,{author:string;text:string}> {
+  try {const value=JSON.parse(raw||"{}");return value && typeof value==="object" && !Array.isArray(value) ? Object.fromEntries(Object.entries(value).filter(([,entry])=>entry && typeof entry==="object" && typeof (entry as {author?:unknown}).author==="string" && typeof (entry as {text?:unknown}).text==="string")) as Record<number,{author:string;text:string}> : {};} catch{return {};}
+}
+
+export function useChatCollection({ accountId, search, chatFilter, messageSearch, notify }: UseChatCollectionOptions) {
   const [chats, setChats] = useState<Chat[]>(() => {
     // Browser tests need a deterministic starting state; ship no seed to users.
     if (demoSeedEnabled) return createDemoSeedChats();
@@ -55,36 +64,9 @@ export function useChatCollection({ search, chatFilter, messageSearch, notify }:
     }
   });
   const [activeId, setActiveId] = useState(1);
-  const [drafts, setDrafts] = useState<Record<number, string>>(() => {
-    try {
-      const parsed: unknown = JSON.parse(readItem("nexus-drafts-v1") || "{}");
-      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<number, string>) : {};
-    } catch {
-      return {};
-    }
-  });
-
-  useEffect(() => {
-    writeItem("nexus-drafts-v1", JSON.stringify(drafts));
-  }, [drafts]);
-
-  // The message a draft is answering. Kept beside the drafts because the two are read and
-  // written together: a reply target without its text, or text without its target, is a
-  // state the composer cannot show.
-  const [replyDrafts, setReplyDrafts] = useState<Record<number, { author: string; text: string }>>(() => {
-    try {
-      const parsed: unknown = JSON.parse(readItem("nexus-reply-drafts-v1") || "{}");
-      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-        ? (parsed as Record<number, { author: string; text: string }>)
-        : {};
-    } catch {
-      return {};
-    }
-  });
-
-  useEffect(() => {
-    writeItem("nexus-reply-drafts-v1", JSON.stringify(replyDrafts));
-  }, [replyDrafts]);
+  const scope = isDemoMode ? undefined : accountId ?? null;
+  const [drafts, setDrafts] = useStoredState(accountStorageKey("nexus-drafts-v1",scope),parseDrafts);
+  const [replyDrafts, setReplyDrafts] = useStoredState(accountStorageKey("nexus-reply-drafts-v1",scope),parseReplyDrafts);
 
   useEffect(() => {
     // Only chats that exist on this device alone are kept here. Cloud conversations live on

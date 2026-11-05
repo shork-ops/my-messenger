@@ -23,11 +23,24 @@ jobs:
           node-version: 22
           cache: npm
       - name: Install dependencies
-        run: npm ci || npm install
+        run: npm ci
       - name: Typecheck
         run: npx tsc -b
       - name: Unit tests
         run: npm test
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Edge function security tests
+        run: |
+          deno check --no-config --node-modules-dir=none supabase/functions/link-preview/index.ts supabase/functions/push-notify/index.ts supabase/functions/delete-account/index.ts supabase/functions/push-dispatch/index.ts supabase/functions/call-token/index.ts supabase/functions/view-once/index.ts
+          deno test --allow-env --no-config --node-modules-dir=none supabase/tests/edge-functions.test.ts supabase/tests/public-page.test.ts supabase/tests/push-delivery.test.ts
+      - name: Full schema installation and repeatability
+        run: npm run test:install
+      - name: Account access database checks
+        run: node scripts/check-account-access.mjs
+      - name: Push queue database checks
+        run: node scripts/check-push-queue.mjs
       - name: Single-view database permissions
         run: npm run test:db
       - name: Moderation queue permissions
@@ -48,7 +61,7 @@ jobs:
           node-version: 22
           cache: npm
       - name: Install dependencies
-        run: npm ci || npm install
+        run: npm ci
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       # The suite builds the demo bundle itself (VITE_DEMO_MODE), so no
