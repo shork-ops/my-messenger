@@ -14,7 +14,6 @@ it("recovers a lost insert response without inserting a duplicate message", asyn
   const insert = vi.fn().mockReturnThis();
   const single = vi.fn()
     .mockResolvedValueOnce({ error: { message: "Failed to fetch" } })
-    .mockResolvedValueOnce({ error: { code: "23505" } })
     .mockResolvedValueOnce({ data: { id: "stable-id", body: "hello", created_at: "2026-10-31T00:00:00Z" } });
   const chain = { insert, select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), single };
   const client = { from: () => chain } as unknown as SupabaseClient;
@@ -22,7 +21,7 @@ it("recovers a lost insert response without inserting a duplicate message", asyn
   const pending = sendText(client, message);
   await vi.runAllTimersAsync();
   expect((await pending).id).toBe("stable-id");
-  expect(insert.mock.calls.map(([row]) => row.id)).toEqual(["stable-id", "stable-id"]);
+  expect(insert.mock.calls.map(([row]) => row.id)).toEqual(["stable-id"]);
 });
 
 it("does not retry a permission denial", async () => {

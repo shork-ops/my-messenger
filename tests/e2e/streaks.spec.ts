@@ -8,6 +8,8 @@ import { expect, test } from "@playwright/test";
  */
 test.describe("friendship streaks", () => {
   test.beforeEach(async ({ page }) => {
+    // Badge variants depend on the hour; keep this daytime scenario deterministic.
+    await page.clock.setFixedTime(new Date(2026,10,5,12,0,0));
     await page.goto("/my-messenger/");
     await expect(page.locator(".app-shell")).toBeVisible();
   });

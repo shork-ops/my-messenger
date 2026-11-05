@@ -54,7 +54,9 @@ export type AlbumItem = Attachment;
 export type Message = {
   id: number;
   remoteId?: string;
-  delivery?: "sending" | "failed" | "sent";
+  /** Stable local operation ID until the server acknowledges it. */
+  outboxId?: string;
+  delivery?: "queued" | "sending" | "failed" | "sent";
   author: string;
   text: string;
   time: string;

@@ -26,6 +26,8 @@ export type PendingAttachment = {
   videoNoteMs?: number;
   /** Why it failed, in the words the person was shown. */
   reason: string;
+  state?: "queued" | "failed";
+  fileCount?: number;
 };
 
 /**

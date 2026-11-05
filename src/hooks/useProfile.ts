@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { recoverLoad, type LoadStatus } from "../lib/loadRecovery";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { readItem, writeItem } from "../lib/safeStorage";
 import { fetchProfileDetails } from "../lib/profileDetails";
@@ -17,10 +18,14 @@ export function useProfile({ notify }: UseProfileOptions) {
   const [usernameSaving, setUsernameSaving] = useState(false);
   const [accountId, setAccountId] = useState<string | null>(null);
   const [profileReady, setProfileReady] = useState(false);
+  const [profileLoadStatus, setProfileLoadStatus] = useState<LoadStatus>("loading");
+  const recovery = useRef<ReturnType<typeof recoverLoad> | null>(null);
+  const retryProfile = useCallback(() => recovery.current?.retry(), []);
 
   useEffect(() => {
     if (!supabase) {
       setProfileReady(true);
+      setProfileLoadStatus("ready");
       return;
     }
     let alive = true;
@@ -30,13 +35,12 @@ export function useProfile({ notify }: UseProfileOptions) {
         setProfileReady(true);
         return;
       }
-      const { data: { user }, error: userError } = await client.auth.getUser();
+      const {
+        data: { user },
+        error: userError,
+      } = await client.auth.getUser();
       if (!alive) return;
-      if (userError || !user) {
-        setAccountId(null);
-        setProfileReady(true);
-        return;
-      }
+      if (userError || !user) throw userError ?? new Error("Authentication unavailable");
       setAccountId(user.id);
       const metadataName =
         typeof user.user_metadata?.full_name === "string"
@@ -51,12 +55,7 @@ export function useProfile({ notify }: UseProfileOptions) {
         fetchProfileDetails(client, [user.id]),
       ]);
       if (!alive) return;
-      if (readError) {
-        setAccountId(null);
-        notify("Не удалось загрузить профиль из Supabase");
-        setProfileReady(true);
-        return;
-      }
+      if (readError) throw readError;
       if (existingProfile) {
         setProfileName(existingProfile.display_name || metadataName || "Пользователь");
         setProfileAvatar(existingProfile.avatar || metadataName.slice(0, 1).toUpperCase() || "N");
@@ -67,9 +66,11 @@ export function useProfile({ notify }: UseProfileOptions) {
       } else {
         const displayName = metadataName.trim() || user.email?.split("@")[0] || "Пользователь";
         const avatar = displayName.slice(0, 1).toUpperCase() || "N";
-        const { error: insertError } = await client.from("profiles").insert({ id: user.id, display_name: displayName, avatar });
+        const { error: insertError } = await client
+          .from("profiles")
+          .insert({ id: user.id, display_name: displayName, avatar });
         if (!alive) return;
-        if (insertError) notify("Не удалось создать профиль в Supabase");
+        if (insertError) throw insertError;
         else {
           setProfileName(displayName);
           setProfileAvatar(avatar);
@@ -77,9 +78,12 @@ export function useProfile({ notify }: UseProfileOptions) {
       }
       setProfileReady(true);
     };
-    void syncProfile();
+    const controller = recoverLoad(syncProfile, setProfileLoadStatus);
+    recovery.current = controller;
     return () => {
       alive = false;
+      controller.dispose();
+      if (recovery.current === controller) recovery.current = null;
     };
   }, [notify]);
 
@@ -117,7 +121,8 @@ export function useProfile({ notify }: UseProfileOptions) {
     setUsernameSaving(false);
     if (error) {
       if (error.code === "23505") notify("Этот username уже занят. Выбери другой.");
-      else if (error.code === "42703" || error.message.toLowerCase().includes("username")) notify("Сначала выполни SQL-миграцию username в Supabase");
+      else if (error.code === "42703" || error.message.toLowerCase().includes("username"))
+        notify("Сначала выполни SQL-миграцию username в Supabase");
       else notify("Не удалось сохранить username");
       return false;
     }
@@ -135,7 +140,10 @@ export function useProfile({ notify }: UseProfileOptions) {
     }
     const { normalizeAbout } = await import("../lib/about");
     const value = normalizeAbout(next);
-    const { error } = await client.from("profiles").update({ about: value || null, updated_at: new Date().toISOString() }).eq("id", accountId);
+    const { error } = await client
+      .from("profiles")
+      .update({ about: value || null, updated_at: new Date().toISOString() })
+      .eq("id", accountId);
     if (error) {
       notify("Не удалось сохранить «о себе»");
       return;
@@ -160,6 +168,8 @@ export function useProfile({ notify }: UseProfileOptions) {
     savedUsername,
     accountId,
     profileReady,
+    profileLoadStatus,
+    retryProfile,
     saveUsername,
   };
 }

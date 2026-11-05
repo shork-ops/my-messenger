@@ -70,6 +70,7 @@ export default function App() {
   const [coolDownText, setCoolDownText] = useState<string | null>(null);
   const cooledDraft = useRef<string | null>(null);
   const {
+    dataLoadError, dataLoading, retryDataLoad,
     about,
     accountId,
     action,
@@ -339,7 +340,7 @@ export default function App() {
 
   return (
     <main className={`app-shell ${mobileView === "chat" ? "mobile-chat" : "mobile-list"}`}>
-      <ConnectionStatus />
+      <ConnectionStatus loadError={dataLoadError} loading={dataLoading} onRetry={retryDataLoad} />
       <header className="mobile-list-header">
         <strong><span>N</span> Nexus</strong>
         <button type="button" onClick={() => { setSettingsSection("profile"); setProfileOpen(true); }} aria-label="Мой профиль">{profileName || "Мой профиль"}</button>

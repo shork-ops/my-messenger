@@ -2,22 +2,50 @@ import { compareMessages } from "./messageOrder";
 import type { Message } from "../types";
 
 /** Reconcile only IDs explicitly checked on the server. Preserve arrivals/edits during the request. */
-export function reconcileMessageSnapshot(current: Message[], snapshot: Message[], fetched: Message[]): Message[] {
-  const checked = new Map(snapshot.filter(message=>message.remoteId).map(message=>[message.remoteId!,message]));
-  const remote = new Map(fetched.filter(message=>message.remoteId).map(message=>[message.remoteId!,message]));
-  const result: Message[]=[];
-  const seen=new Set<string>();
-  for(const message of current){
-    const id=message.remoteId;
-    if(!id){result.push(message);continue;}
+export function reconcileMessageSnapshot(
+  current: Message[],
+  snapshot: Message[],
+  fetched: Message[],
+): Message[] {
+  const checked = new Map(
+    snapshot.filter((message) => message.remoteId).map((message) => [message.remoteId!, message]),
+  );
+  const remote = new Map(
+    fetched.filter((message) => message.remoteId).map((message) => [message.remoteId!, message]),
+  );
+  const currentRemoteIds = new Set(
+    current.flatMap((message) => (message.remoteId ? [message.remoteId] : [])),
+  );
+  const result: Message[] = [];
+  const seen = new Set<string>();
+  for (const message of current) {
+    const id = message.remoteId;
+    if (!id) {
+      if (message.outboxId && currentRemoteIds.has(message.outboxId)) continue;
+      const confirmed = message.outboxId ? remote.get(message.outboxId) : undefined;
+      if (confirmed) {
+        seen.add(confirmed.remoteId!);
+        result.push({ ...message, ...confirmed, delivery: "sent" });
+      } else result.push(message);
+      continue;
+    }
     seen.add(id);
-    if(!checked.has(id) || checked.get(id)!==message || message.delivery==="sending" || message.delivery==="failed") {result.push(message);continue;}
-    const fresh=remote.get(id);
-    if(fresh) result.push({...message,...fresh,author:message.author});
+    if (
+      !checked.has(id) ||
+      checked.get(id) !== message ||
+      message.delivery === "sending" ||
+      message.delivery === "failed"
+    ) {
+      result.push(message);
+      continue;
+    }
+    const fresh = remote.get(id);
+    if (fresh) result.push({ ...message, ...fresh, author: message.author });
   }
-  for(const message of fetched){
-    if(message.remoteId && !seen.has(message.remoteId) && !checked.has(message.remoteId)){
-      seen.add(message.remoteId);result.push(message);
+  for (const message of fetched) {
+    if (message.remoteId && !seen.has(message.remoteId) && !checked.has(message.remoteId)) {
+      seen.add(message.remoteId);
+      result.push(message);
     }
   }
   return result.sort(compareMessages);
