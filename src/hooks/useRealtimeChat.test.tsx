@@ -17,7 +17,7 @@ beforeEach(()=>{
  mock.map.mockResolvedValue({...original,id:2,remoteId:"other",mine:true,text:"from other device"});
 });
 afterEach(cleanup);
-function open(){return renderHook(()=>useRealtimeChat({accountId:"me",profileName:"Me",remoteId:"chat",visible:{chatOpen:false,conversationOnScreen:false,documentVisible:true},setChats:update=>{chats=typeof update==="function"?update(chats):update;}}));}
+function open(onReconnect?:()=>Promise<void>){return renderHook(()=>useRealtimeChat({accountId:"me",profileName:"Me",remoteId:"chat",onReconnect,visible:{chatOpen:false,conversationOnScreen:false,documentVisible:true},setChats:update=>{chats=typeof update==="function"?update(chats):update;}}));}
 it("applies edit timestamps and clears deleted media immediately",async()=>{
  open();await act(async()=>{await events({eventType:"UPDATE",new:{id:"message",body:"changed",edited_at:"2026-01-01"}});});
  expect(chats[0].messages[0].edited).toBe(true);
@@ -33,5 +33,13 @@ it("discarded subscriptions cannot append late attachment results",async()=>{
  let finish:(message:Message)=>void=()=>{};mock.map.mockImplementation(()=>new Promise(resolve=>{finish=resolve;}));
  const {unmount}=open();const pending=events({eventType:"INSERT",new:{id:"other",chat_id:"chat",sender_id:"peer"}});
  unmount();await act(async()=>{finish({...original,id:2,remoteId:"other"});await pending;});
+ expect(chats[0].messages).toHaveLength(1);
+});
+
+it("asks the server to classify scheduled inserts instead of showing a future bubble",async()=>{
+ const refresh=vi.fn().mockResolvedValue(undefined);open(refresh);
+ await act(async()=>{await events({eventType:"INSERT",new:{id:"future",chat_id:"chat",sender_id:"me",send_at:"2999-01-01T00:00:00Z"}});});
+ expect(refresh).toHaveBeenCalledTimes(1);
+ expect(mock.map).not.toHaveBeenCalled();
  expect(chats[0].messages).toHaveLength(1);
 });

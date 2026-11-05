@@ -1,3 +1,4 @@
+import { compareMessages } from "./messageOrder";
 import type { Message } from "../types";
 
 /** Reconcile only IDs explicitly checked on the server. Preserve arrivals/edits during the request. */
@@ -19,5 +20,5 @@ export function reconcileMessageSnapshot(current: Message[], snapshot: Message[]
       seen.add(message.remoteId);result.push(message);
     }
   }
-  return result.sort((a,b)=>(a.createdAt??0)-(b.createdAt??0) || (a.remoteId??String(a.id)).localeCompare(b.remoteId??String(b.id)));
+  return result.sort(compareMessages);
 }

@@ -1,3 +1,4 @@
+import { compareMessages } from "../lib/messageOrder";
 import { useEffect, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { supabase } from "../lib/supabase";
@@ -67,6 +68,9 @@ export function useRealtimeChat({ accountId, profileName, remoteId, setChats, vi
           }));
           return;
         }
+        // A scheduled row can be readable by its sender before it is due.
+        // Let the server history RPC decide visibility instead of the device clock.
+        if (row.send_at) { await onReconnectRef.current?.(); return; }
         // Inbound INSERTs become new bubbles; everything else only refreshes an existing message (e.g. a poll).
         if (payload.eventType === "INSERT") {
           const message = await mapMessageRow(row, { accountId, selfName: profileName, authorName: "Собеседник" });
@@ -86,7 +90,13 @@ export function useRealtimeChat({ accountId, profileName, remoteId, setChats, vi
             }
             if (plan.action === "skip") return current;
             const preview = row.poll ? "📊 " + row.body : message.attachment ? (isVideoNote(message.attachment) ? "⭕ " : "📎 ") + message.text : message.text;
-            return appendMessage(current, plan.chatId, message, preview, message.time);
+            return appendMessage(current, plan.chatId, message, preview, message.time).map(chat => {
+              if (chat.id !== plan.chatId) return chat;
+              const messages = [...chat.messages].sort(compareMessages);
+              const delivered = messages.filter(item=>!item.sendAt);
+              const last = delivered[delivered.length-1]!;
+              return {...chat,messages,preview:last === message ? preview : last.text,time:last.time};
+            });
           });
           if (chatMissing) await onMissingChatRef.current?.(row.chat_id);
           // Read receipts are the reader's statement that they have seen it. Only a

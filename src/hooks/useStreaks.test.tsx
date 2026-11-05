@@ -37,6 +37,7 @@ const streakRow = (chatId: string, lastFull: string, run: number) => ({
 
 beforeEach(() => {
   vi.useFakeTimers();
+  vi.setSystemTime(new Date(2026, 10, 1, 12, 0, 0));
   window.localStorage.clear();
   rpc.mockReset();
 });

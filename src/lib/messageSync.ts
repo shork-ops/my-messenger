@@ -2,33 +2,6 @@ import { supabase } from "../lib/supabase";
 import { clockTime, numericId } from "../lib/format";
 import type { Attachment, ChatMessageRow, Message } from "../types";
 
-const MESSAGE_COLUMNS = "id, chat_id, sender_id, body, attachment, effect, poll, reply_to, created_at, edited_at, deleted_at";
-
-/**
- * Set once the server says messages have no `expires_at` column: migration 20261052 has not
- * run there. Asking for the column again would fail every page, and a failed page shows as
- * an empty chat, so history is loaded without deadlines instead.
- */
-let expiryColumnMissing = false;
-
-function messageColumns(): string {
-  return expiryColumnMissing ? MESSAGE_COLUMNS : `${MESSAGE_COLUMNS}, expires_at`;
-}
-
-export function isMissingExpiryColumn(error: { code?: string; message?: string } | null | undefined): boolean {
-  return Boolean(error && (/^(42703|PGRST204)$/.test(error.code ?? "") || /expires_at/.test(error.message ?? "")));
-}
-
-type PageResult = { data: unknown[] | null; error: { code?: string; message?: string } | null };
-
-/** Runs a page query, once more without `expires_at` if the server does not have it yet. */
-async function selectPage(run: (columns: string) => PromiseLike<PageResult>): Promise<PageResult> {
-  const first = await run(messageColumns());
-  if (!first.error || expiryColumnMissing || !isMissingExpiryColumn(first.error)) return first;
-  expiryColumnMissing = true;
-  return run(messageColumns());
-}
-
 /**
  * How long a signed attachment URL stays valid.
  *
@@ -110,7 +83,8 @@ export async function mapMessageRow(row: ChatMessageRow, options: MapOptions): P
     }
     attachment = toAttachment(attachmentMeta, data, expiresAt);
   }
-  const created = new Date(row.created_at);
+  const historyAt = row.timeline_at ?? row.send_at ?? row.created_at;
+  const created = new Date(historyAt);
   const mine = row.sender_id === options.accountId;
   return {
     id: numericId(row.id),
@@ -120,6 +94,8 @@ export async function mapMessageRow(row: ChatMessageRow, options: MapOptions): P
     time: clockTime(created),
     mine,
     createdAt: created.getTime(),
+    historyAt,
+    sendAt: row.history_pending && row.send_at ? Date.parse(row.send_at) : undefined,
     edited: Boolean(row.edited_at),
     ...(row.expires_at && !Number.isNaN(Date.parse(row.expires_at)) ? { disappearsAt: Date.parse(row.expires_at) } : {}),
     effect: row.deleted_at ? undefined : row.effect ?? undefined,
@@ -144,53 +120,19 @@ export async function fetchHiddenMessageIds(messageIds: string[]): Promise<Set<s
   return new Set((data ?? []).map((row) => row.message_id as string));
 }
 
-/** Loads the newest page of a chat (keyset pagination sorted newest first). */
+/** Server filters due/hidden rows before LIMIT, so a short page means exhaustion. */
 export async function fetchLatestMessages(chatId: string, limit: number): Promise<ChatMessageRow[] | null> {
   if (!supabase) return null;
-  const client = supabase;
-  const { data, error } = await selectPage((columns) =>
-    client
-      .from("messages")
-      .select(columns)
-      .eq("chat_id", chatId)
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
-      .limit(limit)
-  );
-  if (error) return null;
-  const rows = (data ?? []) as ChatMessageRow[];
-  const hidden = await fetchHiddenMessageIds(rows.map((row) => row.id));
-  if (!hidden) return null;
-  return hidden.size ? rows.filter((row) => !hidden.has(row.id)) : rows;
+  const { data, error } = await supabase.rpc("message_history_page", { p_chat: chatId, p_limit: limit });
+  return error || !Array.isArray(data) ? null : data as ChatMessageRow[];
 }
 
-/**
- * Loads one page of older messages strictly before the `(createdAt, id)` cursor.
- * PostgREST evaluates the `or` filter left to right:
- * `created_at < cursor OR (created_at = cursor AND id < cursor.id)`.
- */
-export async function fetchOlderMessages(
-  chatId: string,
-  cursor: { createdAt: string; id: string },
-  limit: number
-): Promise<ChatMessageRow[] | null> {
+export async function fetchOlderMessages(chatId: string, cursor: { createdAt: string; id: string }, limit: number): Promise<ChatMessageRow[] | null> {
   if (!supabase) return null;
-  const client = supabase;
-  const { data, error } = await selectPage((columns) =>
-    client
-      .from("messages")
-      .select(columns)
-      .eq("chat_id", chatId)
-      .or(`created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`)
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
-      .limit(limit)
-  );
-  if (error) return null;
-  const rows = (data ?? []) as ChatMessageRow[];
-  const hidden = await fetchHiddenMessageIds(rows.map((row) => row.id));
-  if (!hidden) return null;
-  return hidden.size ? rows.filter((row) => !hidden.has(row.id)) : rows;
+  const { data, error } = await supabase.rpc("message_history_page", {
+    p_chat: chatId, p_before_at: cursor.createdAt, p_before_id: cursor.id, p_limit: limit,
+  });
+  return error || !Array.isArray(data) ? null : data as ChatMessageRow[];
 }
 
 /** Loads reaction emojis for a set of messages, grouped by message id. */
@@ -212,14 +154,10 @@ export async function fetchKnownMessages(chatId: string, ids: string[]): Promise
   const client=supabase;
   if(!client)return null;
   const rows: ChatMessageRow[]=[];
-  for(let offset=0;offset<ids.length;offset+=100){
-    const slice=ids.slice(offset,offset+100);
-    const result=await selectPage(columns=>client.from("messages").select(columns).eq("chat_id",chatId).in("id",slice));
-    if(result.error)return null;
-    const hidden=await client.from("message_hides").select("message_id").in("message_id",slice);
-    if(hidden.error)return null;
-    const hiddenIds=new Set((hidden.data??[]).map(row=>row.message_id));
-    rows.push(...((result.data??[]) as ChatMessageRow[]).filter(row=>!hiddenIds.has(row.id)));
+  for (let offset = 0; offset < ids.length; offset += 100) {
+    const result = await client.rpc("message_history_known", {p_chat: chatId, p_ids: ids.slice(offset,offset+100)});
+    if (result.error || !Array.isArray(result.data)) return null;
+    rows.push(...result.data as ChatMessageRow[]);
   }
   return rows;
 }

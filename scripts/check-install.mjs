@@ -107,6 +107,30 @@ assert.ok(recovered.some(row=>row.body==='old scheduled'));
 assert.ok(!recovered.some(row=>['future','gap-1'].includes(row.body)));
 assert.equal((await as(c,()=>db.query("select * from public.recover_chat_messages($1,'2001-01-01')",[chat]))).rows.length,0,'recovery respects membership');
 assert.ok(!(await as(a,()=>db.query("select * from public.recover_chat_messages($1,'2001-01-01',null,100)",[chat]))).rows.some(row=>row.body==='future'),'even sender does not recover future messages into history');
+
+// A fresh device reads by delivery time, filters before LIMIT, then pages backwards.
+await db.query("insert into public.messages(chat_id,sender_id,body,created_at,send_at) values($1,$2,'late delivery','1999-01-01','2025-01-01')",[chat,a]);
+await db.query("insert into public.messages(id,chat_id,sender_id,body,created_at) values('ffffffff-ffff-ffff-ffff-fffffffffff1',$1,$2,'micro earlier','2024-01-01T00:00:00.123100Z'),('00000000-0000-0000-0000-000000000099',$1,$2,'micro later','2024-01-01T00:00:00.123900Z')",[chat,a]);
+await as(b,()=>db.query("insert into public.message_hides(message_id,user_id) select id,$1 from public.messages where body like 'gap-%' and split_part(body,'-',2)::int<=60 on conflict do nothing",[b]));
+const newest=(await as(b,()=>db.query("select * from public.message_history_page($1,null,null,50)",[chat]))).rows;
+assert.equal(newest.length,50,'hidden rows must not make a page look exhausted');
+assert.equal(newest[1].body,'late delivery','old creation time does not bury newly delivered scheduled message');
+const expected=(await db.query("select id from public.messages m where chat_id=$1 and (send_at is null or send_at<=now()) and (expires_at is null or expires_at>now()) and not exists(select 1 from public.message_hides h where h.message_id=m.id and h.user_id=$2) order by timeline_at desc,id desc",[chat,b])).rows.map(row=>row.id);
+const history=[];let beforeAt=null,beforeId=null;
+for(let page=0;page<100;page++){
+ const batch=(await as(b,()=>db.query("select to_jsonb(m) as item from public.message_history_page($1,$2,$3,7) m",[chat,beforeAt,beforeId]))).rows.map(row=>row.item);
+ history.push(...batch);if(batch.length<7)break;
+ beforeAt=batch.at(-1).timeline_at;beforeId=batch.at(-1).id;
+}
+assert.deepEqual(history.map(row=>row.id),expected,'first load plus all older pages match server timeline without gaps or duplicates');
+const micro=(await as(b,()=>db.query("select body from public.message_history_page($1,'2024-01-01T00:00:00.123900Z','00000000-0000-0000-0000-000000000099',1)",[chat]))).rows;
+assert.equal(micro[0].body,'micro earlier','cursor preserves sub-millisecond precision');
+assert.equal((await as(c,()=>db.query("select * from public.message_history_page($1)",[chat]))).rows.length,0);
+const future=(await db.query("select id from public.messages where body='future'")).rows[0].id;
+assert.ok(!(await as(a,()=>db.query("select * from public.message_history_page($1)",[chat]))).rows.some(row=>row.id===future),'new-device history excludes own pending sends');
+const pending=(await as(a,()=>db.query("select * from public.message_history_known($1,$2)",[chat,[future]]))).rows[0];
+assert.equal(Object.values(pending)[0].history_pending,true,'known pending send is classified by server time');
+assert.equal((await as(b,()=>db.query("select * from public.message_history_known($1,$2)",[chat,[future]]))).rows.length,0,'recipient never reads pending body');
 await install('second run');
 
 console.log(`PASS: ${files.length} files install on an empty project and again on top of themselves; every table has RLS; sign-up, direct chat and message visibility work.`);

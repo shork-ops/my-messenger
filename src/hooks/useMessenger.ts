@@ -257,7 +257,11 @@ export function useMessenger() {
     // delivered. The list is refetched from the database rather than patched by guesswork:
     // a merge that only appends would hide a deletion, and one that replaces would drop a
     // message that arrived while the fetch was in flight.
-    onReconnect: async () => reloadChatsRef.current?.(),
+    onReconnect: async () => {
+      const chat = chatsRef.current.find(item=>item.remoteId===activeChat.remoteId);
+      if (chat) await refreshChatMessages(chat);
+      else reloadChatsRef.current?.();
+    },
   });
   const disappearing = useDisappearingMessages({
     accountId,

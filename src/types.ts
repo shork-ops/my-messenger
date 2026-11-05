@@ -70,6 +70,8 @@ export type Message = {
   poll?: Poll;
   edited?: boolean;
   createdAt?: number;
+  /** Exact server timeline timestamp for pagination, including microseconds. */
+  historyAt?: string;
   replyTo?: ReplyPreview;
   reactions?: string[];
   effect?: MessageEffect;
@@ -163,6 +165,9 @@ export type ChatMessageRow = {
   attachment?: { name?: string; type?: string; size?: number; path?: string } | null;
   effect?: MessageEffect | null;
   created_at: string;
+  send_at?: string | null;
+  timeline_at?: string;
+  history_pending?: boolean;
   edited_at?: string | null;
   deleted_at?: string | null;
   /** Set by the server from the chat timer; absent on servers without migration 20261052. */

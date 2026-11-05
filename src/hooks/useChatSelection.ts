@@ -40,13 +40,14 @@ export function useChatSelection(deps: {
     const snapshot=current.current.chats.find(item=>item.remoteId===remoteId)?.messages??chat.messages;
     try {
     const {loadMessageSnapshot,reconcileMessageSnapshot}=await import("../lib/messageSnapshot");
-    const times=snapshot.flatMap(message=>message.remoteId && Number.isFinite(message.createdAt) ? [message.createdAt!] : []);
+    const times=snapshot.flatMap(message=>message.remoteId && !message.sendAt && Number.isFinite(message.createdAt) ? [message.createdAt!] : []);
     const messages=await loadMessageSnapshot({chatId:remoteId,accountId:owner,selfName:deps.profileName,authorName:"Собеседник"},snapshot.flatMap(message=>message.remoteId?[message.remoteId]:[]),times.length ? Math.min(...times) : undefined);
     if(!messages||!alive.current||current.current.accountId!==owner||requests.current.get(remoteId)!==sequence)return;
     deps.setChats(items=>items.map(item=>{
       if(item.remoteId!==remoteId)return item;
       const merged=reconcileMessageSnapshot(item.messages,snapshot,messages);
-      const last=merged[merged.length-1];
+      const delivered=merged.filter(message=>!message.sendAt);
+      const last=delivered[delivered.length-1];
       return {...item,messages:merged,preview:last?.text??"Начни общение",time:last?.time??""};
     }));
     } catch {

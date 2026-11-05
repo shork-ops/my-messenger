@@ -258,7 +258,7 @@ export function useComposer(deps: {
       deps.setScheduleOpen(false);
       return;
     }
-    const createdAt = new Date(data.created_at).getTime();
+    const createdAt = at.getTime();
     const message: Message = {
       id: numericId(data.id),
       remoteId: data.id,
@@ -267,6 +267,7 @@ export function useComposer(deps: {
       time: at.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
       mine: true,
       createdAt,
+      historyAt: at.toISOString(),
       sendAt: at.getTime(),
       ...(sticker ? { stickerId: sticker.id } : {}),
     };
