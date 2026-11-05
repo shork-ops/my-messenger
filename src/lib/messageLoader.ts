@@ -4,7 +4,7 @@ import type { Message } from "../types";
 
 export const DEFAULT_MESSAGE_PAGE_SIZE = 50;
 
-type LoadOptions = {
+export type LoadOptions = {
   chatId: string;
   accountId: string;
   selfName: string;

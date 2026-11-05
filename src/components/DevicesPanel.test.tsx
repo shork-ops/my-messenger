@@ -69,7 +69,7 @@ describe("the device list", () => {
     await waitFor(() => expect(panel.buttons()).toContain("Завершить"));
     fireEvent.click(panel.getByRole("button", { name: "Завершить сеанс: Safari · iOS" }));
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining("Safari · iOS"));
-    await waitFor(() => expect(panel.getByRole("status").textContent).toContain("выйдет из аккаунта в течение часа"));
+    await waitFor(() => expect(panel.getByRole("status").textContent).toContain("потребуется войти снова"));
     expect(rpc).toHaveBeenCalledWith("end_session", { target: "s-phone" });
     expect(panel.container.querySelectorAll(".device-list li")).toHaveLength(1);
     expect(panel.container.textContent).toContain("Только это устройство");

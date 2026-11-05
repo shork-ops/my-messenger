@@ -96,7 +96,7 @@ export function toAttachment(meta: AttachmentMeta, data: string, expiresAt?: num
  */
 export async function mapMessageRow(row: ChatMessageRow, options: MapOptions): Promise<Message | null> {
   if (!row?.id) return null;
-  const attachmentMeta = row.attachment as AttachmentMeta | null;
+  const attachmentMeta = row.deleted_at ? null : row.attachment as AttachmentMeta | null;
   let attachment: Message["attachment"];
   if (attachmentMeta && supabase) {
     let data = "";
@@ -122,9 +122,10 @@ export async function mapMessageRow(row: ChatMessageRow, options: MapOptions): P
     createdAt: created.getTime(),
     edited: Boolean(row.edited_at),
     ...(row.expires_at && !Number.isNaN(Date.parse(row.expires_at)) ? { disappearsAt: Date.parse(row.expires_at) } : {}),
-    ...(row.effect ? { effect: row.effect } : {}),
-    ...(row.poll ? { poll: row.poll as Message["poll"] } : {}),
-    ...(attachment ? { attachment } : {}),
+    effect: row.deleted_at ? undefined : row.effect ?? undefined,
+    poll: row.deleted_at ? undefined : (row.poll as Message["poll"]) ?? undefined,
+    attachment,
+    ...(row.deleted_at ? { replyTo: undefined, album: undefined } : {}),
     reactions: [],
   };
 }
@@ -135,11 +136,11 @@ export async function mapMessageRow(row: ChatMessageRow, options: MapOptions): P
  * Read once per page rather than joined into the message query: the set is small
  * and the join would make every page depend on a second table.
  */
-export async function fetchHiddenMessageIds(messageIds: string[]): Promise<Set<string>> {
+export async function fetchHiddenMessageIds(messageIds: string[]): Promise<Set<string> | null> {
   if (!supabase || messageIds.length === 0) return new Set();
   const { data, error } = await supabase.from("message_hides").select("message_id").in("message_id", messageIds);
-  // A failure here hides nothing rather than hiding everything.
-  if (error) return new Set();
+  // A failed privacy lookup must not reveal messages hidden on another device.
+  if (error) return null;
   return new Set((data ?? []).map((row) => row.message_id as string));
 }
 
@@ -159,6 +160,7 @@ export async function fetchLatestMessages(chatId: string, limit: number): Promis
   if (error) return null;
   const rows = (data ?? []) as ChatMessageRow[];
   const hidden = await fetchHiddenMessageIds(rows.map((row) => row.id));
+  if (!hidden) return null;
   return hidden.size ? rows.filter((row) => !hidden.has(row.id)) : rows;
 }
 
@@ -187,17 +189,37 @@ export async function fetchOlderMessages(
   if (error) return null;
   const rows = (data ?? []) as ChatMessageRow[];
   const hidden = await fetchHiddenMessageIds(rows.map((row) => row.id));
+  if (!hidden) return null;
   return hidden.size ? rows.filter((row) => !hidden.has(row.id)) : rows;
 }
 
 /** Loads reaction emojis for a set of messages, grouped by message id. */
-export async function fetchReactions(messageIds: string[]): Promise<Record<string, string[]>> {
+export async function fetchReactions(messageIds: string[], strict = false): Promise<Record<string, string[]>> {
   if (!supabase || messageIds.length === 0) return {};
-  const { data } = await supabase.from("message_reactions").select("message_id, emoji").in("message_id", messageIds);
+  const { data, error } = await supabase.from("message_reactions").select("message_id, emoji").in("message_id", messageIds);
+  if (error && strict) throw error;
   const grouped: Record<string, string[]> = {};
   for (const row of data ?? []) {
     const bucket = (grouped[row.message_id as string] ??= []);
     if (row.emoji) bucket.push(row.emoji as string);
   }
   return grouped;
+}
+
+/** Refresh every already loaded ID, including rows older than the latest page.
+ * A missing row is authoritative only when all queries succeeded. */
+export async function fetchKnownMessages(chatId: string, ids: string[]): Promise<ChatMessageRow[] | null> {
+  const client=supabase;
+  if(!client)return null;
+  const rows: ChatMessageRow[]=[];
+  for(let offset=0;offset<ids.length;offset+=100){
+    const slice=ids.slice(offset,offset+100);
+    const result=await selectPage(columns=>client.from("messages").select(columns).eq("chat_id",chatId).in("id",slice));
+    if(result.error)return null;
+    const hidden=await client.from("message_hides").select("message_id").in("message_id",slice);
+    if(hidden.error)return null;
+    const hiddenIds=new Set((hidden.data??[]).map(row=>row.message_id));
+    rows.push(...((result.data??[]) as ChatMessageRow[]).filter(row=>!hiddenIds.has(row.id)));
+  }
+  return rows;
 }

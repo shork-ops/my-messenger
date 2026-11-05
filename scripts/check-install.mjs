@@ -17,10 +17,11 @@ const files = ['schema.sql', ...(await readdir(new URL('migrations/', root))).fi
 const db = new PGlite({ extensions: { pgcrypto } });
 // The parts of a Supabase project the files rely on but do not create.
 await db.exec(`
-create role authenticated; create role anon; create role service_role;
+create role authenticator; create role authenticated; create role anon; create role service_role;
 create schema auth; create schema storage; create schema extensions;
 create table auth.users(id uuid primary key, email text, raw_user_meta_data jsonb default '{}'::jsonb, raw_app_meta_data jsonb default '{}'::jsonb, created_at timestamptz default now());
 create table auth.sessions(id uuid primary key, user_id uuid not null references auth.users(id) on delete cascade, created_at timestamptz default now(), updated_at timestamptz default now(), not_after timestamptz, refreshed_at timestamp, user_agent text, ip inet);
+create table auth.mfa_factors(id uuid primary key default gen_random_uuid(),user_id uuid references auth.users(id),status text);
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true),'')::uuid $$;
 create function auth.role() returns text language sql stable as $$ select nullif(current_setting('request.jwt.claim.role', true),'')::text $$;
 create function auth.jwt() returns jsonb language sql stable as $$ select coalesce(nullif(current_setting('request.jwt.claims', true),''),'{}')::jsonb $$;
@@ -54,13 +55,27 @@ const unprotected = await db.query(`
   where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity order by 1`);
 assert.deepEqual(unprotected.rows.map((r) => r.relname), [], 'every public table has row level security');
 
+// New public tables must retain the account boundary, not just permissive RLS.
+const missingAccountPolicies = await db.query(`
+  select c.relname from pg_class c join pg_namespace n on n.oid=c.relnamespace
+  where (n.nspname='public' or (n.nspname='storage' and c.relname='objects'))
+    and c.relkind='r' and not exists (
+      select 1 from pg_policy p where p.polrelid=c.oid
+        and p.polname='nexus_account_access' and not p.polpermissive
+    ) order by 1`);
+assert.deepEqual(missingAccountPolicies.rows, [], 'every protected table has a restrictive account policy');
+
 const [a, b, c] = [1, 2, 3].map((n) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`);
 await db.exec(`insert into auth.users(id, email) values ('${a}', 'a@example.invalid'), ('${b}', 'b@example.invalid'), ('${c}', 'c@example.invalid');`);
+await db.exec(`insert into auth.sessions(id,user_id) select id,id from auth.users;`);
 assert.equal((await db.query('select count(*)::int as n from public.profiles')).rows[0].n, 3, 'signing up creates a profile');
 
 async function as(user, fn) {
   await db.exec('begin; set local role authenticated;');
   await db.query("select set_config('request.jwt.claim.sub', $1, true)", [user]);
+  await db.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({session_id:user,aal:'aal1',role:'authenticated'})]);
+  await db.query("select set_config('request.jwt.claim.role','authenticated',true)");
+  await db.exec('select public.assert_account_access()');
   try { const result = await fn(); await db.exec('commit'); return result; } catch (error) { await db.exec('rollback'); throw error; }
 }
 

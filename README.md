@@ -2,6 +2,8 @@
 
 Тёмный веб-мессенджер на React, TypeScript, Vite и Supabase. Интерфейс адаптирован для узких и широких экранов.
 
+План развития: [ROADMAP](docs/ROADMAP.md). Выполненные этапы и оставшиеся задачи: [IMPLEMENTATION_STATUS](docs/IMPLEMENTATION_STATUS.md). Порядок совместного обновления схемы, функций и клиента: [отложенная настройка Supabase](docs/DEPLOYMENT_PENDING.md).
+
 ## Локальный запуск
 
 1. Установи Node.js LTS.

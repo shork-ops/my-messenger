@@ -206,7 +206,7 @@ export function useMessenger() {
   });
   const { activeGame, setActiveGame, openGame } = useGames();
   const { chats, setChats, activeId, setActiveId, drafts, setDrafts, replyDrafts, setReplyDrafts, activeChat, displayChats, visibleMessages, galleryImages, unreadTotal, toggleChatPin } =
-    useChatCollection({ search, chatFilter, messageSearch, notify: action });
+    useChatCollection({ accountId, search, chatFilter, messageSearch, notify: action });
   const { foundUsers, userSearchLoading } = useUserSearch({ search, accountId });
 
   // A folder narrows the list rather than replacing it: search and the unread filter
@@ -218,7 +218,7 @@ export function useMessenger() {
     renameFolder: renameChatFolder,
     moveFolder: moveChatFolder,
     toggleChat: toggleChatFolder,
-  } = useChatFolders();
+  } = useChatFolders(isDemoMode ? undefined : accountId);
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [folderPickerChat, setFolderPickerChat] = useState<Chat | null>(null);
 

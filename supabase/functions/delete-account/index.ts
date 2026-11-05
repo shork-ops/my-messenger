@@ -1,3 +1,4 @@
+import { enforceAccountAccess } from "../_shared/accountAccess.ts";
 // Removes the calling user's auth record after `delete_my_account` cleared the
 // app data.
 //
@@ -42,6 +43,8 @@ Deno.serve(async (request) => {
   if (userError || !userData.user) {
     return json({ error: "Authentication required" }, 401);
   }
+
+  if (!await enforceAccountAccess(callerClient)) return json({ error: "Session expired or MFA required" }, 403);
 
   const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
 

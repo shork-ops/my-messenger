@@ -6,6 +6,7 @@ Deno.env.set("SUPABASE_URL", "https://test.invalid");
 Deno.env.set("SUPABASE_ANON_KEY", "test-anon");
 Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "maintenance-test-key");
 let calls = 0;
+let accessAllowed = true;
 let claimed = false;
 let profileExists = true;
 let authDeletes = 0;
@@ -22,6 +23,7 @@ globalThis.fetch = ((input: string | URL | Request, init?: RequestInit) => {
   }
   if (url.includes("/rest/v1/profiles")) return Promise.resolve(Response.json(profileExists ? { id: "caller" } : null));
   if (url.includes("/auth/v1/admin/users/")) { if ((input instanceof Request ? input.method : init?.method) === "DELETE") authDeletes++; return Promise.resolve(Response.json({ user: { id: "00000000-0000-0000-0000-000000000002" } })); }
+  if (url.includes("/rpc/assert_account_access")) return Promise.resolve(accessAllowed ? Response.json(null) : Response.json({code:"42501",message:"MFA or session rejected"},{status:403}));
   if (url.includes("/rpc/claim_message_push")) return Promise.resolve(Response.json(pushMessage.send_at && Date.parse(String(pushMessage.send_at)) > Date.now() ? null : "lease-token"));
   if (url.includes("/rpc/finish_message_push")) return Promise.resolve(Response.json(true));
   if (url.includes("/rest/v1/push_jobs")) return Promise.resolve(Response.json([]));
@@ -104,4 +106,39 @@ Deno.test("scheduled push worker requires the webhook secret and handles an empt
   const response = await worker!(request({}, "dedicated-webhook-secret"));
   const result = await response.json();
   if (response.status !== 200 || result.processed !== 0 || result.failed !== 0) throw new Error("Empty queue failed");
+});
+
+Deno.test("user Edge functions reject revoked or insufficient-assurance sessions before privileged work", async () => {
+  accessAllowed = false;
+  try {
+    for (const [name, load] of [
+      ["call-token",()=>import("../functions/call-token/index.ts?account-security")],
+      ["delete-account",()=>import("../functions/delete-account/index.ts?account-security")],
+      ["view-once",()=>import("../functions/view-once/index.ts?account-security")],
+      ["link-preview",()=>import("../functions/link-preview/index.ts?account-security")],
+    ] as const) {
+      let secured: typeof handler;
+      Object.defineProperty(Deno,"serve",{configurable:true,value:(next:typeof handler)=>{secured=next;}});
+      await load();
+      const before=calls;
+      const response=await secured!(request({}));
+      if(response.status!==403 || calls-before!==2) throw new Error(`${name} bypassed account boundary: ${response.status}, calls=${calls-before}`);
+    }
+  } finally {accessAllowed=true;}
+});
+
+Deno.test("call tokens and link previews reject malformed JSON shapes without privileged queries", async () => {
+  for (const load of [
+    () => import("../functions/call-token/index.ts?invalid-body"),
+    () => import("../functions/link-preview/index.ts?invalid-body"),
+  ]) {
+    let checked: typeof handler;
+    Object.defineProperty(Deno, "serve", { configurable: true, value: (next: typeof handler) => { checked = next; } });
+    await load();
+    for (const body of [null, [], 1, "text", {}, { callId: 123 }, { callId: "invalid", url: 123 }]) {
+      const before = calls;
+      const response = await checked!(request(body));
+      if (response.status !== 400 || calls - before !== 2) throw new Error(`Invalid request reached privileged work: ${response.status}`);
+    }
+  }
 });

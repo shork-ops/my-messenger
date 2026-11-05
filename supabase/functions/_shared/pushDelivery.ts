@@ -32,11 +32,12 @@ async function deliver(admin: SupabaseClient, messageId: string, send: Send): Pr
   const [chatResult, senderResult, subscriptionsResult] = await Promise.all([
     admin.from("chats").select("title, is_group").eq("id", record.chat_id).maybeSingle(),
     admin.from("profiles").select("display_name").eq("id", record.sender_id).maybeSingle(),
-    admin.from("push_subscriptions").select("id, endpoint, p256dh, auth").in("user_id", recipients),
+    admin.rpc("active_push_subscriptions", { p_users: recipients }),
   ]);
 
   if (chatResult.error || senderResult.error || subscriptionsResult.error) return new Response("Push metadata lookup failed", { status: 503 });
-  const chat = chatResult.data, sender = senderResult.data, subscriptions = subscriptionsResult.data;
+  const chat = chatResult.data, sender = senderResult.data;
+  const subscriptions = subscriptionsResult.data as Array<{ id: string; endpoint: string; p256dh: string; auth: string }> | null;
   const { data: receipts, error: receiptError } = await admin.from("push_delivery_receipts").select("subscription_id").eq("message_id", messageId);
   if (receiptError) return new Response("Receipt lookup failed", { status: 503 });
   const delivered = new Set((receipts ?? []).map(row => row.subscription_id));

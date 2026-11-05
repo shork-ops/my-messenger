@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
+import { accountStorageKey, useStoredState } from "./useStoredState";
 import {
   FOLDERS_STORAGE_KEY,
   MAX_FOLDERS,
@@ -10,51 +11,30 @@ import {
   type Folder,
 } from "../lib/chatFolders";
 
-/**
- * The folder list, kept in local storage.
- *
- * Folders are the reader's own shelf, not shared state: a chat being in "Работа" is
- * one person's opinion, and syncing it would push that opinion on everyone else in the
- * conversation.
- */
-export function useChatFolders() {
-  const [folders, setFolders] = useState<Folder[]>(() => {
-    try {
-      return parseFolders(window.localStorage.getItem(FOLDERS_STORAGE_KEY));
-    } catch {
-      // Private mode can refuse even a read; an empty shelf is fine.
-      return [];
-    }
-  });
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(FOLDERS_STORAGE_KEY, serializeFolders(folders));
-    } catch {
-      // A full quota must not break the chat list in front of it.
-    }
-  }, [folders]);
+/** Personal folders are isolated per account; cloud sync is a separate layer. */
+export function useChatFolders(accountId?: string | null) {
+  const [folders, setFolders] = useStoredState<Folder[]>(accountStorageKey(FOLDERS_STORAGE_KEY,accountId), parseFolders,serializeFolders);
 
   const createFolder = useCallback((name: string) => {
     setFolders((current) => {
       if (current.length >= MAX_FOLDERS) return current;
       return [...current, { id: newFolderId(current), name, chatIds: [] }];
     });
-  }, []);
+  }, [setFolders]);
 
   const deleteFolder = useCallback((id: string) => {
     setFolders((current) => current.filter((folder) => folder.id !== id));
-  }, []);
+  }, [setFolders]);
 
   // The rules for a name live in one place, so renaming cannot accept something that
   // creating would have refused.
   const renameFolder = useCallback((id: string, name: string) => {
     setFolders((current) => renameFolderIn(current, id, name));
-  }, []);
+  }, [setFolders]);
 
   const moveFolder = useCallback((id: string, direction: "up" | "down") => {
     setFolders((current) => moveFolderIn(current, id, direction));
-  }, []);
+  }, [setFolders]);
 
   const toggleChat = useCallback((id: string, chatId: string | number) => {
     const key = String(chatId);
@@ -70,7 +50,7 @@ export function useChatFolders() {
           : folder
       )
     );
-  }, []);
+  }, [setFolders]);
 
   return { folders, createFolder, deleteFolder, renameFolder, moveFolder, toggleChat };
 }

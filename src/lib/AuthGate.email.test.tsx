@@ -11,7 +11,8 @@ const auth = vi.hoisted(() => ({
   signOut: vi.fn(),
   mfa: { challengeAndVerify: vi.fn() },
 }));
-vi.mock("./supabase", () => ({ supabase: { auth }, isSupabaseConfigured: true }));
+const rpc = vi.hoisted(() => vi.fn());
+vi.mock("./supabase", () => ({ supabase: { auth, rpc }, isSupabaseConfigured: true }));
 vi.mock("./constants", () => ({ isDemoMode: false }));
 import AuthGate from "./AuthGate";
 
@@ -44,6 +45,7 @@ async function requestCode(address = " Anna@Mail.ru ") {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  rpc.mockResolvedValue({data:null,error:null});
   auth.getSession.mockResolvedValue({ data: { session: null }, error: null });
   auth.onAuthStateChange.mockImplementation((callback: Listener) => {
     listener = callback;

@@ -25,10 +25,11 @@ const files = [
 
 const db = new PGlite({ extensions: { pgcrypto } });
 await db.exec(`
-create role authenticated; create role anon; create role service_role;
+create role authenticator; create role authenticated; create role anon; create role service_role;
 create schema auth; create schema storage; create schema extensions;
 create table auth.users(id uuid primary key, email text, raw_user_meta_data jsonb default '{}'::jsonb, raw_app_meta_data jsonb default '{}'::jsonb, created_at timestamptz default now());
 create table auth.sessions(id uuid primary key, user_id uuid not null references auth.users(id) on delete cascade, created_at timestamptz default now(), updated_at timestamptz default now(), not_after timestamptz, refreshed_at timestamp, user_agent text, ip inet);
+create table auth.mfa_factors(id uuid primary key default gen_random_uuid(),user_id uuid references auth.users(id),status text);
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true),'')::uuid $$;
 create function auth.role() returns text language sql stable as $$ select nullif(current_setting('request.jwt.claim.role', true),'')::text $$;
 create function auth.jwt() returns jsonb language sql stable as $$ select coalesce(nullif(current_setting('request.jwt.claims', true),''),'{}')::jsonb $$;
@@ -52,10 +53,14 @@ function ok(label) {
   console.log(`  ok  ${label}`);
 }
 
-async function as(user, fn) {
-  await db.exec("begin; set local role authenticated;");
+async function as(user, fn, role = "authenticated") {
+  if (user) await db.query("insert into auth.sessions(id,user_id) values($1,$1) on conflict do nothing", [user]);
+  await db.exec(`begin; set local role ${role};`);
   await db.query("select set_config('request.jwt.claim.sub', $1, true)", [user]);
+  await db.query("select set_config('request.jwt.claims',$1,true)", [JSON.stringify({sub:user,session_id:user,aal:'aal1',role})]);
+  await db.query("select set_config('request.jwt.claim.role',$1,true)", [role]);
   try {
+    await db.exec('select public.assert_account_access()');
     const result = await fn();
     await db.exec("commit");
     return result;

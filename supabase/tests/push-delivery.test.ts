@@ -26,7 +26,7 @@ Deno.test("retry sends only failed subscriptions; completed webhook cannot repla
     if (url.includes("/chat_members?")) return Response.json([{user_id:"receiver",muted_until:null}]);
     if (url.includes("/chats?")) return Response.json({ title:"chat",is_group:false });
     if (url.includes("/profiles?")) return Response.json({ display_name:"sender" });
-    if (url.includes("/push_subscriptions?")) {
+    if (url.includes("/rpc/active_push_subscriptions") || url.includes("/push_subscriptions?")) {
       if (method === "PATCH") return new Response(null, { status: 204 });
       return Response.json(["one","two"].map(id=>({ id,endpoint:id,p256dh:"key",auth:"auth" })));
     }

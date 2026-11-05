@@ -1,3 +1,4 @@
+import { enforceAccountAccess } from "../_shared/accountAccess.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const headers = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info", "Access-Control-Allow-Methods": "POST, OPTIONS", "Cache-Control": "no-store" };
@@ -10,6 +11,8 @@ Deno.serve(async request => {
   const caller=createClient(url,anon,{global:{headers:{Authorization:request.headers.get('Authorization')??''}},auth:{persistSession:false,autoRefreshToken:false}});
   const {data:identity,error:authError}=await caller.auth.getUser();
   if(authError||!identity.user) return json({error:'Authentication required'},401);
+  if (!await enforceAccountAccess(caller)) return json({error:'Session expired or MFA required'},403);
+
   let body: { action?: string; messageId?: string };
   try { body=await request.json(); } catch { return json({error:'Invalid JSON'},400); }
   if (!body || typeof body !== 'object' || Array.isArray(body)) return json({error:'Invalid request'},400);

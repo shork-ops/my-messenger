@@ -61,7 +61,7 @@ export default function DevicesPanel({ localDevices, currentDeviceId, onSignOutO
     setEndingId(null);
     if (outcome === "ended" || outcome === "gone") {
       setResult((current) => (current?.status === "ok" ? { status: "ok", sessions: current.sessions.filter((item) => item.id !== session.id) } : current));
-      setStatus(outcome === "ended" ? "Сеанс завершён. То устройство выйдет из аккаунта в течение часа." : "Этот сеанс уже был завершён.");
+      setStatus(outcome === "ended" ? "Сеанс завершён. На том устройстве потребуется войти снова." : "Этот сеанс уже был завершён.");
     } else {
       setStatus("Не удалось завершить сеанс. Попробуй ещё раз.");
     }

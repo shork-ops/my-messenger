@@ -1,3 +1,4 @@
+import { enforceAccountAccess } from "../_shared/accountAccess.ts";
 // Supabase Edge Function: fetches the preview card for a link.
 //
 // Deploy:
@@ -123,7 +124,10 @@ Deno.serve(async (request) => {
     return new Response(JSON.stringify({ error: "auth" }), { status: 401, headers: corsHeaders });
   }
 
-  const { url } = await request.json().catch(() => ({ url: "" }));
+  if (!await enforceAccountAccess(client)) return new Response(JSON.stringify({ error: "Session expired or MFA required" }), { status: 403, headers: corsHeaders });
+
+  const body = await request.json().catch(() => null);
+  const url = body?.url;
   if (typeof url !== "string" || url.length === 0 || url.length > 2048) {
     return new Response(JSON.stringify({ error: "bad-url" }), { status: 400, headers: corsHeaders });
   }

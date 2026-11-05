@@ -7,11 +7,11 @@
  * reconnected while the tab was hidden may have missed messages.
  */
 
+import { useEffect, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { Chat, Message } from "../types";
 import { supabase } from "../lib/supabase";
 import { applyReadStamp, markRead } from "../lib/chats";
-import { loadMessagePage } from "../lib/messageLoader";
 
 export type MobileView = "list" | "chat";
 
@@ -27,33 +27,30 @@ export function useChatSelection(deps: {
   setMessageSearch: Dispatch<SetStateAction<string>>;
   draftsRef: { current: Record<number, string> };
 }) {
-  /**
-   * Pulls the newest page from the server and merges it into the open conversation.
-   *
-   * Realtime is the fast path for incoming messages, but it can be unavailable - server
-   * outage, blocked websocket, backgrounded tab - so this keeps the open conversation
-   * correct in that case.
-   */
+  const current = useRef(deps); current.current=deps;
+  const alive=useRef(true);
+  const requests=useRef(new Map<string,number>());
+  useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[]);
   async function refreshChatMessages(chat: Chat) {
-    if (!chat.remoteId || !deps.accountId) return;
-    const messages: Message[] | null = await loadMessagePage({
-      chatId: chat.remoteId,
-      accountId: deps.accountId,
-      selfName: deps.profileName,
-      authorName: "Собеседник",
-    });
-    if (!messages || !messages.length) return;
-    deps.setChats((current) =>
-      current.map((item) => {
-        if (item.id !== chat.id) return item;
-        // Merge by remote id so locally appended messages are not duplicated.
-        const known = new Set(item.messages.map((message) => message.remoteId).filter(Boolean));
-        const merged = [...item.messages, ...messages.filter((message) => !known.has(message.remoteId))];
-        merged.sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
-        const last = merged[merged.length - 1];
-        return { ...item, messages: merged, preview: last?.text ?? item.preview, time: last?.time ?? item.time };
-      })
-    );
+    const owner=deps.accountId;
+    const remoteId=chat.remoteId;
+    if(!remoteId||!owner)return;
+    const sequence=(requests.current.get(remoteId)??0)+1;
+    requests.current.set(remoteId,sequence);
+    const snapshot=current.current.chats.find(item=>item.remoteId===remoteId)?.messages??chat.messages;
+    try {
+    const {loadMessageSnapshot,reconcileMessageSnapshot}=await import("../lib/messageSnapshot");
+    const messages=await loadMessageSnapshot({chatId:remoteId,accountId:owner,selfName:deps.profileName,authorName:"Собеседник"},snapshot.flatMap(message=>message.remoteId?[message.remoteId]:[]));
+    if(!messages||!alive.current||current.current.accountId!==owner||requests.current.get(remoteId)!==sequence)return;
+    deps.setChats(items=>items.map(item=>{
+      if(item.remoteId!==remoteId)return item;
+      const merged=reconcileMessageSnapshot(item.messages,snapshot,messages);
+      const last=merged[merged.length-1];
+      return {...item,messages:merged,preview:last?.text??"Начни общение",time:last?.time??""};
+    }));
+    } catch {
+      // A failed lazy import leaves the current conversation available for retry.
+    }
   }
 
   async function selectChat(chat: Chat) {
