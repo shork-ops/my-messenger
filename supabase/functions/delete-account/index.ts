@@ -46,10 +46,12 @@ Deno.serve(async (request) => {
   const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
 
   // Refuse to orphan data: the RPC must have run first.
-  const { error: profileError } = await admin.from("profiles").select("id").eq("id", userData.user.id).maybeSingle();
+  const { data: profile, error: profileError } = await admin.from("profiles").select("id").eq("id", userData.user.id).maybeSingle();
   if (profileError) {
     return json({ error: profileError.message }, 500);
   }
+
+  if (profile) return json({ error: "Run delete_my_account before deleting the auth account" }, 409);
 
   const { error: deleteError } = await admin.auth.admin.deleteUser(userData.user.id);
   if (deleteError) {

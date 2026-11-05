@@ -33,7 +33,7 @@ jobs:
           deno-version: v2.x
       - name: Edge function security tests
         run: |
-          deno check --no-config --node-modules-dir=none supabase/functions/link-preview/index.ts supabase/functions/push-notify/index.ts
+          deno check --no-config --node-modules-dir=none supabase/functions/link-preview/index.ts supabase/functions/push-notify/index.ts supabase/functions/delete-account/index.ts
           deno test --allow-env --no-config --node-modules-dir=none supabase/tests/edge-functions.test.ts supabase/tests/public-page.test.ts
       - name: Single-view database permissions
         run: npm run test:db
