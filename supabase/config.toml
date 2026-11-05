@@ -37,3 +37,7 @@ verify_jwt = true
 # JWT is also verified inside the function before claiming any media.
 [functions.view-once]
 verify_jwt = true
+
+# Cron uses PUSH_WEBHOOK_SECRET, verified inside the worker.
+[functions.push-dispatch]
+verify_jwt = false
