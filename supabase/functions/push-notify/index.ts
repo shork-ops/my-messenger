@@ -7,6 +7,7 @@
 // Hook it up with a Database Webhook on `public.messages` (INSERT), or call it from a trigger.
 // The function is idempotent: a missing subscription never fails the request.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { maintenanceAuthorized } from "../_shared/maintenanceAuth.ts";
 import webpush from "npm:web-push@3";
 
 type WebhookPayload = {
@@ -24,6 +25,9 @@ Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return new Response("Method not allowed", { status: 405, headers: corsHeaders });
 
+  if (!await maintenanceAuthorized(request.headers.get("Authorization"), Deno.env.get("PUSH_WEBHOOK_SECRET") ?? "")) {
+    return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+  }
   const publicKey = Deno.env.get("VAPID_PUBLIC_KEY");
   const privateKey = Deno.env.get("VAPID_PRIVATE_KEY");
   const subject = Deno.env.get("VAPID_SUBJECT") ?? "mailto:noreply@example.com";
@@ -32,16 +36,19 @@ Deno.serve(async (request) => {
   }
   webpush.setVapidDetails(subject, publicKey, privateKey);
 
-  const payload = (await request.json()) as WebhookPayload;
-  const record = payload.record;
-  if (!record?.chat_id || !record.sender_id) {
-    return new Response(JSON.stringify({ skipped: true }), { status: 200, headers: corsHeaders });
+  const payload = await request.json().catch(() => null) as WebhookPayload | null;
+  if (payload?.type !== "INSERT" || payload.table !== "messages" || !payload.record?.id) {
+    return new Response("Invalid webhook", { status: 400, headers: corsHeaders });
   }
-
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
 
+  // Read authoritative content instead of trusting the webhook body.
+  const { data: record, error } = await admin.from("messages")
+    .select("id, chat_id, sender_id, body, attachment").eq("id", payload.record.id).maybeSingle();
+  if (error) return new Response("Message lookup failed", { status: 500, headers: corsHeaders });
+  if (!record?.sender_id) return new Response(JSON.stringify({ skipped: true }), { headers: corsHeaders });
   const { data: memberRows } = await admin.from("chat_members").select("user_id").eq("chat_id", record.chat_id);
   const recipients = (memberRows ?? []).map((row) => row.user_id as string).filter((id) => id !== record.sender_id);
   if (recipients.length === 0) {

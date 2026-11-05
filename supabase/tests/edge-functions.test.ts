@@ -43,3 +43,13 @@ Deno.test("single-view handler issues one short URL and refuses a second device 
   if (second.status !== 409) throw new Error("Repeated claim succeeded");
   if ((await handler(request(null))).status !== 400) throw new Error("Malformed request accepted");
 });
+Deno.test("push rejects missing, ordinary-user and incorrect webhook credentials", async () => {
+  Deno.env.set("PUSH_WEBHOOK_SECRET", "dedicated-webhook-secret");
+  await import("../functions/push-notify/index.ts");
+  const before = calls;
+  for (const token of ["", "test-user", "wrong-secret"]) {
+    const response = await handler(request({ type: "INSERT", table: "messages", record: { id: "forged", chat_id: "victim", body: "forged" } }, token));
+    if (response.status !== 401) throw new Error("Unauthorized webhook accepted");
+  }
+  if (calls !== before) throw new Error("Unauthorized push reached the database");
+});
