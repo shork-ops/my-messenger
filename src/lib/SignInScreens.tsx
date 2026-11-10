@@ -13,6 +13,9 @@ import {
   signInErrorMessage,
 } from "./signIn";
 import { TOTP_CODE_LENGTH, isValidTotpCode } from "./twoFactor";
+import { Capacitor } from "@capacitor/core";
+import { Browser } from "@capacitor/browser";
+import { NATIVE_AUTH_CALLBACK } from "./nativeAuth";
 
 /**
  * The sign-in forms: Google, a one-time code by email, and the authenticator step.
@@ -43,6 +46,19 @@ export function SignInScreen({ initialError }: { initialError: string }) {
   const [resendAvailableAt, setResendAvailableAt] = useState(0);
 
   useEffect(() => {
+    if (initialError) {
+      setError(initialError);
+      setBusy(null);
+    }
+  }, [initialError]);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const listener = Browser.addListener("browserFinished", () => setBusy(null));
+    return () => { void listener.then((handle) => handle.remove()); };
+  }, []);
+
+  useEffect(() => {
     if (!resendAvailableAt) return;
     const update = () => {
       const remaining = Math.max(0, Math.ceil((resendAvailableAt - Date.now()) / 1000));
@@ -65,16 +81,21 @@ export function SignInScreen({ initialError }: { initialError: string }) {
     setBusy("google");
     setError("");
     try {
-      const { error: authError } = await supabase.auth.signInWithOAuth({
+      const native = Capacitor.isNativePlatform();
+      const { data, error: authError } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: returnUrl(),
+          redirectTo: native ? NATIVE_AUTH_CALLBACK : returnUrl(),
+          ...(native ? { skipBrowserRedirect: true } : {}),
           queryParams: { prompt: "select_account" },
         },
       });
       if (authError) {
         setError(signInErrorMessage(authError));
         setBusy(null);
+      } else if (native) {
+        if (!data.url) throw new Error("Missing OAuth URL");
+        await Browser.open({ url: data.url });
       }
     } catch {
       setError("Не удалось связаться с сервером. Попробуй ещё раз.");

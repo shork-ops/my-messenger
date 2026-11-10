@@ -12,7 +12,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
  * the bundled copy stays the source of truth and talks to Supabase directly.
  */
 const config: CapacitorConfig = {
-  appId: "com.nexus.messenger",
+  appId: process.env.NEXUS_ANDROID_TEST_APP_ID || "com.nexus.messenger",
   appName: "Nexus",
   webDir: "dist",
   android: {

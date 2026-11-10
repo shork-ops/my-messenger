@@ -29,6 +29,9 @@
     "test:disappearing": "node scripts/check-disappearing.mjs"
   },
   "dependencies": {
+    "@capacitor/android": "^7.6.10",
+    "@capacitor/app": "^7.1.2",
+    "@capacitor/browser": "^7.0.5",
     "@capacitor/core": "^7.6.10",
     "@sentry/react": "^11.9.0",
     "@supabase/supabase-js": "^2.57.0",

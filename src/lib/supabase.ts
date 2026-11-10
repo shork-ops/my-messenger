@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { Capacitor } from "@capacitor/core";
 import { ACTIVE_SLOT_KEY, DEFAULT_SLOT, storageKeyForSlot } from "./accounts";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
@@ -43,6 +44,7 @@ export const supabase = isSupabaseConfigured
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
+        ...(Capacitor.isNativePlatform() ? { flowType: "pkce" as const, detectSessionInUrl: false } : {}),
       },
     })
   : null;
