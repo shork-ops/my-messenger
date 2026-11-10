@@ -46,8 +46,17 @@ export function SignInScreen({ initialError }: { initialError: string }) {
   const [resendAvailableAt, setResendAvailableAt] = useState(0);
 
   useEffect(() => {
-    if (initialError) setError(initialError);
+    if (initialError) {
+      setError(initialError);
+      setBusy(null);
+    }
   }, [initialError]);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const listener = Browser.addListener("browserFinished", () => setBusy(null));
+    return () => { void listener.then((handle) => handle.remove()); };
+  }, []);
 
   useEffect(() => {
     if (!resendAvailableAt) return;
@@ -87,7 +96,6 @@ export function SignInScreen({ initialError }: { initialError: string }) {
       } else if (native) {
         if (!data.url) throw new Error("Missing OAuth URL");
         await Browser.open({ url: data.url });
-        setBusy(null);
       }
     } catch {
       setError("Не удалось связаться с сервером. Попробуй ещё раз.");

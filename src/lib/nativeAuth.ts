@@ -17,7 +17,11 @@ export function listenForNativeAuth(client: SupabaseClient, onError: () => void)
     } catch {
       return;
     }
-    if (url.protocol !== "com.nexus.messenger:" || url.hostname !== "auth" || url.pathname !== "/callback") return;
+    if (
+      url.protocol !== "com.nexus.messenger:" || url.hostname !== "auth" ||
+      url.pathname !== "/callback" || url.port || url.username || url.password ||
+      url.searchParams.getAll("code").length > 1
+    ) return;
     const code = url.searchParams.get("code");
     if (!code) {
       if (active && url.searchParams.has("error")) onError();
@@ -30,7 +34,7 @@ export function listenForNativeAuth(client: SupabaseClient, onError: () => void)
       if (error) {
         if (active) onError();
       } else {
-        await Browser.close();
+        void Browser.close().catch(() => {});
       }
     } catch {
       if (active) onError();
