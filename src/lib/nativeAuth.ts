@@ -11,6 +11,7 @@ export function listenForNativeAuth(client: SupabaseClient, onError: () => void)
   let active = true;
   let lastCode = "";
   const handle = async (value: string) => {
+    if (!active) return;
     let url: URL;
     try {
       url = new URL(value);
