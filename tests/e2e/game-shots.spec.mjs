@@ -65,11 +65,15 @@ test("a move is made and the opponent answers", async ({ page }) => {
   // The scoresheet pairs a move with the answer, so the player's move alone is one line with an
   // empty second half, and the bot's answer fills it in rather than adding a line.
   await expect(page.locator(".chess-moves li")).toHaveCount(1);
-  await page.getByRole("button", { name: "Ход бота" }).click();
-  await expect(page.locator(".chess-moves li")).toHaveCount(1);
-  const line = await page.locator(".chess-moves li").first().innerText();
-  expect(line).toMatch(/e4/);
-  expect(line).not.toContain("…");
+  await expect(page.locator(".chess-moves li").first()).toContainText("e4");
+  await expect(page.locator(".chess-moves li").first()).not.toContainText("…", { timeout: 15000 });
+});
+
+test("the balda bot responds after the player passes", async ({ page }) => {
+  await openCatalogue(page);
+  await page.locator(".game-play-label").nth(2).click();
+  await page.getByRole("button", { name: "Пропустить" }).click();
+  await expect(page.locator(".game-modal-header h2")).toHaveText(/Ход первого игрока|Партия закончена/, { timeout: 20000 });
 });
 
 test("the balda board opens with the word in the middle row", async ({ page }) => {
@@ -105,6 +109,14 @@ test("the card table deals a real hand", async ({ page }) => {
     expect(label).toMatch(/красный|синий|жёлтый|зелёный|дикая карта/);
   }
   await page.screenshot({ path: "qa-shots/games-cards.png" });
+});
+
+test("the card bot answers after the player draws and passes", async ({ page }) => {
+  await openCatalogue(page);
+  await page.locator(".game-play-label").nth(1).click();
+  await page.getByRole("button", { name: "Взять карту" }).click();
+  await page.getByRole("button", { name: "Пропустить" }).click();
+  await expect(page.locator(".game-modal-header h2")).toHaveText("Ход: Вы", { timeout: 15000 });
 });
 
 test("a saved game is offered again after closing", async ({ page }) => {

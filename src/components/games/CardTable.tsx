@@ -7,7 +7,7 @@
  * information.
  */
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   COLOR_LABEL,
   COLOR_SYMBOL,
@@ -65,7 +65,7 @@ type CardTableProps = {
   onPass: () => void;
   onChallenge: () => void;
   onOneCard: () => void;
-  onChooseColour: (colour: CardColor) => void;
+  onChooseColour: (colour: CardColor, cardId: string) => void;
   disabled?: boolean;
 };
 
@@ -85,6 +85,12 @@ export default function CardTable({
   const top = state.discard.length > 0 ? state.cards[state.discard[state.discard.length - 1]] : null;
   const active = currentPlayer(state);
   const isTurn = active === playerId && !disabled;
+  const [wildCard, setWildCard] = useState<string | null>(null);
+  const [hasDrawn, setHasDrawn] = useState(false);
+  useEffect(() => {
+    setWildCard(null);
+    setHasDrawn(false);
+  }, [active]);
   const playable = useMemo(
     () => new Set(hand.filter((id) => canPlay(state, state.cards[id])).map((id) => id)),
     [hand, state]
@@ -130,7 +136,10 @@ export default function CardTable({
               key={id}
               card={state.cards[id]}
               playable={playable.has(id)}
-              onSelect={isTurn && playable.has(id) ? () => onPlay(id) : undefined}
+              onSelect={isTurn && state.phase !== "challenge" && playable.has(id) ? () => {
+                if (state.cards[id].color === null) setWildCard(id);
+                else onPlay(id);
+              } : undefined}
             />
           ))}
         </div>
@@ -154,7 +163,7 @@ export default function CardTable({
           </button>
         )}
 
-        {state.phase === "choose-colour" && isTurn && (
+        {wildCard && isTurn && (
           <div className="uno-colour-picker">
             <span>Выберите цвет:</span>
             {(Object.keys(COLOR_LABEL) as CardColor[]).map((colour) => (
@@ -162,7 +171,7 @@ export default function CardTable({
                 key={colour}
                 type="button"
                 className={`uno-colour-button uno-${colour}`}
-                onClick={() => onChooseColour(colour)}
+                onClick={() => { onChooseColour(colour, wildCard); setWildCard(null); }}
                 aria-label={COLOR_LABEL[colour]}
               >
                 <span aria-hidden="true">{COLOR_SYMBOL[colour]}</span> {COLOR_LABEL[colour]}
@@ -171,10 +180,13 @@ export default function CardTable({
           </div>
         )}
 
-        {isTurn && state.phase === "choose-colour" === false && playable.size === 0 && (
-          <button type="button" className="btn btn-ghost" onClick={onDraw}>
+        {isTurn && state.phase !== "challenge" && !hasDrawn && !wildCard && (
+          <button type="button" className="btn btn-ghost" onClick={() => { onDraw(); setHasDrawn(true); }}>
             Взять карту
           </button>
+        )}
+        {isTurn && state.phase !== "challenge" && hasDrawn && (
+          <button type="button" className="btn btn-ghost" onClick={onPass}>Пропустить</button>
         )}
       </div>
     </div>

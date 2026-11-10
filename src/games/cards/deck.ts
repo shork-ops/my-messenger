@@ -375,6 +375,13 @@ export function applyCardAction(
   }
 
   if (action.type === "pass") {
+    if (state.phase === "challenge" && state.pendingDraw4) {
+      const after = drawCards({ ...state, pendingDraw4: null, phase: "choose-colour" }, playerId, 4, random);
+      return {
+        state: { ...after.state, turnIndex: nextIndex(after.state, 1), events: [...state.events, `${playerId} взял штраф +4`] },
+        changed: true,
+      };
+    }
     return {
       state: { ...state, turnIndex: nextIndex(state, 1), events: [...state.events, `${playerId}: пропуск`] },
       changed: true,
@@ -398,11 +405,12 @@ export function applyCardAction(
   // Playing a +4 opens the challenge window before anything is applied.
   if (card.kind === "wild4" && !state.pendingDraw4) {
     const played = playCard(state, playerId, card, action.chooseColor!, random);
+    if (played.result) return { state: played, changed: true };
     return {
       state: {
         ...played,
         phase: "challenge",
-        pendingDraw4: { playerId, colour: action.chooseColor! },
+        pendingDraw4: { playerId, colour: state.activeColor },
       },
       changed: true,
     };
@@ -470,12 +478,6 @@ function playCard(
     next = drawCards(next, victim, 2, random).state;
     steps = twoPlayers ? 1 : 2;
   }
-  if (card.kind === "wild4") {
-    const victim = state.order[nextIndex(state, 1)];
-    next = drawCards(next, victim, 4, random).state;
-    steps = twoPlayers ? 1 : 2;
-  }
-
   const turnIndex = (((next.turnIndex + next.direction * steps) % next.order.length) + next.order.length) % next.order.length;
   return { ...next, turnIndex, phase: next.hands.some((hand) => hand.cards.length === 1) ? "one-card-window" : "choose-colour" };
 }
