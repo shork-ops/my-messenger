@@ -1,7 +1,7 @@
 name: Build Nexus Android test APK
 on:
   push:
-    branches: [fix/android-google-login]
+    branches: [build/games-android]
 permissions:
   contents: read
 jobs:
@@ -58,4 +58,5 @@ jobs:
           path: release/Nexus-Android-test.apk
           if-no-files-found: error
           retention-days: 7
+
 
