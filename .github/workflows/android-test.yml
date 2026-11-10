@@ -1,0 +1,61 @@
+name: Build Nexus Android test APK
+on:
+  push:
+    branches: [fix/android-google-login]
+permissions:
+  contents: read
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install project dependencies
+        run: |
+          npm ci
+
+      - name: Build the bundled web app
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_DEMO_MODE: 'false'
+          VITE_DEMO_SEED: 'false'
+          NEXUS_ANDROID_TEST_APP_ID: com.nexus.messenger.beta
+
+        run: |
+          node -e 'for (const key of ["VITE_SUPABASE_URL","VITE_SUPABASE_PUBLISHABLE_KEY"]) if (!process.env[key]) throw new Error("Missing " + key)'
+          npm run build:mobile
+          npx --no-install cap add android
+          npx --no-install cap sync android
+          node scripts/configure-android.mjs
+      - name: Build Android APK
+        working-directory: android
+        run: |
+          test -f "$ANDROID_HOME/platforms/android-35/android.jar"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          bash ./gradlew --no-daemon assembleDebug
+      - name: Verify the package and signature
+        run: |
+          mkdir -p release
+          cp android/app/build/outputs/apk/debug/app-debug.apk release/Nexus-Android-test.apk
+          tools="$ANDROID_HOME/build-tools/35.0.0"
+          "$tools/apksigner" verify --verbose --print-certs release/Nexus-Android-test.apk
+          "$tools/aapt" dump badging release/Nexus-Android-test.apk | tee apk-info.txt
+          grep -F "package: name='com.nexus.messenger.beta'" apk-info.txt
+          unzip -l release/Nexus-Android-test.apk assets/public/index.html
+          sha256sum release/Nexus-Android-test.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nexus-Android-test
+          path: release/Nexus-Android-test.apk
+          if-no-files-found: error
+          retention-days: 7
+

@@ -5,6 +5,7 @@ import { isSupabaseConfigured, supabase } from "./supabase";
 import { isDemoMode } from "./constants";
 import { secondFactorFor } from "./twoFactor";
 import { authBaseStyles as styles } from "./authStyles";
+import { listenForNativeAuth } from "./nativeAuth";
 
 // The forms are only needed by someone who is not signed in yet, so they load on demand.
 const AccountAccessBoundary = lazy(() => import("./AccountAccessBoundary").then(module => ({ default: module.AccountAccessBoundary })));
@@ -29,8 +30,12 @@ export default function AuthGate({ children }: AuthGateProps) {
     }
 
     let active = true;
+    let authChanged = false;
+    const stopNativeAuth = listenForNativeAuth(supabase, () => {
+      if (active) setError("Не удалось завершить вход. Попробуй ещё раз.");
+    });
     supabase.auth.getSession().then(({ data, error: sessionError }) => {
-      if (!active) return;
+      if (!active || authChanged) return;
       // The forms translate Supabase errors; this one only says that the check itself failed.
       if (sessionError) setError("Не удалось проверить вход. Попробуй ещё раз.");
       setSession(data.session);
@@ -38,6 +43,7 @@ export default function AuthGate({ children }: AuthGateProps) {
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      authChanged = true;
       setSession(nextSession);
       setLoading(false);
       setError("");
@@ -45,6 +51,7 @@ export default function AuthGate({ children }: AuthGateProps) {
 
     return () => {
       active = false;
+      void stopNativeAuth();
       listener.subscription.unsubscribe();
     };
   }, []);
