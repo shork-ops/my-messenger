@@ -6,7 +6,7 @@ permissions:
   contents: read
 jobs:
   apk:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -22,7 +22,9 @@ jobs:
         run: |
           npm ci
           cap_version=$(node -p "require('@capacitor/core/package.json').version")
-          npm install --no-save --package-lock=false "@capacitor/android@$cap_version"
+          npm pack --pack-destination "$RUNNER_TEMP" "@capacitor/android@$cap_version"
+          mkdir -p node_modules/@capacitor/android
+          tar -xzf "$RUNNER_TEMP/capacitor-android-$cap_version.tgz" --strip-components=1 -C node_modules/@capacitor/android
       - name: Build the bundled web app
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
@@ -38,7 +40,8 @@ jobs:
       - name: Build Android APK
         working-directory: android
         run: |
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          test -f "$ANDROID_HOME/platforms/android-35/android.jar"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/apksigner"
           bash ./gradlew --no-daemon assembleDebug
       - name: Verify the package and signature
         run: |
