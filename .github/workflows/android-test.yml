@@ -28,7 +28,7 @@ jobs:
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
           VITE_DEMO_MODE: 'false'
           VITE_DEMO_SEED: 'false'
-          NEXUS_ANDROID_TEST_APP_ID: com.nexus.messenger.beta
+          NEXUS_ANDROID_TEST_APP_ID: com.nexus.messenger.games
 
         run: |
           node -e 'for (const key of ["VITE_SUPABASE_URL","VITE_SUPABASE_PUBLISHABLE_KEY"]) if (!process.env[key]) throw new Error("Missing " + key)'
@@ -49,7 +49,7 @@ jobs:
           tools="$ANDROID_HOME/build-tools/35.0.0"
           "$tools/apksigner" verify --verbose --print-certs release/Nexus-Android-test.apk
           "$tools/aapt" dump badging release/Nexus-Android-test.apk | tee apk-info.txt
-          grep -F "package: name='com.nexus.messenger.beta'" apk-info.txt
+          grep -F "package: name='com.nexus.messenger.games'" apk-info.txt
           unzip -l release/Nexus-Android-test.apk assets/public/index.html
           sha256sum release/Nexus-Android-test.apk
       - uses: actions/upload-artifact@v4
@@ -58,5 +58,6 @@ jobs:
           path: release/Nexus-Android-test.apk
           if-no-files-found: error
           retention-days: 7
+
 
 
