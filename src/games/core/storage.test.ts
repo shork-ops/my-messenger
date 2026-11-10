@@ -135,7 +135,8 @@ describe("resuming", () => {
 
   it("refuses a game saved under a different dictionary", () => {
     // Otherwise a player is told a word they already played is invalid.
-    expect(canResume(session({ dictionaryVersion: 1 }), 1, 2)).toBe(false);
+    expect(canResume(session({ kind: "balda", dictionaryVersion: 1 }), 1, 2)).toBe(false);
+    expect(canResume(session({ kind: "chess", dictionaryVersion: 1 }), 1, 2)).toBe(true);
   });
 
   it("refuses a finished game", () => {

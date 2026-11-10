@@ -59,9 +59,18 @@ export default function GameModal({ open, onClose }: GameModalProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  if (!open) return null;
-
   const current = sessions.open;
+  useEffect(() => {
+    if (!open || !current || current.mode !== "bot" || current.state.result) return;
+    const botTurn = current.kind === "chess" ? current.state.turn === "b"
+      : current.kind === "cards" ? currentPlayer(current.state) !== "Вы"
+      : current.state.turnIndex === 1;
+    if (!botTurn) return;
+    const timer = window.setTimeout(() => sessions.playBot(), 400);
+    return () => window.clearTimeout(timer);
+  }, [open, current, sessions.playBot]);
+
+  if (!open) return null;
 
   if (!current) {
     return (
@@ -150,6 +159,7 @@ export default function GameModal({ open, onClose }: GameModalProps) {
             </span>
             <h2>{headline(current)}</h2>
           </div>
+          <button type="button" className="btn btn-ghost" onClick={sessions.close}>К играм</button>
           <button type="button" onClick={onClose} aria-label="Закрыть игру">
             <X size={20} />
           </button>
@@ -165,8 +175,8 @@ export default function GameModal({ open, onClose }: GameModalProps) {
           <div className="chess-game">
             <ChessBoard
               state={current.state}
-              playerColor="w"
-              disabled={Boolean(current.state.result) || current.state.turn === "b"}
+              playerColor={current.mode === "local" ? current.state.turn : "w"}
+              disabled={Boolean(current.state.result) || (current.mode === "bot" && current.state.turn === "b")}
               onMove={(move) => sessions.applyChess({ type: "move", from: move.from, to: move.to, promotion: move.promotion })}
             />
             <div className="chess-side">
@@ -199,25 +209,18 @@ export default function GameModal({ open, onClose }: GameModalProps) {
             // would put the opponent's cards on screen - in a bot game the player would simply
             // read the bot's hand.
             playerId="Вы"
-            hidden={current.mode === "bot" && currentPlayer(current.state) !== "Вы"}
+            hidden={false}
             onPlay={(cardId) => {
               const card = current.state.cards[cardId];
-              if (card.color === null) {
-                sessions.applyCards({ type: "play", cardId, chooseColor: current.state.activeColor });
-              } else {
-                sessions.applyCards({ type: "play", cardId });
-              }
+              if (card) sessions.applyCards({ type: "play", cardId });
             }}
             onDraw={() => sessions.applyCards({ type: "draw" })}
             onPass={() => sessions.applyCards({ type: "pass" })}
             onChallenge={() => sessions.applyCards({ type: "challenge" })}
             onOneCard={() => sessions.applyCards({ type: "one-card", playerId: "Вы" })}
-            onChooseColour={(colour: CardColor) => {
-              const pending = current.state.pending;
-              if (pending) {
-                sessions.applyCards({ type: "play", cardId: pending.cardId, chooseColor: colour });
-              }
-            }}
+            onChooseColour={(colour: CardColor, cardId: string) =>
+              sessions.applyCards({ type: "play", cardId, chooseColor: colour })
+            }
             disabled={Boolean(current.state.result)}
           />
         )}
@@ -232,7 +235,7 @@ export default function GameModal({ open, onClose }: GameModalProps) {
               <>
                 <BaldaBoard
                   state={current.state}
-                  disabled={Boolean(current.state.result)}
+                  disabled={Boolean(current.state.result) || (current.mode === "bot" && current.state.turnIndex === 1)}
                   onPlay={(square, letter, word) => sessions.applyBalda({ type: "place", square, letter, word })}
                 />
                 <div className="balda-side">
@@ -246,7 +249,7 @@ export default function GameModal({ open, onClose }: GameModalProps) {
                       type="button"
                       className="btn btn-ghost"
                       onClick={() => sessions.applyBalda({ type: "pass" })}
-                      disabled={Boolean(current.state.result)}
+                      disabled={Boolean(current.state.result) || (current.mode === "bot" && current.state.turnIndex === 1)}
                     >
                       Пропустить
                     </button>
@@ -254,7 +257,7 @@ export default function GameModal({ open, onClose }: GameModalProps) {
                       type="button"
                       className="btn btn-ghost"
                       onClick={() => sessions.applyBalda({ type: "resign" })}
-                      disabled={Boolean(current.state.result)}
+                      disabled={Boolean(current.state.result) || (current.mode === "bot" && current.state.turnIndex === 1)}
                     >
                       Сдаться
                     </button>

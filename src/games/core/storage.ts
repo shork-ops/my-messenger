@@ -29,6 +29,7 @@ export type SavedSession = {
   /** Which dictionary the words are checked against, for «Балда». */
   dictionaryVersion: number;
   mode: PlayMode;
+  difficulty?: "easy" | "normal";
   status: GameStatus;
   createdAt: string;
   updatedAt: string;
@@ -121,7 +122,7 @@ function isSavedSession(value: unknown): value is SavedSession {
 export function canResume(session: SavedSession, rulesVersion: number, dictionaryVersion: number): boolean {
   if (session.status !== "playing") return false;
   if (session.rulesVersion !== rulesVersion) return false;
-  if (session.dictionaryVersion !== dictionaryVersion) return false;
+  if (session.kind === "balda" && session.dictionaryVersion !== dictionaryVersion) return false;
   return true;
 }
 

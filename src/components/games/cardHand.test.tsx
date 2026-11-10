@@ -8,8 +8,8 @@
  */
 
 /** @vitest-environment jsdom */
-import { describe, expect, it } from "vitest";
-import { render } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render } from "@testing-library/react";
 import CardTable from "./CardTable";
 import { newCardState, currentPlayer, handOf } from "../../games/cards/deck";
 
@@ -34,6 +34,22 @@ function renderTable(mode: "bot" | "local") {
 }
 
 describe("the hand on screen", () => {
+  it("lets the player draw and choose the colour of a wild card", () => {
+    const state = newCardState(["Вы", "Соперник"], 3);
+    const wild = Object.values(state.cards).find((card) => card.kind === "wild")!;
+    state.hands[0].cards = [wild.id];
+    const choose = vi.fn();
+    const draw = vi.fn();
+    const view = render(<CardTable state={state} playerId="Вы" hidden={false}
+      onPlay={() => {}} onDraw={draw} onPass={() => {}} onChallenge={() => {}}
+      onOneCard={() => {}} onChooseColour={choose} />);
+    fireEvent.click(view.getByRole("button", { name: /дикая карта/ }));
+    fireEvent.click(view.getByRole("button", { name: "красный" }));
+    expect(choose).toHaveBeenCalledWith("red", wild.id);
+    fireEvent.click(view.getByRole("button", { name: "Взять карту" }));
+    expect(draw).toHaveBeenCalledOnce();
+    expect(view.getByRole("button", { name: "Пропустить" })).toBeTruthy();
+  });
   it("never shows the opponent's cards in a bot game", () => {
     const { container, state, turn } = renderTable("bot");
     const shown = container.querySelectorAll(".uno-hand .uno-card");

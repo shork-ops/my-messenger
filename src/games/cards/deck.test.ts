@@ -267,13 +267,28 @@ describe("turn order and actions", () => {
 });
 
 describe("the +4 challenge", () => {
+  it("applies the penalty when the final card is +4", () => {
+    const state = fresh();
+    const wild = Object.values(state.cards).find((card) => card.kind === "wild4")!;
+    const prepared = { ...state, hands: state.hands.map((hand) =>
+      hand.playerId === "alice" ? { ...hand, cards: [wild.id] } : hand
+    ) };
+    const before = handOf(prepared, "bob").length;
+    const result = applyCardAction(prepared, { type: "play", cardId: wild.id, chooseColor: "red" });
+    expect(result.state.result?.kind).toBe("win");
+    expect(handOf(result.state, "bob")).toHaveLength(before + 4);
+  });
   it("opens a challenge window instead of applying the penalty at once", () => {
     const state = fresh();
     const wild4 = Object.values(state.cards).find((card) => card.kind === "wild4")!;
     const prepared = moveCardToHand(state, "alice", wild4.id);
     const result = applyCardAction(prepared, { type: "play", cardId: wild4.id, chooseColor: "red" });
     expect(result.state.phase).toBe("challenge");
-    expect(result.state.pendingDraw4).toEqual({ playerId: "alice", colour: "red" });
+    expect(result.state.pendingDraw4).toEqual({ playerId: "alice", colour: prepared.activeColor });
+    expect(handOf(result.state, "bob")).toHaveLength(handOf(prepared, "bob").length);
+    const accepted = applyCardAction(result.state, { type: "pass" });
+    expect(handOf(accepted.state, "bob")).toHaveLength(handOf(prepared, "bob").length + 4);
+    expect(accepted.state.pendingDraw4).toBeNull();
   });
 
   it("penalises the player who played a +4 illegally", () => {

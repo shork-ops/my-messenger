@@ -31,7 +31,7 @@ import { chooseBaldaMove, type BaldaDifficulty } from "../balda/bot";
 import { DICTIONARY_VERSION } from "../balda/dictionary";
 import { chessEngine, createChess, type ChessAction, type ChessState } from "../chess/engine";
 import { chooseMove as chooseChessMove, botColour, type Difficulty as ChessDifficulty } from "../chess/bot";
-import { newCardState, applyCardAction, type CardAction, type CardState } from "../cards/deck";
+import { newCardState, applyCardAction, currentPlayer, type CardAction, type CardState } from "../cards/deck";
 import { playBotTurn, type CardDifficulty } from "../cards/bot";
 
 export type OpenGame =
@@ -90,7 +90,7 @@ export function useGameSessions(storage: GameStorage = browserStorage()) {
   }, []);
 
   const save = useCallback(
-    (kind: GameKind, state: AnyState, gameId: string, mode: PlayMode) => {
+    (kind: GameKind, state: AnyState, gameId: string, mode: PlayMode, difficulty: "easy" | "normal") => {
       const now = new Date().toISOString();
       const result = resultOf(kind, state);
       setSessions((current) => {
@@ -101,6 +101,7 @@ export function useGameSessions(storage: GameStorage = browserStorage()) {
           rulesVersion: rulesVersionOf(kind),
           dictionaryVersion: DICTIONARY_VERSION,
           mode,
+          difficulty,
           status: result ? "finished" : "playing",
           createdAt: previous?.createdAt ?? now,
           updatedAt: now,
@@ -125,20 +126,20 @@ export function useGameSessions(storage: GameStorage = browserStorage()) {
         const state = createChess({ players: [], seed: Math.floor(Math.random() * 2 ** 31) });
         const opened: OpenGame = { kind, state, gameId, mode, difficulty: difficulty as ChessDifficulty };
         setOpen(opened);
-        save(kind, state, gameId, mode);
+        save(kind, state, gameId, mode, difficulty);
         return opened;
       }
       if (kind === "cards") {
         const state = newCardState(["Вы", "Соперник"], Math.floor(Math.random() * 2 ** 31));
         const opened: OpenGame = { kind, state, gameId, mode, difficulty: difficulty as CardDifficulty };
         setOpen(opened);
-        save(kind, state, gameId, mode);
+        save(kind, state, gameId, mode, difficulty);
         return opened;
       }
       const state = createBalda({ players: [], seed: Math.floor(Math.random() * 2 ** 31) });
       const opened: OpenGame = { kind, state, gameId, mode, difficulty: difficulty as BaldaDifficulty };
       setOpen(opened);
-      save(kind, state, gameId, mode);
+      save(kind, state, gameId, mode, difficulty);
       return opened;
     },
     [save]
@@ -155,9 +156,10 @@ export function useGameSessions(storage: GameStorage = browserStorage()) {
       }
       setNotice("");
       const state = session.state as AnyState;
-      if (kind === "chess") setOpen({ kind, state: state as ChessState, gameId: session.gameId, mode: session.mode, difficulty: "normal" });
-      else if (kind === "cards") setOpen({ kind, state: state as CardState, gameId: session.gameId, mode: session.mode, difficulty: "normal" });
-      else setOpen({ kind, state: state as BaldaState, gameId: session.gameId, mode: session.mode, difficulty: "normal" });
+      const difficulty = session.difficulty === "easy" ? "easy" : "normal";
+      if (kind === "chess") setOpen({ kind, state: state as ChessState, gameId: session.gameId, mode: session.mode, difficulty });
+      else if (kind === "cards") setOpen({ kind, state: state as CardState, gameId: session.gameId, mode: session.mode, difficulty });
+      else setOpen({ kind, state: state as BaldaState, gameId: session.gameId, mode: session.mode, difficulty });
       return true;
     },
     [unfinished]
@@ -189,7 +191,7 @@ export function useGameSessions(storage: GameStorage = browserStorage()) {
       }
       setNotice("");
       setOpen({ ...open, state: outcome.state });
-      save("chess", outcome.state, open.gameId, open.mode);
+      save("chess", outcome.state, open.gameId, open.mode, open.difficulty);
     },
     [open, save]
   );
@@ -204,7 +206,7 @@ export function useGameSessions(storage: GameStorage = browserStorage()) {
       }
       setNotice("");
       setOpen({ ...open, state: outcome.state });
-      save("cards", outcome.state, open.gameId, open.mode);
+      save("cards", outcome.state, open.gameId, open.mode, open.difficulty);
     },
     [open, save]
   );
@@ -219,7 +221,7 @@ export function useGameSessions(storage: GameStorage = browserStorage()) {
       }
       setNotice("");
       setOpen({ ...open, state: outcome.state });
-      save("balda", outcome.state, open.gameId, open.mode);
+      save("balda", outcome.state, open.gameId, open.mode, open.difficulty);
     },
     [open, save]
   );
@@ -250,29 +252,27 @@ export function useGameSessions(storage: GameStorage = browserStorage()) {
       });
       if (!outcome.changed) return;
       setOpen({ ...open, state: outcome.state });
-      save("chess", outcome.state, open.gameId, open.mode);
+      save("chess", outcome.state, open.gameId, open.mode, open.difficulty);
       return;
     }
 
     if (open.kind === "cards") {
+      if (currentPlayer(open.state) === "Вы") return;
       const next = playBotTurn(open.state, open.difficulty as CardDifficulty);
       if (next === open.state) return;
       setOpen({ ...open, state: next });
-      save("cards", next, open.gameId, open.mode);
+      save("cards", next, open.gameId, open.mode, open.difficulty);
       return;
     }
 
+    if (open.state.turnIndex !== 1 || open.state.result) return;
     const move = chooseBaldaMove(open.state, open.difficulty as BaldaDifficulty);
-    if (!move) return;
-    const outcome = baldaEngine.apply(open.state, {
-      type: "place",
-      square: move.square,
-      letter: move.letter,
-      word: move.word,
-    });
+    const outcome = baldaEngine.apply(open.state, move
+      ? { type: "place", square: move.square, letter: move.letter, word: move.word }
+      : { type: "pass" });
     if (!outcome.changed) return;
     setOpen({ ...open, state: outcome.state });
-    save("balda", outcome.state, open.gameId, open.mode);
+    save("balda", outcome.state, open.gameId, open.mode, open.difficulty);
   }, [open, save]);
 
   // A finished game is saved as finished exactly once, so the catalogue stops offering it.
@@ -282,7 +282,7 @@ export function useGameSessions(storage: GameStorage = browserStorage()) {
     if (!result) return;
     const session = sessions.find((item) => item.gameId === open.gameId);
     if (session?.status === "finished") return;
-    save(open.kind, open.state, open.gameId, open.mode);
+    save(open.kind, open.state, open.gameId, open.mode, open.difficulty);
   }, [open, save, sessions]);
 
   return {
