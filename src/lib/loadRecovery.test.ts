@@ -3,6 +3,17 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { recoverLoad } from "./loadRecovery";
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
+it("retries immediately on focus after a failure and removes the listener on disposal", async () => {
+  const load = vi.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValue(undefined);
+  const recovery = recoverLoad(load, () => {});
+  await vi.advanceTimersByTimeAsync(0);
+  window.dispatchEvent(new Event("focus"));
+  expect(load).toHaveBeenCalledTimes(2);
+  await vi.advanceTimersByTimeAsync(0);
+  recovery.dispose();
+  window.dispatchEvent(new Event("focus"));
+  expect(load).toHaveBeenCalledTimes(2);
+});
 it("retries a failed read on reconnect without overlapping requests", async () => {
   let finish: () => void = () => {};
   const load = vi

@@ -62,6 +62,28 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("email sign-in", () => {
+  it("allows another attempt when sending a code throws", async () => {
+    auth.signInWithOtp.mockRejectedValueOnce(new Error("network failure"));
+    renderGate();
+    await requestCode();
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Получить код" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("prevents changing the address while a resend is in progress", async () => {
+    renderGate();
+    await requestCode();
+    await screen.findByText("Проверь почту");
+    const now = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(now + 61_000);
+    fireEvent.focus(window);
+    let finish!: (value: { data: object; error: null }) => void;
+    auth.signInWithOtp.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    fireEvent.click(screen.getByRole("button", { name: "Отправить ещё раз" }));
+    expect((screen.getByRole("button", { name: "Изменить почту" }) as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => finish({ data: {}, error: null }));
+    vi.restoreAllMocks();
+  });
   it("keeps Google and offers email next to it", async () => {
     renderGate();
     expect(await screen.findByRole("button", { name: "Продолжить с Google" })).toBeTruthy();

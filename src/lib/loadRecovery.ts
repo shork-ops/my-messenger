@@ -36,6 +36,7 @@ export function recoverLoad(load: () => Promise<void>, status: (value: LoadStatu
     if (failed && document.visibilityState === "visible") void run();
   };
   window.addEventListener("online", reconnect);
+  window.addEventListener("focus", reconnect);
   document.addEventListener("visibilitychange", reconnect);
   void run();
   return {
@@ -46,6 +47,7 @@ export function recoverLoad(load: () => Promise<void>, status: (value: LoadStatu
       alive = false;
       clearTimeout(timer);
       window.removeEventListener("online", reconnect);
+      window.removeEventListener("focus", reconnect);
       document.removeEventListener("visibilitychange", reconnect);
     },
   };

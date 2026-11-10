@@ -40,26 +40,44 @@ export function SignInScreen({ initialError }: { initialError: string }) {
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState(initialError);
   const [cooldown, setCooldown] = useState(0);
+  const [resendAvailableAt, setResendAvailableAt] = useState(0);
 
   useEffect(() => {
-    if (cooldown <= 0) return;
-    const timer = window.setTimeout(() => setCooldown((value) => value - 1), 1000);
-    return () => window.clearTimeout(timer);
-  }, [cooldown]);
+    if (!resendAvailableAt) return;
+    const update = () => {
+      const remaining = Math.max(0, Math.ceil((resendAvailableAt - Date.now()) / 1000));
+      setCooldown(remaining);
+      if (remaining === 0) setResendAvailableAt(0);
+    };
+    update();
+    const timer = window.setInterval(update, 1000);
+    window.addEventListener("focus", update);
+    document.addEventListener("visibilitychange", update);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", update);
+      document.removeEventListener("visibilitychange", update);
+    };
+  }, [resendAvailableAt]);
 
   const signInWithGoogle = async () => {
     if (!supabase) return;
     setBusy("google");
     setError("");
-    const { error: authError } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: returnUrl(),
-        queryParams: { prompt: "select_account" },
-      },
-    });
-    if (authError) {
-      setError(signInErrorMessage(authError));
+    try {
+      const { error: authError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: returnUrl(),
+          queryParams: { prompt: "select_account" },
+        },
+      });
+      if (authError) {
+        setError(signInErrorMessage(authError));
+        setBusy(null);
+      }
+    } catch {
+      setError("Не удалось связаться с сервером. Попробуй ещё раз.");
       setBusy(null);
     }
   };
@@ -74,19 +92,25 @@ export function SignInScreen({ initialError }: { initialError: string }) {
     }
     setBusy("send");
     setError("");
-    const { error: otpError } = await supabase.auth.signInWithOtp({
-      email: address,
-      options: { shouldCreateUser: true, emailRedirectTo: returnUrl() },
-    });
-    setBusy(null);
-    if (otpError) {
-      setError(signInErrorMessage(otpError));
-      return;
+    try {
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email: address,
+        options: { shouldCreateUser: true, emailRedirectTo: returnUrl() },
+      });
+      setBusy(null);
+      if (otpError) {
+        setError(signInErrorMessage(otpError));
+        return;
+      }
+      setEmail(address);
+      setCode("");
+      setStep("code");
+      setCooldown(RESEND_COOLDOWN_SECONDS);
+      setResendAvailableAt(Date.now() + RESEND_COOLDOWN_SECONDS * 1000);
+    } catch {
+      setBusy(null);
+      setError("Не удалось связаться с сервером. Попробуй ещё раз.");
     }
-    setEmail(address);
-    setCode("");
-    setStep("code");
-    setCooldown(RESEND_COOLDOWN_SECONDS);
   };
 
   const verifyCode = async (event: FormEvent) => {
@@ -94,10 +118,15 @@ export function SignInScreen({ initialError }: { initialError: string }) {
     if (!supabase || busy || !isCodeComplete(code)) return;
     setBusy("verify");
     setError("");
-    const { error: verifyError } = await supabase.auth.verifyOtp({ email, token: code, type: "email" });
-    if (verifyError) {
+    try {
+      const { error: verifyError } = await supabase.auth.verifyOtp({ email, token: code, type: "email" });
+      if (verifyError) {
+        setBusy(null);
+        setError(signInErrorMessage(verifyError));
+      }
+    } catch {
       setBusy(null);
-      setError(signInErrorMessage(verifyError));
+      setError("Не удалось связаться с сервером. Попробуй ещё раз.");
     }
     // On success the session arrives through onAuthStateChange and this screen goes away.
   };
@@ -143,7 +172,7 @@ export function SignInScreen({ initialError }: { initialError: string }) {
             <button type="button" style={dimmed(styles.link, busy !== null || cooldown > 0)} onClick={() => void sendCode()} disabled={busy !== null || cooldown > 0}>
               {cooldown > 0 ? `Отправить ещё раз через ${formatCountdown(cooldown)}` : busy === "send" ? "Отправляем…" : "Отправить ещё раз"}
             </button>
-            <button type="button" style={styles.link} onClick={changeEmail} disabled={busy === "verify"}>
+            <button type="button" style={styles.link} onClick={changeEmail} disabled={busy !== null}>
               Изменить почту
             </button>
           </div>
@@ -219,11 +248,16 @@ export function SecondFactorScreen({ factorId }: { factorId: string }) {
     if (!supabase || busy || !isValidTotpCode(code)) return;
     setBusy(true);
     setError("");
-    const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify({ factorId, code });
-    if (verifyError) {
+    try {
+      const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify({ factorId, code });
+      if (verifyError) {
+        setBusy(false);
+        setCode("");
+        setError(signInErrorMessage(verifyError));
+      }
+    } catch {
       setBusy(false);
-      setCode("");
-      setError(signInErrorMessage(verifyError));
+      setError("Не удалось связаться с сервером. Попробуй ещё раз.");
     }
     // On success Supabase stores the stronger session and AuthGate lets the app open.
   };
@@ -231,7 +265,17 @@ export function SecondFactorScreen({ factorId }: { factorId: string }) {
   const signOut = async () => {
     if (!supabase) return;
     setBusy(true);
-    await supabase.auth.signOut({ scope: "local" });
+    setError("");
+    try {
+      const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
+      if (signOutError) {
+        setError(signInErrorMessage(signOutError));
+        setBusy(false);
+      }
+    } catch {
+      setError("Не удалось выйти. Проверь связь и попробуй снова.");
+      setBusy(false);
+    }
   };
 
   return (
