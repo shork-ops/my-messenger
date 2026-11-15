@@ -31,6 +31,7 @@ export function useChatCreation(deps: {
   newChatName: string;
   newChatIsGroup: boolean;
   selectChat: (chat: Chat) => Promise<void>;
+  onRevealChat?: (remoteId: string) => void;
   notify: (text: string) => void;
 }) {
   async function createChat(event: FormEvent) {
@@ -111,6 +112,12 @@ export function useChatCreation(deps: {
       return;
     }
     const remoteId = data as string;
+    const { error: revealError } = await client.rpc("set_chat_hidden", { p_chat: remoteId, p_hidden: false });
+    if (revealError) {
+      deps.notify("Не удалось открыть диалог. Попробуй ещё раз.");
+      return;
+    }
+    deps.onRevealChat?.(remoteId);
     const known = deps.chats.find((chat) => chat.remoteId === remoteId);
     if (known) {
       deps.setChats((current) => updateChat(current, known.id, (chat) => ({ ...chat, peerId: user.id, avatarPath: user.avatar_path ?? null })));

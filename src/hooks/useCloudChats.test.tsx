@@ -1,9 +1,9 @@
 /** @vitest-environment jsdom */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { Chat } from "../types";
-const mock = vi.hoisted(() => ({ membership: vi.fn(), page: vi.fn() }));
+const mock = vi.hoisted(() => ({ membership: vi.fn(), page: vi.fn(), hiddenFilter: vi.fn() }));
 vi.mock("../lib/supabase", () => ({
   supabase: {
     from: (table: string) => ({
@@ -25,6 +25,10 @@ vi.mock("../lib/supabase", () => ({
               });
         const query = {
           eq: () => query,
+          is: (column: string, value: unknown) => {
+            mock.hiddenFilter(column, value);
+            return query;
+          },
           in: () => query,
           order: () => query,
           then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
@@ -74,8 +78,10 @@ const flush = async () => {
       await vi.advanceTimersByTimeAsync(10);
     });
 };
-function open() {
+function open(hidden = false) {
   return renderHook(() => {
+    const hiddenChatIds = useRef(new Set<string>());
+    if (hidden) hiddenChatIds.current.add("remote");
     const [chats, setChats] = useState([existing]),
       [active, setActiveId] = useState(1);
     return {
@@ -87,6 +93,7 @@ function open() {
         chats,
         setChats,
         setActiveId,
+        hiddenChatIds,
       }),
       chats,
       active,
@@ -121,4 +128,23 @@ it("reloads the chat list on reconnect after an earlier successful load",async()
  mock.page.mockResolvedValue([{id:3,remoteId:"third",author:"Peer",text:"after reconnect",time:"10:02",createdAt:3}]);
  await act(async()=>{window.dispatchEvent(new Event("online"))});await flush();
  expect(hook.result.current.chats[0].messages.map(message=>message.remoteId)).toEqual(["old","new","third"]);
+});
+
+it("omits a chat hidden for this account, including after reload", async () => {
+  mock.membership.mockResolvedValue({ data: [], error: null });
+  const hook = open();
+  await flush();
+  expect(hook.result.current.chatLoadStatus).toBe("ready");
+  expect(hook.result.current.chats).toEqual([]);
+  expect(mock.hiddenFilter).toHaveBeenCalledWith("hidden_at", null);
+  await act(async () => window.dispatchEvent(new Event("online")));
+  await flush();
+  expect(hook.result.current.chats).toEqual([]);
+});
+
+it("does not restore a chat from a cloud response that started before deletion", async () => {
+  const hook = open(true);
+  await flush();
+  expect(hook.result.current.chatLoadStatus).toBe("ready");
+  expect(hook.result.current.chats).toEqual([]);
 });
