@@ -237,8 +237,10 @@ export function useMessenger() {
   usePeerProfiles({ accountId, chats, setChats });
   const chatsRef = useRef(chats);
   chatsRef.current = chats;
-    const reloadChatsRef = useRef<(() => void) | null>(null);
-  const {chatLoadStatus,retryChats} = useCloudChats({ accountId, profileReady, profileName, notify: action, chats, setChats, setActiveId, reloadRef: reloadChatsRef });
+  const hiddenChatIds = useRef(new Set<string>());
+  useEffect(() => { hiddenChatIds.current.clear(); }, [accountId]);
+  const reloadChatsRef = useRef<(() => void) | null>(null);
+  const {chatLoadStatus,retryChats} = useCloudChats({ accountId, profileReady, profileName, notify: action, chats, setChats, setActiveId, reloadRef: reloadChatsRef, hiddenChatIds });
   const dataLoadError = profileLoadStatus === "error" ? "Не удалось загрузить аккаунт. Твои данные остаются на сервере." : chatLoadStatus === "error" ? "Не удалось обновить переписку. Повторяем подключение." : null;
   const dataLoading = profileLoadStatus === "loading" || chatLoadStatus === "loading";
   const retryDataLoad = () => { if (profileLoadStatus === "error") retryProfile(); else retryChats(); };
@@ -884,35 +886,16 @@ export function useMessenger() {
     action("История чата очищена");
   }
 
-  /**
-   * Deletes the conversation itself, not its messages.
-   *
-   * `clearHistory` empties a chat and keeps the row. Someone who wants the conversation
-   * gone had no way to do it, so this leaves the list too. In the cloud the membership is
-   * removed for this account and the chat is deleted only when nobody else is in it -
-   * deleting a shared conversation for everybody would be a different, louder promise.
-   */
   async function deleteChat(chat: Chat) {
-    if (!window.confirm(`Удалить чат «${chat.name}» целиком? Переписка исчезнет из списка.`)) return;
+    if (!window.confirm(`Удалить чат «${chat.name}» из своего списка? У других участников переписка сохранится.`)) return;
     const client = supabase;
     if (client && accountId && chat.remoteId) {
-      const { error: leaveError } = await client
-        .from("chat_members")
-        .delete()
-        .eq("chat_id", chat.remoteId)
-        .eq("user_id", accountId);
-      if (leaveError) {
+      hiddenChatIds.current.add(chat.remoteId);
+      const { error } = await client.rpc("set_chat_hidden", { p_chat: chat.remoteId, p_hidden: true });
+      if (error) {
+        hiddenChatIds.current.delete(chat.remoteId);
         action("Не удалось удалить чат в облаке");
         return;
-      }
-      // Only an empty room is removed from the server; a shared one keeps its history for
-      // the people still in it.
-      const { count, error: countError } = await client
-        .from("chat_members")
-        .select("user_id", { count: "exact", head: true })
-        .eq("chat_id", chat.remoteId);
-      if (!countError && count === 0) {
-        await client.from("chats").delete().eq("id", chat.remoteId);
       }
     }
     setChats((current) => {
@@ -1177,6 +1160,7 @@ export function useMessenger() {
     newChatName,
     newChatIsGroup,
     selectChat,
+    onRevealChat: (remoteId) => hiddenChatIds.current.delete(remoteId),
   });
 
   return {

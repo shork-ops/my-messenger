@@ -22,6 +22,8 @@ type UseCloudChatsOptions = {
   setActiveId: Dispatch<SetStateAction<number>>;
   /** Filled with a function that reloads the chat list from the database. */
   reloadRef?: MutableRefObject<(() => void) | null>;
+  /** Chats just hidden while a previous cloud load may still be in flight. */
+  hiddenChatIds?: MutableRefObject<Set<string>>;
 };
 
 /**
@@ -37,6 +39,7 @@ export function useCloudChats({
   setChats,
   setActiveId,
   reloadRef,
+  hiddenChatIds,
 }: UseCloudChatsOptions) {
   const reloadRefInternal = useRef<(() => void) | null>(null);
   const target = reloadRef ?? reloadRefInternal;
@@ -72,7 +75,7 @@ export function useCloudChats({
         setChats((current) => {
           const local = current.find(isFavouritesChat);
           const favourites = loaded ? loaded.module.mergeFavourites(loaded.saved, local) : (local ?? null);
-          const merged = chats.map((chat) => {
+          const merged = chats.filter((chat) => !chat.remoteId || !hiddenChatIds?.current.has(chat.remoteId)).map((chat) => {
             const previous = current.find((item) => item.remoteId === chat.remoteId);
             if (!previous) return chat;
             const fetched = new Set(chat.messages.map((message) => message.remoteId));
@@ -101,7 +104,8 @@ export function useCloudChats({
       const { data: memberships, error: membershipError } = await client
         .from("chat_members")
         .select("chat_id, muted_until, archived_at")
-        .eq("user_id", accountId);
+        .eq("user_id", accountId)
+        .is("hidden_at", null);
       if (!currentRequest()) return;
       if (membershipError) throw membershipError;
       const chatIds = [...new Set((memberships ?? []).map((item) => item.chat_id as string))];
@@ -221,7 +225,9 @@ export function useCloudChats({
       await withFavourites(mappedChats);
       if (!currentRequest()) return;
       setActiveId((current) =>
-        mappedChats.some((chat) => chat.id === current) ? current : (mappedChats[0]?.id ?? 0),
+        mappedChats.some((chat) => chat.id === current && !hiddenChatIds?.current.has(chat.remoteId ?? ""))
+          ? current
+          : (mappedChats.find((chat) => !hiddenChatIds?.current.has(chat.remoteId ?? ""))?.id ?? 0),
       );
     };
 
@@ -234,7 +240,7 @@ export function useCloudChats({
       window.removeEventListener("online",controller.retry);
       if (target.current === controller.retry) target.current = null;
     };
-  }, [accountId, profileReady, profileName, notify, setChats, setActiveId, reloadRef]);
+  }, [accountId, profileReady, profileName, notify, setChats, setActiveId, reloadRef, hiddenChatIds]);
 
   useEffect(() => {
     const client = supabase;
